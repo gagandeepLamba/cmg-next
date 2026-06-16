@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { canAccessAdminPath, getDefaultAdminPathForUser } from '@/lib/roleAccess';
@@ -177,10 +178,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // Show loading state while user data is loading
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen cmg-page-shell flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--cmg-blue)] mx-auto mb-4"></div>
+          <p className="text-[var(--cmg-muted)]">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -189,54 +190,57 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // Don't render navigation if no user
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen cmg-page-shell flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600">Please log in to access the dashboard</p>
+          <p className="text-[var(--cmg-muted)]">Please log in to access the dashboard</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen cmg-page-shell">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 lg:hidden bg-gray-600 bg-opacity-75"
+          className="fixed inset-0 z-40 lg:hidden bg-[rgba(20,33,61,0.68)]"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <div className={`
-        fixed lg:relative inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
+        fixed lg:relative inset-y-0 left-0 z-50 w-72 bg-white border-r border-[var(--cmg-border)] shadow-xl transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0 flex flex-col
       `}>
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <Building className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between h-20 px-5 border-b border-[var(--cmg-border)] flex-shrink-0">
+          <div className="flex items-center min-w-0">
+            <div className="relative h-11 w-24 flex-shrink-0">
+              <Image src="/cmg-logo.png" alt="CMG Immigration" fill sizes="96px" className="object-contain" priority />
             </div>
-            <span className="ml-2 text-xl font-bold text-gray-900">DM Immigration</span>
+            <div className="ml-3 min-w-0">
+              <span className="block text-sm font-bold text-[var(--cmg-ink)] leading-tight">CMG Immigration</span>
+              <span className="block text-xs font-medium text-[var(--cmg-muted)]">Management Portal</span>
+            </div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-gray-400 hover:text-gray-600"
+            className="lg:hidden text-[var(--cmg-muted)] hover:text-[var(--cmg-blue)]"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-6 px-3">
-          <div className="space-y-8">
+        <nav className="flex-1 overflow-y-auto py-5 px-3">
+          <div className="space-y-7">
             {navigationGroups.map((group) => {
               const permittedItems = group.items.filter(item => filteredNavigation.includes(item));
               if (permittedItems.length === 0) return null;
 
               return (
               <div key={group.title}>
-                <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                <h3 className="px-3 text-xs font-semibold text-[var(--cmg-muted)] uppercase mb-2">
                   {group.title}
                 </h3>
                 <div className="space-y-1">
@@ -249,10 +253,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         key={item.name}
                         onClick={() => router.push(item.href)}
                         className={`
-                          w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
+                          w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors border-l-2
                           ${isActive
-                            ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                            : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                            ? 'bg-[var(--cmg-blue-soft)] text-[var(--cmg-blue)] border-[var(--cmg-red)]'
+                            : 'text-[var(--cmg-muted)] border-transparent hover:bg-[#f3f6fb] hover:text-[var(--cmg-ink)]'
                           }
                         `}
                       >
@@ -269,14 +273,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </nav>
 
         {/* User info in sidebar */}
-        <div className="p-4 border-t border-gray-200 flex-shrink-0">
+        <div className="p-4 border-t border-[var(--cmg-border)] flex-shrink-0 bg-[#fbfcff]">
           <div className="flex items-center">
-            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-gray-600" />
+            <div className="w-9 h-9 bg-[var(--cmg-blue-soft)] rounded-full flex items-center justify-center">
+              <User className="w-5 h-5 text-[var(--cmg-blue)]" />
             </div>
             <div className="ml-3 flex-1">
-              <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-              <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+              <p className="text-sm font-semibold text-[var(--cmg-ink)]">{user?.name}</p>
+              <p className="text-xs text-[var(--cmg-muted)] capitalize">{user?.role}</p>
             </div>
           </div>
         </div>
@@ -285,12 +289,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top navigation */}
-        <header className="bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
+        <header className="bg-white/95 backdrop-blur shadow-sm border-b border-[var(--cmg-border)] flex-shrink-0">
           <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
             <div className="flex items-center">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden text-gray-400 hover:text-gray-600"
+                className="lg:hidden text-[var(--cmg-muted)] hover:text-[var(--cmg-blue)]"
               >
                 <Menu className="w-6 h-6" />
               </button>
@@ -298,11 +302,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               {/* Search bar */}
               <div className="hidden md:block ml-4 flex-1 max-w-lg">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--cmg-muted)] w-5 h-5" />
                   <input
                     type="text"
                     placeholder="Search reports, leads, or anything..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-[var(--cmg-border)] rounded-md cmg-focus text-[var(--cmg-ink)] placeholder:text-[var(--cmg-muted)]"
                   />
                 </div>
               </div>
@@ -315,37 +319,37 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="relative">
                 <button
                   onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                  className="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)]"
                 >
-                  <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-gray-600" />
+                  <div className="w-8 h-8 bg-[var(--cmg-blue-soft)] rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-[var(--cmg-blue)]" />
                   </div>
-                  <span className="ml-2 hidden md:block text-gray-700">{user?.name}</span>
-                  <ChevronDown className="ml-2 w-4 h-4 text-gray-400" />
+                  <span className="ml-2 hidden md:block text-[var(--cmg-ink)]">{user?.name}</span>
+                  <ChevronDown className="ml-2 w-4 h-4 text-[var(--cmg-muted)]" />
                 </button>
 
                 {profileDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                    <div className="p-3 border-b border-gray-200">
-                      <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                      <p className="text-xs text-gray-500">{user?.email}</p>
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-[var(--cmg-border)] z-50">
+                    <div className="p-3 border-b border-[var(--cmg-border)]">
+                      <p className="text-sm font-medium text-[var(--cmg-ink)]">{user?.name}</p>
+                      <p className="text-xs text-[var(--cmg-muted)]">{user?.email}</p>
                     </div>
                     <div className="py-1">
                       <button
                         onClick={() => router.push('/admin/profile')}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        className="block w-full text-left px-4 py-2 text-sm text-[var(--cmg-muted)] hover:bg-[var(--cmg-blue-soft)] hover:text-[var(--cmg-blue)]"
                       >
                         Profile
                       </button>
                       <button
                         onClick={() => router.push('/admin/settings')}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        className="block w-full text-left px-4 py-2 text-sm text-[var(--cmg-muted)] hover:bg-[var(--cmg-blue-soft)] hover:text-[var(--cmg-blue)]"
                       >
                         Settings
                       </button>
                       <button
                         onClick={handleLogout}
-                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        className="block w-full text-left px-4 py-2 text-sm text-[var(--cmg-red)] hover:bg-red-50"
                       >
                         Sign out
                       </button>

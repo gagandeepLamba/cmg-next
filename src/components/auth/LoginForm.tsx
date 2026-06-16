@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Eye, EyeOff, AlertCircle, Building, Sparkles, ArrowRight, Shield, Globe, User, Lock } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, ArrowRight, Shield, Globe, User, Lock, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface LoginFormData {
@@ -101,117 +100,99 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4 overflow-hidden relative">
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute top-40 left-40 w-80 h-80 bg-cyan-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
-        <div className="absolute bottom-20 right-20 w-60 h-60 bg-sky-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-6000"></div>
-        
-        {/* Floating particles */}
-        <div className="absolute inset-0">
-          {[...Array(20)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 bg-white rounded-full opacity-50 animate-pulse"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 5}s`,
-                animationDuration: `${3 + Math.random() * 4}s`
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className={`relative z-10 w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center transition-all duration-1000 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-        
-        {/* Left Side - Branding */}
-        <div className="hidden lg:block space-y-8">
-          <div className={`text-center transition-all duration-1000 delay-300 ${isLoaded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10'}`}>
-            <div className="mb-8 relative">
-              <div className="w-24 h-24 bg-gradient-to-r from-blue-600 via-teal-600 to-cyan-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl transform hover:scale-105 transition-transform duration-300 relative overflow-hidden">
-                <div className="absolute inset-0 bg-white opacity-20 animate-pulse"></div>
-                <Building className="w-12 h-12 text-white relative z-10" />
+    <div className="min-h-screen cmg-page-shell flex items-center justify-center p-4">
+      <div className={`w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[1.08fr_0.92fr] bg-white border border-[var(--cmg-border)] shadow-2xl rounded-lg overflow-hidden transition-all duration-700 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+        <div className="hidden lg:flex flex-col justify-between bg-[var(--cmg-blue-dark)] px-10 py-10 text-white">
+          <div>
+            <div className="inline-flex bg-white rounded-md p-4 shadow-sm">
+              <div className="relative h-20 w-44">
+                <Image src="/cmg-logo.png" alt="CMG Immigration" fill sizes="176px" className="object-contain" priority />
               </div>
-              <h1 className="text-5xl font-bold text-white mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-400">
-                DM Consultant Portal
-              </h1>
-              <p className="text-xl text-gray-300">Advanced Management System</p>
             </div>
 
-            <div className="space-y-6 text-left">
+            <div className="mt-10 max-w-lg">
+              <p className="text-sm font-semibold uppercase text-red-100">Immigration Simplified</p>
+              <h1 className="mt-3 text-4xl font-bold leading-tight">
+                CMG Immigration Management Portal
+              </h1>
+              <p className="mt-4 text-base leading-7 text-blue-100">
+                A focused workspace for leads, clients, operations, payments, and reporting across the CMG team.
+              </p>
+            </div>
+
+            <div className="mt-10 space-y-5">
               {[
                 {
                   icon: User,
-                  title: 'Secure Access',
-                  description: 'Enterprise-grade authentication system',
-                  color: 'blue'
+                  title: 'Team Access',
+                  description: 'Role-based access for branch and department workflows.'
                 },
                 {
                   icon: Shield,
-                  title: 'Data Protection',
-                  description: 'Advanced security for sensitive information',
-                  color: 'teal'
+                  title: 'Protected Records',
+                  description: 'Secure handling for prospect, client, and finance data.'
                 },
                 {
                   icon: Globe,
-                  title: 'Global Operations',
-                  description: 'Multi-branch management capabilities',
-                  color: 'cyan'
+                  title: 'Global Programs',
+                  description: 'Organized visibility across immigration services and regions.'
                 }
               ].map((feature, index) => (
                 <div
                   key={index}
-                  className={`flex items-start space-x-4 transition-all duration-700 delay-${index * 100 + 500} ${isLoaded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10'}`}
-                  style={{ transitionDelay: `${500 + index * 100}ms` }}
+                  className={`flex items-start gap-4 transition-all duration-700 ${isLoaded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-6'}`}
+                  style={{ transitionDelay: `${180 + index * 100}ms` }}
                 >
-                  <div className={`w-14 h-14 bg-${feature.color}-500/20 rounded-xl flex items-center justify-center flex-shrink-0 border border-${feature.color}-500/30 backdrop-blur-sm`}>
-                    <feature.icon className={`w-7 h-7 text-${feature.color}-400`} />
+                  <div className="w-11 h-11 rounded-md bg-white/10 border border-white/15 flex items-center justify-center flex-shrink-0">
+                    <feature.icon className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white text-lg">{feature.title}</h3>
-                    <p className="text-gray-400">{feature.description}</p>
+                    <h3 className="font-semibold text-white">{feature.title}</h3>
+                    <p className="text-sm leading-6 text-blue-100">{feature.description}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+          <div className="mt-10 flex items-center gap-3 border-t border-white/15 pt-6 text-sm text-blue-100">
+            <CheckCircle2 className="h-5 w-5 text-[var(--cmg-red)]" />
+            Built for daily admissions, sales, and operations work.
+          </div>
         </div>
 
-        {/* Right Side - Login Form */}
-        <div className={`w-full max-w-md mx-auto transition-all duration-1000 delay-700 ${isLoaded ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`} style={{ transitionDelay: '700ms' }}>
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-teal-500/10 to-cyan-500/10"></div>
-            
-            <div className="relative z-10">
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg transform hover:scale-110 transition-transform duration-300">
-                  <Sparkles className="w-8 h-8 text-white" />
+        <div className="flex items-center justify-center p-6 sm:p-10">
+          <div className="w-full max-w-md">
+            <div className="lg:hidden mb-8 flex justify-center">
+              <div className="relative h-20 w-44">
+                <Image src="/cmg-logo.png" alt="CMG Immigration" fill sizes="176px" className="object-contain" priority />
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-8">
+                <div className="mb-4 inline-flex items-center rounded-md bg-[var(--cmg-blue-soft)] px-3 py-1 text-xs font-semibold uppercase text-[var(--cmg-blue)]">
+                  Secure sign in
                 </div>
-                <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
-                <p className="text-gray-300">Sign in to your account</p>
+                <h2 className="text-3xl font-bold text-[var(--cmg-ink)] mb-2">Welcome back</h2>
+                <p className="text-[var(--cmg-muted)]">Sign in to continue to the CMG workspace.</p>
               </div>
 
               {error && (
-                <div className="mb-6 p-4 bg-red-500/20 border border-red-500/30 rounded-lg backdrop-blur-sm animate-shake">
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md animate-shake">
                   <div className="flex items-center space-x-2">
-                    <AlertCircle className="h-4 w-4 text-red-300" />
-                    <span className="text-sm text-red-300">{error}</span>
+                    <AlertCircle className="h-4 w-4 text-[var(--cmg-red)]" />
+                    <span className="text-sm text-[var(--cmg-red)]">{error}</span>
                   </div>
                 </div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className={`transition-all duration-300 ${focusedField === 'username' ? 'transform scale-105' : ''}`}>
-                  <label htmlFor="username" className="block text-sm font-medium text-gray-200 mb-2">
+                  <label htmlFor="username" className="block text-sm font-semibold text-[var(--cmg-ink)] mb-2">
                     Login ID
                   </label>
                   <div className="relative group">
-                    <User className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors duration-300 ${focusedField === 'username' ? 'text-blue-400' : 'text-gray-400'}`} />
+                    <User className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors duration-300 ${focusedField === 'username' ? 'text-[var(--cmg-blue)]' : 'text-[var(--cmg-muted)]'}`} />
                     <input
                       id="username"
                       name="username"
@@ -221,19 +202,18 @@ export default function LoginForm() {
                       onChange={handleInputChange}
                       onFocus={() => setFocusedField('username')}
                       onBlur={() => setFocusedField(null)}
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-400 backdrop-blur-sm transition-all duration-300"
+                      className="w-full pl-10 pr-4 py-3 bg-white border border-[var(--cmg-border)] rounded-md cmg-focus text-[var(--cmg-ink)] placeholder:text-[var(--cmg-muted)] transition-all duration-300"
                       placeholder="Enter your login ID"
                     />
-                    <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-500/20 to-teal-500/20 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
                   </div>
                 </div>
 
                 <div className={`transition-all duration-300 ${focusedField === 'password' ? 'transform scale-105' : ''}`}>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-200 mb-2">
+                  <label htmlFor="password" className="block text-sm font-semibold text-[var(--cmg-ink)] mb-2">
                     Password
                   </label>
                   <div className="relative group">
-                    <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors duration-300 ${focusedField === 'password' ? 'text-blue-400' : 'text-gray-400'}`} />
+                    <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors duration-300 ${focusedField === 'password' ? 'text-[var(--cmg-blue)]' : 'text-[var(--cmg-muted)]'}`} />
                     <input
                       id="password"
                       name="password"
@@ -243,17 +223,17 @@ export default function LoginForm() {
                       onChange={handleInputChange}
                       onFocus={() => setFocusedField('password')}
                       onBlur={() => setFocusedField(null)}
-                      className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-400 backdrop-blur-sm transition-all duration-300"
+                      className="w-full pl-10 pr-12 py-3 bg-white border border-[var(--cmg-border)] rounded-md cmg-focus text-[var(--cmg-ink)] placeholder:text-[var(--cmg-muted)] transition-all duration-300"
                       placeholder="Enter your password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-300"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[var(--cmg-muted)] hover:text-[var(--cmg-blue)] transition-colors duration-300"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
-                    <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-500/20 to-teal-500/20 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
                   </div>
                 </div>
 
@@ -263,15 +243,15 @@ export default function LoginForm() {
                       id="remember-me"
                       name="remember-me"
                       type="checkbox"
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded bg-white/10 border-white/20"
+                      className="h-4 w-4 text-[var(--cmg-blue)] focus:ring-[var(--cmg-blue)] border-[var(--cmg-border)] rounded"
                     />
-                    <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300 hover:text-white transition-colors duration-300">
+                    <label htmlFor="remember-me" className="ml-2 block text-sm text-[var(--cmg-muted)]">
                       Remember me
                     </label>
                   </div>
 
                   <div className="text-sm">
-                    <a href="#" className="font-medium text-blue-400 hover:text-blue-300 transition-colors duration-300">
+                    <a href="#" className="font-semibold text-[var(--cmg-blue)] hover:text-[var(--cmg-red)] transition-colors duration-300">
                       Forgot your password?
                     </a>
                   </div>
@@ -280,9 +260,9 @@ export default function LoginForm() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-teal-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 relative overflow-hidden group"
+                  className="w-full py-3 px-4 bg-[var(--cmg-blue)] text-white font-semibold rounded-md hover:bg-[var(--cmg-blue-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 relative overflow-hidden group"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-teal-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <div className="absolute inset-y-0 left-0 w-1 bg-[var(--cmg-red)]"></div>
                   <div className="relative z-10 flex items-center justify-center">
                     {loading ? (
                       <>
@@ -299,12 +279,12 @@ export default function LoginForm() {
                 </Button>
               </form>
 
-              <div className="mt-8 pt-6 border-t border-white/20">
+              <div className="mt-8 pt-6 border-t border-[var(--cmg-border)]">
                 <div className="text-center">
-                  <p className="text-sm text-gray-300 italic mb-4">
-                    "Every contact we have with a customer influences whether or not they'll come back."
+                  <p className="text-sm text-[var(--cmg-muted)] mb-3">
+                    Immigration simplified for every client interaction.
                   </p>
-                  <p className="text-xs text-gray-400">- Kevin Stirtz</p>
+                  <p className="text-xs font-semibold uppercase text-[var(--cmg-blue)]">CMG Immigration</p>
                 </div>
               </div>
             </div>
@@ -313,32 +293,6 @@ export default function LoginForm() {
       </div>
 
       <style jsx>{`
-        @keyframes blob {
-          0% {
-            transform: translate(0px, 0px) scale(1);
-          }
-          33% {
-            transform: translate(30px, -50px) scale(1.1);
-          }
-          66% {
-            transform: translate(-20px, 20px) scale(0.9);
-          }
-          100% {
-            transform: translate(0px, 0px) scale(1);
-          }
-        }
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-        .animation-delay-6000 {
-          animation-delay: 6s;
-        }
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
           10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }

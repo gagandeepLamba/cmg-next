@@ -6,12 +6,12 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const buttonVariants = {
-  default: "bg-blue-600 text-white hover:bg-blue-700",
-  destructive: "bg-red-600 text-white hover:bg-red-700",
-  outline: "border border-gray-300 bg-white hover:bg-gray-50",
-  secondary: "bg-gray-200 text-gray-900 hover:bg-gray-300",
-  ghost: "hover:bg-gray-100",
-  link: "text-blue-600 underline-offset-4 hover:underline"
+  default: "bg-[var(--cmg-blue)] text-white hover:bg-[var(--cmg-blue-dark)]",
+  destructive: "bg-[var(--cmg-red)] text-white hover:bg-[var(--cmg-red-dark)]",
+  outline: "border border-[var(--cmg-border)] bg-white text-[var(--cmg-ink)] hover:bg-[var(--cmg-blue-soft)]",
+  secondary: "bg-[var(--cmg-blue-soft)] text-[var(--cmg-blue)] hover:bg-[#dce9ff]",
+  ghost: "text-[var(--cmg-muted)] hover:bg-[var(--cmg-blue-soft)] hover:text-[var(--cmg-blue)]",
+  link: "text-[var(--cmg-blue)] underline-offset-4 hover:text-[var(--cmg-red)] hover:underline"
 }
 
 const buttonSizes = {

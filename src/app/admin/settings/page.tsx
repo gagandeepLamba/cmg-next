@@ -6,8 +6,8 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
   const [settings, setSettings] = useState({
     general: {
-      siteName: 'DM Consultant Admin',
-      siteEmail: 'admin@dmconsultant.com',
+      siteName: 'CMG Immigration Admin',
+      siteEmail: 'admin@cmgimmigration.com',
       timezone: 'UTC+4',
       dateFormat: 'MM/DD/YYYY',
       currency: 'USD',
@@ -30,14 +30,14 @@ export default function SettingsPage() {
     },
     appearance: {
       theme: 'light',
-      primaryColor: '#3B82F6',
+      primaryColor: '#0B3F9F',
       sidebarCollapsed: false,
       compactMode: false,
       showAnimations: true,
     },
   });
 
-  const handleSettingChange = (category: string, setting: string, value: any) => {
+  const handleSettingChange = (category: string, setting: string, value: string | boolean) => {
     setSettings(prev => ({
       ...prev,
       [category]: {

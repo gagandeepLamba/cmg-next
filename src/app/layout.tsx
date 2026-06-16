@@ -4,8 +4,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 
 export const metadata: Metadata = {
-  title: "DM Next - Lead Management System",
-  description: "Next.js based lead management system for DM Consulting",
+  title: "CMG Immigration - Management System",
+  description: "Lead, client, operations, and reporting platform for CMG Immigration.",
 };
 
 export default function RootLayout({

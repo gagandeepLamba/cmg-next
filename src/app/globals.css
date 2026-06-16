@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f8fb;
+  --foreground: #14213d;
+  --cmg-blue: #0b3f9f;
+  --cmg-blue-dark: #082d73;
+  --cmg-blue-soft: #eaf1ff;
+  --cmg-red: #df2b22;
+  --cmg-red-dark: #b91f18;
+  --cmg-ink: #14213d;
+  --cmg-muted: #607089;
+  --cmg-border: #dbe4f0;
+  --cmg-surface: #ffffff;
 }
 
 @theme inline {
@@ -12,15 +21,33 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+::selection {
+  background: rgba(223, 43, 34, 0.16);
+  color: var(--cmg-ink);
+}
+
+.cmg-page-shell {
+  background:
+    linear-gradient(180deg, rgba(234, 241, 255, 0.72), rgba(246, 248, 251, 0.96) 240px),
+    var(--background);
+}
+
+.cmg-card {
+  background: var(--cmg-surface);
+  border: 1px solid var(--cmg-border);
+  box-shadow: 0 10px 30px rgba(20, 33, 61, 0.08);
+}
+
+.cmg-focus {
+  outline: none;
+}
+
+.cmg-focus:focus {
+  box-shadow: 0 0 0 3px rgba(11, 63, 159, 0.18);
 }

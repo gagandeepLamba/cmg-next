@@ -69,20 +69,20 @@ interface ThemeContextType {
 
 const defaultThemes: Theme[] = [
   {
-    name: 'Professional Blue',
+    name: 'CMG Professional',
     colors: {
-      primary: '#3B82F6',
-      secondary: '#6366F1',
-      accent: '#8B5CF6',
-      background: '#F9FAFB',
+      primary: '#0B3F9F',
+      secondary: '#14213D',
+      accent: '#DF2B22',
+      background: '#F6F8FB',
       surface: '#FFFFFF',
-      text: '#111827',
-      textSecondary: '#6B7280',
-      border: '#E5E7EB',
-      success: '#10B981',
-      warning: '#F59E0B',
-      error: '#EF4444',
-      info: '#06B6D4'
+      text: '#14213D',
+      textSecondary: '#607089',
+      border: '#DBE4F0',
+      success: '#148A5B',
+      warning: '#B7791F',
+      error: '#DF2B22',
+      info: '#0B67C2'
     },
     typography: {
       fontFamily: 'Inter, system-ui, sans-serif',
@@ -241,20 +241,19 @@ const defaultThemes: Theme[] = [
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(defaultThemes[0]);
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return defaultThemes[0];
 
-  useEffect(() => {
-    // Load saved theme from localStorage
-    const savedTheme = localStorage.getItem('selectedTheme');
-    if (savedTheme) {
-      try {
-        const parsedTheme = JSON.parse(savedTheme);
-        setThemeState(parsedTheme);
-      } catch (error) {
-        console.error('Error parsing saved theme:', error);
-      }
+    const savedTheme = window.localStorage.getItem('selectedTheme');
+    if (!savedTheme) return defaultThemes[0];
+
+    try {
+      return JSON.parse(savedTheme);
+    } catch (error) {
+      console.error('Error parsing saved theme:', error);
+      return defaultThemes[0];
     }
-  }, []);
+  });
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
