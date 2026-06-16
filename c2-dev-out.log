@@ -1,0 +1,12 @@
+
+> dm-next@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.118.1.68:3000
+- Environments: .env.local, .env
+
+✓ Starting...
+Creating turbopack project { dir: 'D:\\xampp\\htdocs\\dm-next', testMode: true }
+✓ Ready in 983ms

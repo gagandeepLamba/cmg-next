@@ -1,0 +1,703 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
+import MainLayout from '@/components/layout/MainLayout'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { SearchParamsWrapper } from '@/components/SearchParamsWrapper'
+import DocumentUpload from '@/components/DocumentUpload'
+import { baseOperationFields, findOperationCase, OperationsSearchRow } from '@/lib/operationsClient'
+import {
+  Globe,
+  FileText,
+  Calendar,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  Upload,
+  Download,
+  Edit,
+  Save,
+  Plus,
+  Search,
+  Filter,
+  User,
+  CreditCard,
+  Home,
+  MapPin,
+  Plane,
+  Hotel
+} from 'lucide-react'
+
+interface VisitVisaApplication {
+  id: number
+  leadId: number
+  leadName: string
+  agreementNumber: string
+  paymentDue: number
+  paymentRemarks: string
+  paymentDueDate: string
+  status: string
+  visaType: string
+  country: string
+  visitPurpose: string
+  duration: string
+  entryDate: string
+  exitDate: string
+  personalInfo: {
+    fullName: string
+    dateOfBirth: string
+    passportNumber: string
+    nationality: string
+    email: string
+    phone: string
+    address: string
+    occupation: string
+  }
+  travelInfo: {
+    flightBooked: boolean
+    flightDetails: {
+      airline: string
+      flightNumber: string
+      departureDate: string
+      arrivalDate: string
+    }
+  }
+  accommodation: {
+    booked: boolean
+    hotelName: string
+    address: string
+    checkIn: string
+    checkOut: string
+    confirmationNumber: string
+  }
+  financialInfo: {
+    proofOfFunds: boolean
+    bankStatement: string
+    monthlyIncome: number
+    savings: number
+    expenses: number
+  }
+  documents: {
+    passport: string[]
+    bankStatements: string[]
+    employmentLetter: string[]
+    accommodationProof: string[]
+    flightBooking: string[]
+    travelInsurance: string[]
+    invitationLetter: string[]
+    itinerary: string[]
+  }
+  applicationStatus: {
+    submitted: boolean
+    biometrics: boolean
+    medical: boolean
+    interview: boolean
+    decision: string
+    decisionDate?: string
+  }
+  createdAt: string
+  updatedAt: string
+  assignedTo: string
+  assignedToId: number
+}
+
+const mapVisitVisaCase = (row: OperationsSearchRow): VisitVisaApplication => ({
+  ...baseOperationFields(row),
+  visaType: row.service_interest || row.serviceType || 'Visit Visa',
+  country: row.country_interest || '',
+  visitPurpose: row.serviceRequired || row.agreementType || '',
+  duration: '',
+  entryDate: new Date().toISOString(),
+  exitDate: new Date().toISOString(),
+  personalInfo: {
+    fullName: [row.fname, row.lname].filter(Boolean).join(' '),
+    dateOfBirth: '',
+    passportNumber: '',
+    nationality: row.nationality || '',
+    email: row.email || '',
+    phone: row.mobile || row.phone || '',
+    address: '',
+    occupation: ''
+  },
+  travelInfo: {
+    flightBooked: false,
+    flightDetails: { airline: '', flightNumber: '', departureDate: '', arrivalDate: '' }
+  },
+  accommodation: {
+    booked: false,
+    hotelName: '',
+    address: '',
+    checkIn: '',
+    checkOut: '',
+    confirmationNumber: ''
+  },
+  financialInfo: {
+    proofOfFunds: false,
+    bankStatement: '',
+    monthlyIncome: 0,
+    savings: 0,
+    expenses: 0
+  },
+  documents: {
+    passport: [],
+    bankStatements: [],
+    employmentLetter: [],
+    accommodationProof: [],
+    flightBooking: [],
+    travelInsurance: [],
+    invitationLetter: [],
+    itinerary: []
+  },
+  applicationStatus: {
+    submitted: false,
+    biometrics: false,
+    medical: false,
+    interview: false,
+    decision: row.agreementStatus || 'pending'
+  }
+})
+
+// Component that uses useSearchParams
+function OpsVisitVisaContent() {
+  const searchParams = useSearchParams()
+  const [visaData, setVisaData] = useState<VisitVisaApplication | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('personal')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+
+  useEffect(() => {
+    const leadId = searchParams.get('lead')
+    const agreementNumber = searchParams.get('agreementNumber') || searchParams.get('agreement')
+    if (leadId || agreementNumber) {
+      fetchVisaData({ leadId, agreementNumber })
+    } else {
+      setLoading(false)
+    }
+  }, [searchParams])
+
+  const fetchVisaData = async ({ leadId, agreementNumber }: { leadId?: string | null; agreementNumber?: string | null }) => {
+    setLoading(true)
+    try {
+      const row = await findOperationCase({ module: 'visit-visa', leadId, agreementNumber })
+      setVisaData(row ? mapVisitVisaCase(row) : null)
+    } catch (error) {
+      console.error('Error fetching visa data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <Badge className="bg-green-100 text-green-800">Completed</Badge>
+      case 'in_progress':
+        return <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>
+      case 'pending':
+        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+      case 'cancelled':
+        return <Badge className="bg-red-100 text-red-800">Cancelled</Badge>
+      case 'approved':
+        return <Badge className="bg-green-100 text-green-800">Approved</Badge>
+      case 'rejected':
+        return <Badge className="bg-red-100 text-red-800">Rejected</Badge>
+      default:
+        return <Badge className="bg-gray-100 text-gray-800">Unknown</Badge>
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+      case 'approved':
+        return <CheckCircle className="h-4 w-4 text-green-500" />
+      case 'in_progress':
+        return <Clock className="h-4 w-4 text-blue-500" />
+      case 'pending':
+        return <AlertCircle className="h-4 w-4 text-yellow-500" />
+      case 'cancelled':
+      case 'rejected':
+        return <AlertCircle className="h-4 w-4 text-red-500" />
+      default:
+        return <Clock className="h-4 w-4 text-gray-500" />
+    }
+  }
+
+  const tabs = [
+    { id: 'personal', name: 'Personal Information', icon: User },
+    { id: 'travel', name: 'Travel Information', icon: Plane },
+    { id: 'accommodation', name: 'Accommodation', icon: Hotel },
+    { id: 'financial', name: 'Financial Information', icon: CreditCard },
+    { id: 'documents', name: 'Documents', icon: FileText },
+    { id: 'status', name: 'Application Status', icon: CheckCircle }
+  ]
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </MainLayout>
+    )
+  }
+
+  if (!visaData) {
+    return (
+      <MainLayout>
+        <div className="text-center py-12">
+          <Globe className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-500">No visit visa data found</p>
+        </div>
+      </MainLayout>
+    )
+  }
+
+  return (
+    <MainLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Visit Visa Application</h1>
+            <p className="text-gray-600">Manage visit visa applications and documentation</p>
+          </div>
+          <div className="flex space-x-2">
+            <Button variant="outline">
+              <Download className="h-4 w-4 mr-2" />
+              Export Application
+            </Button>
+            <Button>
+              <Save className="h-4 w-4 mr-2" />
+              Save Progress
+            </Button>
+          </div>
+        </div>
+
+        {/* Client Information Card */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-500">Client Name</label>
+                <p className="text-lg font-semibold text-gray-900">{visaData.leadName}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Agreement Number</label>
+                <p className="text-lg font-semibold text-gray-900">{visaData.agreementNumber}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Visa Type</label>
+                <p className="text-lg font-semibold text-gray-900">{visaData.visaType}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Country</label>
+                <p className="text-lg font-semibold text-gray-900">{visaData.country}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Visit Purpose</label>
+                <p className="text-lg font-semibold text-gray-900">{visaData.visitPurpose}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Duration</label>
+                <p className="text-lg font-semibold text-gray-900">{visaData.duration}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Payment Due</label>
+                <p className="text-lg font-semibold text-gray-900">${visaData.paymentDue.toLocaleString()}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Entry Date</label>
+                <p className="text-lg font-semibold text-gray-900">
+                  {new Date(visaData.entryDate).toLocaleDateString()}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Exit Date</label>
+                <p className="text-lg font-semibold text-gray-900">
+                  {new Date(visaData.exitDate).toLocaleDateString()}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Assigned To</label>
+                <p className="text-sm text-gray-900">{visaData.assignedTo}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Status</label>
+                <div className="mt-1">{getStatusBadge(visaData.status)}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tabs Navigation */}
+        <Card>
+          <CardContent className="p-0">
+            <div className="border-b border-gray-200">
+              <nav className="flex -mb-px overflow-x-auto">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`py-4 px-6 text-sm font-medium border-b-2 whitespace-nowrap ${activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                  >
+                    <tab.icon className="h-4 w-4 mr-2 inline" />
+                    {tab.name}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            {/* Tab Content */}
+            <div className="p-6">
+              {activeTab === 'personal' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-medium text-gray-900">Personal Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                        <p className="text-sm text-gray-900">{visaData.personalInfo.fullName}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                        <p className="text-sm text-gray-900">{visaData.personalInfo.dateOfBirth}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Passport Number</label>
+                        <p className="text-sm text-gray-900">{visaData.personalInfo.passportNumber}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Nationality</label>
+                        <p className="text-sm text-gray-900">{visaData.personalInfo.nationality}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Email</label>
+                        <p className="text-sm text-gray-900">{visaData.personalInfo.email}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Phone</label>
+                        <p className="text-sm text-gray-900">{visaData.personalInfo.phone}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Address</label>
+                        <p className="text-sm text-gray-900">{visaData.personalInfo.address}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Occupation</label>
+                        <p className="text-sm text-gray-900">{visaData.personalInfo.occupation}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'travel' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-medium text-gray-900">Travel Information</h3>
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h4 className="text-md font-medium text-gray-800 mb-3">Flight Details</h4>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div>
+                              <p className="text-sm font-medium text-gray-700">Flight Booked</p>
+                              <p className="text-xs text-gray-500">Flight booking status</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {visaData.travelInfo.flightBooked ? (
+                                <CheckCircle className="h-5 w-5 text-green-500" />
+                              ) : (
+                                <Clock className="h-5 w-5 text-yellow-500" />
+                              )}
+                              <span className={`text-sm ${visaData.travelInfo.flightBooked ? 'text-green-600' : 'text-yellow-600'
+                                }`}>
+                                {visaData.travelInfo.flightBooked ? 'Booked' : 'Not Booked'}
+                              </span>
+                            </div>
+                          </div>
+                          {visaData.travelInfo.flightBooked && (
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700">Airline</label>
+                                <p className="text-sm text-gray-900">{visaData.travelInfo.flightDetails.airline}</p>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700">Flight Number</label>
+                                <p className="text-sm text-gray-900">{visaData.travelInfo.flightDetails.flightNumber}</p>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700">Departure Date</label>
+                                <p className="text-sm text-gray-900">
+                                  {new Date(visaData.travelInfo.flightDetails.departureDate).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700">Arrival Date</label>
+                                <p className="text-sm text-gray-900">
+                                  {new Date(visaData.travelInfo.flightDetails.arrivalDate).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'accommodation' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-medium text-gray-900">Accommodation</h3>
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Accommodation Booked</p>
+                        <p className="text-xs text-gray-500">Hotel booking status</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {visaData.accommodation.booked ? (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <Clock className="h-5 w-5 text-yellow-500" />
+                        )}
+                        <span className={`text-sm ${visaData.accommodation.booked ? 'text-green-600' : 'text-yellow-600'
+                          }`}>
+                          {visaData.accommodation.booked ? 'Booked' : 'Not Booked'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {visaData.accommodation.booked && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Hotel Name</label>
+                            <p className="text-sm text-gray-900">{visaData.accommodation.hotelName}</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Address</label>
+                            <p className="text-sm text-gray-900">{visaData.accommodation.address}</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Confirmation Number</label>
+                            <p className="text-sm text-gray-900">{visaData.accommodation.confirmationNumber}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Check-in</label>
+                            <p className="text-sm text-gray-900">
+                              {new Date(visaData.accommodation.checkIn).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Check-out</label>
+                            <p className="text-sm text-gray-900">
+                              {new Date(visaData.accommodation.checkOut).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'financial' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-medium text-gray-900">Financial Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Proof of Funds</label>
+                        <div className="flex items-center space-x-2">
+                          {visaData.financialInfo.proofOfFunds ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                          ) : (
+                            <AlertCircle className="h-5 w-5 text-red-500" />
+                          )}
+                          <span className={`text-sm ${visaData.financialInfo.proofOfFunds ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                            {visaData.financialInfo.proofOfFunds ? 'Verified' : 'Not Verified'}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Bank Statement</label>
+                        <p className="text-sm text-gray-900">{visaData.financialInfo.bankStatement}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Monthly Income</label>
+                        <p className="text-lg font-semibold text-gray-900">
+                          ${visaData.financialInfo.monthlyIncome.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Savings</label>
+                        <p className="text-lg font-semibold text-gray-900">
+                          ${visaData.financialInfo.savings.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Monthly Expenses</label>
+                        <p className="text-lg font-semibold text-gray-900">
+                          ${visaData.financialInfo.expenses.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'documents' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-medium text-gray-900">Documents</h3>
+                  <div className="space-y-6">
+                    {Object.entries(visaData.documents).map(([category, docs]) => (
+                      <div key={category}>
+                        <h4 className="text-md font-medium text-gray-800 mb-3 capitalize">
+                          {category.replace(/([A-Z])/g, ' $1').trim()}
+                        </h4>
+                        <div className="space-y-2">
+                          {docs.map((doc, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center space-x-2">
+                                <FileText className="h-4 w-4 text-gray-500" />
+                                <span className="text-sm text-gray-900">{doc}</span>
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button variant="outline" size="sm">
+                                  <Download className="h-3 w-3" />
+                                </Button>
+                                <Button variant="outline" size="sm">
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <DocumentUpload opportunityId={String(visaData.id)} clientId={String(visaData.leadId)} />
+                </div>
+              )}
+
+              {activeTab === 'status' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-medium text-gray-900">Application Status</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Application Submitted</p>
+                          <p className="text-xs text-gray-500">Initial application submission</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {visaData.applicationStatus.submitted ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                          ) : (
+                            <Clock className="h-5 w-5 text-yellow-500" />
+                          )}
+                          <span className={`text-sm ${visaData.applicationStatus.submitted ? 'text-green-600' : 'text-yellow-600'
+                            }`}>
+                            {visaData.applicationStatus.submitted ? 'Completed' : 'Pending'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Biometrics</p>
+                          <p className="text-xs text-gray-500">Biometric data collection</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {visaData.applicationStatus.biometrics ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                          ) : (
+                            <Clock className="h-5 w-5 text-yellow-500" />
+                          )}
+                          <span className={`text-sm ${visaData.applicationStatus.biometrics ? 'text-green-600' : 'text-yellow-600'
+                            }`}>
+                            {visaData.applicationStatus.biometrics ? 'Completed' : 'Pending'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Medical Examination</p>
+                          <p className="text-xs text-gray-500">Medical test results</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {visaData.applicationStatus.medical ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                          ) : (
+                            <Clock className="h-5 w-5 text-yellow-500" />
+                          )}
+                          <span className={`text-sm ${visaData.applicationStatus.medical ? 'text-green-600' : 'text-yellow-600'
+                            }`}>
+                            {visaData.applicationStatus.medical ? 'Completed' : 'Pending'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Final Decision</p>
+                        <p className="text-xs text-gray-500">
+                          {visaData.applicationStatus.decisionDate &&
+                            `Decision date: ${new Date(visaData.applicationStatus.decisionDate).toLocaleDateString()}`
+                          }
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {getStatusIcon(visaData.applicationStatus.decision)}
+                        <span className={`text-sm font-medium ${visaData.applicationStatus.decision === 'approved' ? 'text-green-600' :
+                            visaData.applicationStatus.decision === 'rejected' ? 'text-red-600' : 'text-yellow-600'
+                          }`}>
+                          {visaData.applicationStatus.decision === 'approved' ? 'Approved' :
+                            visaData.applicationStatus.decision === 'rejected' ? 'Rejected' : 'Pending'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </MainLayout>
+  )
+}
+
+// Main page component that wraps the content in Suspense
+export default function OpsVisitVisaPage() {
+  return (
+    <SearchParamsWrapper>
+      <OpsVisitVisaContent />
+    </SearchParamsWrapper>
+  )
+}
+
+
