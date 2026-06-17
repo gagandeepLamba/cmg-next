@@ -1138,11 +1138,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                           </button>
                         )}
                         <button
-                          onClick={() => {
-                            setCurrentLead(lead);
-                            setFormData(lead);
-                            setShowEditModal(true);
-                          }}
+                          onClick={() => router.push(`/admin/leads/${lead.id}/edit`)}
                           className="text-blue-600 hover:text-blue-900"
                         >
                           <Edit className="w-4 h-4" />
@@ -1215,11 +1211,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           leads={leads}
           onLeadSelect={handleViewLead}
           onConvertToOpportunity={handleConvertToOpportunity}
-          onEditLead={(lead) => {
-            setCurrentLead(lead);
-            setFormData(lead);
-            setShowEditModal(true);
-          }}
+          onEditLead={(lead) => router.push(`/admin/leads/${lead.id}/edit`)}
           onDeleteLead={handleDeleteLead}
           onStatusChange={handleStatusChange}
         />
@@ -1409,11 +1401,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 Add Remark
               </button>
               <button
-                onClick={() => {
-                  setShowViewModal(false);
-                  setFormData(currentLead);
-                  setShowEditModal(true);
-                }}
+                onClick={() => router.push(`/admin/leads/${currentLead.id}/edit`)}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Edit

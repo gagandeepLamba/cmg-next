@@ -38,7 +38,8 @@ const editableFields = new Set([
   'paidYet',
   'payBalance',
   'lead_remark',
-  'lead_quality'
+  'lead_quality',
+  'area'
 ]);
 
 const aliases: Record<string, string> = {
@@ -51,10 +52,14 @@ const aliases: Record<string, string> = {
   genderIdentity: 'gender',
   countryInterest: 'country_interest',
   serviceInterest: 'service_interest',
+  programCountry: 'country_interest',
+  program: 'service_interest',
+  programType: 'service_interest',
   leadSource: 'market_source',
   leadOwner: 'assignTo',
   notes: 'lead_remark',
-  leadQuality: 'lead_quality'
+  leadQuality: 'lead_quality',
+  city: 'area'
 };
 
 const fetchLead = async (id: string) => {

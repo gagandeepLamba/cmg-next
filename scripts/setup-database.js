@@ -462,13 +462,7 @@ const migrations = [
     UNIQUE KEY uniq_dm_role_permission (role_id, permission_id),
     INDEX idx_dm_role_permissions_role (role_id),
     INDEX idx_dm_role_permissions_permission (permission_id),
-    INDEX idx_dm_role_permissions_status (status),
-    CONSTRAINT fk_dm_role_permissions_role
-      FOREIGN KEY (role_id) REFERENCES dm_role(id)
-      ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_dm_role_permissions_permission
-      FOREIGN KEY (permission_id) REFERENCES dm_permissions(id)
-      ON DELETE CASCADE ON UPDATE CASCADE
+    INDEX idx_dm_role_permissions_status (status)
   )`,
   `INSERT INTO dmc_auto_reassignment_rules
     (rule_name, description, inactive_hours_threshold, auto_reassign, reassign_to_role, reassign_to_branch, is_active)

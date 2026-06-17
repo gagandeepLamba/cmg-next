@@ -22,11 +22,5 @@ CREATE TABLE IF NOT EXISTS dm_role_permissions (
   UNIQUE KEY uniq_dm_role_permission (role_id, permission_id),
   INDEX idx_dm_role_permissions_role (role_id),
   INDEX idx_dm_role_permissions_permission (permission_id),
-  INDEX idx_dm_role_permissions_status (status),
-  CONSTRAINT fk_dm_role_permissions_role
-    FOREIGN KEY (role_id) REFERENCES dm_role(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT fk_dm_role_permissions_permission
-    FOREIGN KEY (permission_id) REFERENCES dm_permissions(id)
-    ON DELETE CASCADE ON UPDATE CASCADE
+  INDEX idx_dm_role_permissions_status (status)
 );
