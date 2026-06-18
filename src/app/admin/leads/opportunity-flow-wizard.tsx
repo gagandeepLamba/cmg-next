@@ -657,16 +657,39 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
           opportunityName: prospectData.opportunityName || `${lead?.fname || ''} ${lead?.lname || ''} - ${lead?.service_interest || prospectData.serviceRequired}`,
           description: prospectData.description || `Opportunity created for ${lead?.fname || ''} ${lead?.lname || ''}`,
           estimatedValue: parseFloat(prospectData.estimatedValue) || quotationData.total || (lead as any)?.payTotal || 0,
-          priority: prospectData.priority || (lead as any)?.priority || 'Medium'
+          priority: prospectData.priority || (lead as any)?.priority || 'Medium',
+          documentsVerified: documentData.allDocsVerified
         },
         paymentData: {
-          amount: paymentData.totalAmount || quotationData.total || 0,
+          totalAmount: quotationData.total || paymentData.totalAmount || 0,
+          amount: paymentData.paidAmount || paymentData.totalAmount || quotationData.total || 0,
           paidAmount: paymentData.paidAmount || 0,
-          paymentMethod: paymentData.paymentMethod || 'cash'
+          paymentMethod: paymentData.paymentMethod || 'cash',
+          paymentDate: paymentData.paymentDate,
+          transactionId: paymentData.transactionId,
+          discountAmount: quotationData.discount || 0
         },
         agreementData: {
           title: agreementData.agreementTitle || `Service Agreement - ${lead?.fname || ''} ${lead?.lname || ''}`,
-          totalAmount: quotationData.total || parseFloat(prospectData.estimatedValue) || 0
+          agreementType: agreementData.agreementType,
+          duration: agreementData.duration,
+          startDate: agreementData.startDate,
+          endDate: agreementData.endDate,
+          totalAmount: quotationData.total || parseFloat(prospectData.estimatedValue) || 0,
+          terms: agreementData.terms,
+          specialConditions: agreementData.specialConditions,
+          status: signedAgreementData.uploadedTocrm ? 'uploaded' : 'generated',
+          documentUrl: signedAgreementData.documentUrl,
+          clientSignature: signedAgreementData.clientSignature,
+          signatureDate: signedAgreementData.signatureDate
+        },
+        invoiceData: {
+          purpose: prospectData.serviceRequired || lead?.service_interest || '',
+          discount: quotationData.discount || 0,
+          amount: paymentData.paidAmount || 0,
+          totPayAmt: quotationData.total || paymentData.totalAmount || 0,
+          payBalance: paymentData.remainingBalance || 0,
+          payment_mode: paymentData.paymentMethod || 'cash'
         }
       })
     });
@@ -678,6 +701,9 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
 
     const result = await createResponse.json();
     const createdOpportunityId = Number(result.data?.opportunity?.id);
+    if (!createdOpportunityId) {
+      throw new Error('Opportunity conversion did not return an opportunity ID');
+    }
     setCompletedOpportunityId(createdOpportunityId);
     return createdOpportunityId;
   };
@@ -691,8 +717,28 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
 
       const opportunityId = await ensureOpportunityForClient();
 
-      // Generate agreement first
-      const agreementResponse = await fetch('/api/agreement-generation', {
+      let agreementResult: any = null;
+      const existingAgreementResponse = await fetch(`/api/agreement-generation?opportunityId=${opportunityId}`);
+      if (existingAgreementResponse.ok) {
+        const existingAgreementData = await existingAgreementResponse.json();
+        const latestAgreement = Array.isArray(existingAgreementData.data) ? existingAgreementData.data[0] : null;
+        if (latestAgreement) {
+          agreementResult = {
+            data: {
+              agreementId: latestAgreement.id,
+              agreementNumber: latestAgreement.agreementNumber,
+              content: latestAgreement.content,
+              opportunity: {
+                clientName: latestAgreement.clientName || `${lead?.fname || ''} ${lead?.lname || ''}`.trim(),
+                serviceType: prospectData.serviceRequired || lead?.service_interest || 'Service'
+              }
+            }
+          };
+        }
+      }
+
+      if (!agreementResult) {
+        const agreementResponse = await fetch('/api/agreement-generation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -715,21 +761,22 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         })
       });
 
-      if (!agreementResponse.ok) {
-        const agreementError = await agreementResponse.json();
-        throw new Error(agreementError.error || 'Failed to generate agreement');
-      }
+        if (!agreementResponse.ok) {
+          const agreementError = await agreementResponse.json();
+          throw new Error(agreementError.error || 'Failed to generate agreement');
+        }
 
-      const agreementResult = await agreementResponse.json();
+        agreementResult = await agreementResponse.json();
+      }
       
       // Update opportunity status to won
-      await fetch(`/api/opportunities/${opportunityId}`, {
+      const opportunityStatusResponse = await fetch(`/api/opportunities/${opportunityId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'won',
           actualCloseDate: new Date(),
-          actualValue: parseFloat(prospectData.estimatedValue) || 0,
+          actualValue: quotationData.total || parseFloat(prospectData.estimatedValue) || 0,
           retentionStatus: 'approved',
           retentionDate: new Date(),
           agreementGenerated: true,
@@ -740,10 +787,14 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
           documentsVerified: true
         })
       });
+
+      if (!opportunityStatusResponse.ok) {
+        const opportunityStatusError = await opportunityStatusResponse.json().catch(() => ({}));
+        throw new Error(opportunityStatusError.error || 'Failed to update opportunity status');
+      }
       setCompletedOpportunityId(opportunityId);
 
-      // Update lead status
-      await fetch(`/api/leads/${leadId}`, {
+      const leadStatusResponse = await fetch(`/api/leads/${leadId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -753,6 +804,11 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
           conversion_reason: 'Successfully converted and retained client'
         })
       });
+
+      if (!leadStatusResponse.ok) {
+        const leadStatusError = await leadStatusResponse.json().catch(() => ({}));
+        throw new Error(leadStatusError.error || 'Failed to update lead status after opportunity conversion');
+      }
 
       // Update stages
       const updatedStages = stages.map(stage =>
