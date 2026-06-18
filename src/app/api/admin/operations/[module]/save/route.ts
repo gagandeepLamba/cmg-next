@@ -26,7 +26,7 @@ const allowedModules = new Set([
 ]);
 
 type RouteContext = {
-  params: Promise<{ module: string }> | { module: string };
+  params: Promise<{ module: string }>;
 };
 
 export async function POST(request: NextRequest, context: RouteContext) {

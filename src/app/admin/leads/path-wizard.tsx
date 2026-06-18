@@ -65,7 +65,7 @@ export default function PathWizard({ leadId }: PathWizardProps) {
     { id: 'agreement', name: 'Agreement Generation', icon: PenTool, status: 'incomplete' },
     { id: 'signed-upload', name: 'Signed Agreement Upload', icon: FileSignature, status: 'incomplete' },
     { id: 'retained', name: 'Retained', icon: Shield, status: 'incomplete' },
-    { id: 'retention-rejected', name: 'Rentention Rejected', icon: XCircle, status: 'incomplete' },
+    { id: 'retention-rejected', name: 'Retention Rejected', icon: XCircle, status: 'incomplete' },
     { id: 'closed', name: 'Closed', icon: CheckCircle, status: 'incomplete' }
   ];
 
