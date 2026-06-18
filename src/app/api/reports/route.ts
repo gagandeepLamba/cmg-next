@@ -7,9 +7,15 @@ import {
   DmBranch,
   DmRegion
 } from '@/models'
-import { Op } from 'sequelize'
+import { Op, QueryTypes } from 'sequelize'
+import { sequelize } from '@/lib/sequelize'
 
 const toPlain = (row: any) => row?.get ? row.get({ plain: true }) : row
+const labelFor = (map: Map<string, string>, value: unknown) => {
+  const key = String(value || '').trim()
+  if (!key) return ''
+  return map.get(key) || key
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -65,7 +71,7 @@ export async function GET(request: NextRequest) {
           })
         ])
 
-        const [activeLeads, totalRevenue, pendingRevenue, recentLeads] = await Promise.all([
+        const [activeLeads, totalRevenue, pendingRevenue, recentLeads, countries, services, programTypes] = await Promise.all([
           DmcForumLeads.count({
             where: {
               ...leadBaseWhere,
@@ -79,8 +85,33 @@ export async function GET(request: NextRequest) {
             attributes: ['id', 'fname', 'lname', 'email', 'phone', 'country_interest', 'service_interest', 'status', 'opportunity_status', 'priority', 'regdate', 'payTotal', 'payBalance'],
             order: [['created', 'DESC']],
             limit: 10
-          })
+          }),
+          sequelize.query<{ value: number | string; label: string }>(
+            'SELECT id AS value, name AS label FROM dm_country_proces',
+            { type: QueryTypes.SELECT }
+          ),
+          sequelize.query<{ value: number | string; label: string }>(
+            'SELECT id AS value, name AS label FROM dm_service',
+            { type: QueryTypes.SELECT }
+          ),
+          sequelize.query<{ value: number | string; label: string }>(
+            'SELECT id AS value, type AS label FROM dm_program_type',
+            { type: QueryTypes.SELECT }
+          )
         ])
+        const countryMap = new Map(countries.map((row) => [String(row.value), row.label]))
+        const serviceMap = new Map([
+          ...services.map((row) => [String(row.value), row.label] as const),
+          ...programTypes.map((row) => [String(row.value), row.label] as const)
+        ])
+        const decoratedRecentLeads = recentLeads.map((lead) => {
+          const item = toPlain(lead)
+          return {
+            ...item,
+            country_interest_label: labelFor(countryMap, item.country_interest),
+            service_interest_label: labelFor(serviceMap, item.service_interest)
+          }
+        })
 
         reportData = {
           totalLeads,
@@ -89,7 +120,7 @@ export async function GET(request: NextRequest) {
           activeLeads,
           totalRevenue: totalRevenue || 0,
           pendingRevenue: pendingRevenue || 0,
-          recentLeads,
+          recentLeads: decoratedRecentLeads,
           conversionRate: totalLeads > 0 ? Number((convertedLeads / totalLeads * 100).toFixed(2)) : 0
         }
         break

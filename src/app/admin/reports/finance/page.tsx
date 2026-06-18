@@ -35,7 +35,9 @@ interface ContractData {
     email: string;
     phone: string;
     country_interest: string;
+    country_interest_label?: string;
     service_interest: string;
+    service_interest_label?: string;
     payTotal: number;
     payBalance: number;
   };
@@ -70,6 +72,9 @@ export default function FinanceReport() {
     dateTo: ''
   });
   const [selectedContract, setSelectedContract] = useState<ContractData | null>(null);
+  const formatCurrency = (value: number) => (
+    new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED', maximumFractionDigits: 0 }).format(Number(value || 0))
+  );
 
   useEffect(() => {
     fetchContractData();
@@ -103,19 +108,19 @@ export default function FinanceReport() {
     const pendingContracts = contractsData.filter(c => c.verify === 0).length;
     const rejectedContracts = contractsData.filter(c => c.verify === 2).length;
     
-    const totalValue = contractsData.reduce((sum, contract) => sum + (contract.dmcForumLeads?.payTotal || 0), 0);
+    const totalValue = contractsData.reduce((sum, contract) => sum + Number(contract.dmcForumLeads?.payTotal || 0), 0);
     const paidValue = contractsData.reduce((sum, contract) => 
-      sum + (contract.dmcForumLeads?.payTotal || 0) - (contract.dmcForumLeads?.payBalance || 0), 0
+      sum + Number(contract.dmcForumLeads?.payTotal || 0) - Number(contract.dmcForumLeads?.payBalance || 0), 0
     );
-    const pendingValue = contractsData.reduce((sum, contract) => sum + (contract.dmcForumLeads?.payBalance || 0), 0);
+    const pendingValue = contractsData.reduce((sum, contract) => sum + Number(contract.dmcForumLeads?.payBalance || 0), 0);
     
     const verificationRate = totalContracts > 0 ? (verifiedContracts / totalContracts) * 100 : 0;
 
     // Group by verification status
     const contractsByStatus = [
-      { status: 'Verified', count: verifiedContracts, value: contractsData.filter(c => c.verify === 1).reduce((sum, c) => sum + (c.dmcForumLeads?.payTotal || 0), 0) },
-      { status: 'Pending', count: pendingContracts, value: contractsData.filter(c => c.verify === 0).reduce((sum, c) => sum + (c.dmcForumLeads?.payTotal || 0), 0) },
-      { status: 'Rejected', count: rejectedContracts, value: contractsData.filter(c => c.verify === 2).reduce((sum, c) => sum + (c.dmcForumLeads?.payTotal || 0), 0) }
+      { status: 'Verified', count: verifiedContracts, value: contractsData.filter(c => c.verify === 1).reduce((sum, c) => sum + Number(c.dmcForumLeads?.payTotal || 0), 0) },
+      { status: 'Pending', count: pendingContracts, value: contractsData.filter(c => c.verify === 0).reduce((sum, c) => sum + Number(c.dmcForumLeads?.payTotal || 0), 0) },
+      { status: 'Rejected', count: rejectedContracts, value: contractsData.filter(c => c.verify === 2).reduce((sum, c) => sum + Number(c.dmcForumLeads?.payTotal || 0), 0) }
     ];
 
     const monthlyMap: Record<string, { month: string; contracts: number; value: number }> = {};
@@ -124,7 +129,7 @@ export default function FinanceReport() {
       const month = date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
       if (!monthlyMap[month]) monthlyMap[month] = { month, contracts: 0, value: 0 };
       monthlyMap[month].contracts += 1;
-      monthlyMap[month].value += contract.dmcForumLeads?.payTotal || 0;
+      monthlyMap[month].value += Number(contract.dmcForumLeads?.payTotal || 0);
     });
     const monthlyContracts = Object.values(monthlyMap).slice(-6);
 
@@ -174,8 +179,8 @@ export default function FinanceReport() {
         contract.id,
         `${contract.dmcForumLeads?.fname} ${contract.dmcForumLeads?.lname}`,
         contract.dmcForumLeads?.email,
-        contract.dmcForumLeads?.country_interest,
-        contract.dmcForumLeads?.service_interest,
+        contract.dmcForumLeads?.country_interest_label || contract.dmcForumLeads?.country_interest,
+        contract.dmcForumLeads?.service_interest_label || contract.dmcForumLeads?.service_interest,
         contract.contract,
         contract.verify === 1 ? 'Verified' : contract.verify === 2 ? 'Rejected' : 'Pending',
         contract.payment_status === 1 ? 'Paid' : contract.payment_status === 2 ? 'Unpaid' : 'Partial',
@@ -269,7 +274,7 @@ export default function FinanceReport() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Total Value</p>
-                  <p className="text-2xl font-bold text-blue-600">${statistics.totalValue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-blue-600">{formatCurrency(statistics.totalValue)}</p>
                 </div>
                 <DollarSign className="w-8 h-8 text-blue-600" />
               </div>
@@ -302,7 +307,7 @@ export default function FinanceReport() {
                 </div>
                 <div className="text-right">
                   <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm mr-2">{item.count}</span>
-                  <span className="text-sm text-gray-600">${item.value.toLocaleString()}</span>
+                  <span className="text-sm text-gray-600">{formatCurrency(item.value)}</span>
                 </div>
               </div>
             ))}
@@ -416,8 +421,8 @@ export default function FinanceReport() {
                       <div className="text-sm text-gray-500">{contract.dmcForumLeads?.email}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{contract.dmcForumLeads?.service_interest}</div>
-                      <div className="text-sm text-gray-500">{contract.dmcForumLeads?.country_interest}</div>
+                      <div className="text-sm text-gray-900">{contract.dmcForumLeads?.service_interest_label || contract.dmcForumLeads?.service_interest}</div>
+                      <div className="text-sm text-gray-500">{contract.dmcForumLeads?.country_interest_label || contract.dmcForumLeads?.country_interest}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getVerificationStatusColor(contract.verify)}`}>
@@ -433,8 +438,8 @@ export default function FinanceReport() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">${contract.dmcForumLeads?.payTotal?.toLocaleString()}</div>
-                      <div className="text-sm text-gray-500">Balance: ${contract.dmcForumLeads?.payBalance?.toLocaleString()}</div>
+                      <div className="text-sm text-gray-900">{formatCurrency(Number(contract.dmcForumLeads?.payTotal || 0))}</div>
+                      <div className="text-sm text-gray-500">Balance: {formatCurrency(Number(contract.dmcForumLeads?.payBalance || 0))}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

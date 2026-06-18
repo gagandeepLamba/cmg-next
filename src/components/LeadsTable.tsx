@@ -119,8 +119,8 @@ export default function LeadsTable({ leads, onEdit, onDelete }: LeadsTableProps)
                 <div className="text-sm text-gray-500">{lead.mobile}</div>
               </td>
               <td className="whitespace-nowrap px-6 py-4">
-                <div className="text-sm text-gray-900">{lead.service_interest}</div>
-                <div className="text-sm text-gray-500">{lead.country_interest}</div>
+                <div className="text-sm text-gray-900">{lead.service_interest_label || lead.service_interest}</div>
+                <div className="text-sm text-gray-500">{lead.country_interest_label || lead.country_interest}</div>
               </td>
               <td className="whitespace-nowrap px-6 py-4">
                 <div className="text-sm text-gray-900">

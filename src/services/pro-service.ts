@@ -290,13 +290,19 @@ export class PROService {
 
   static async getDashboardData() {
     await this.ensureDashboardTables();
+    await this.ensureWpsManagementTable();
 
     const renewals = await sequelize.query<RenewalRow>(
       `
         SELECT
           id, title, category, owner, authority,
           expiry_date AS expiryDate,
-          status,
+          CASE
+            WHEN status IN ('Renewal In Progress', 'Cancelled') THEN status
+            WHEN expiry_date < CURRENT_DATE() THEN 'Expired'
+            WHEN expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY) THEN 'Expiring Soon'
+            ELSE 'Valid'
+          END AS status,
           DATEDIFF(expiry_date, CURRENT_DATE()) AS daysLeft
         FROM dm_pro_documents
         ORDER BY expiry_date ASC
@@ -319,16 +325,30 @@ export class PROService {
 
     const wpsRuns = await sequelize.query<WpsRunRow>(
       `
-        SELECT
-          id,
-          month_label AS month,
-          employees,
-          gross_payroll AS grossPayroll,
-          sif_status AS sifStatus,
-          bank,
-          transfer_date AS transferDate
-        FROM dm_pro_wps_runs
-        ORDER BY id DESC
+        SELECT * FROM (
+          SELECT
+            id,
+            month_label AS month,
+            employees,
+            gross_payroll AS grossPayroll,
+            sif_status AS sifStatus,
+            bank,
+            transfer_date AS transferDate,
+            created_at AS sortDate
+          FROM dm_pro_wps_runs
+          UNION ALL
+          SELECT
+            0 AS id,
+            DATE_FORMAT(payroll_month, '%M %Y') AS month,
+            total_employees AS employees,
+            total_amount AS grossPayroll,
+            CASE WHEN status = 'Confirmed' THEN 'Approved' ELSE status END AS sifStatus,
+            employer_code AS bank,
+            submission_date AS transferDate,
+            created_at AS sortDate
+          FROM dm_pro_wps_records
+        ) runs
+        ORDER BY sortDate DESC
         LIMIT 6
       `,
       { type: QueryTypes.SELECT }
@@ -338,10 +358,16 @@ export class PROService {
       `
         SELECT
           COUNT(*) AS totalRuns,
-          SUM(CASE WHEN sif_status = 'Approved' THEN 1 ELSE 0 END) AS approvedRuns,
-          SUM(CASE WHEN sif_status <> 'Approved' THEN 1 ELSE 0 END) AS pendingRuns,
-          SUM(gross_payroll) AS grossPayroll
-        FROM dm_pro_wps_runs
+          SUM(CASE WHEN sifStatus = 'Approved' THEN 1 ELSE 0 END) AS approvedRuns,
+          SUM(CASE WHEN sifStatus <> 'Approved' THEN 1 ELSE 0 END) AS pendingRuns,
+          SUM(grossPayroll) AS grossPayroll
+        FROM (
+          SELECT sif_status AS sifStatus, gross_payroll AS grossPayroll
+          FROM dm_pro_wps_runs
+          UNION ALL
+          SELECT CASE WHEN status = 'Confirmed' THEN 'Approved' ELSE status END AS sifStatus, total_amount AS grossPayroll
+          FROM dm_pro_wps_records
+        ) runs
       `,
       { type: QueryTypes.SELECT }
     );
@@ -424,7 +450,12 @@ export class PROService {
           issue_date AS issueDate,
           expiry_date AS expiryDate,
           reminder_days AS reminderDays,
-          status,
+          CASE
+            WHEN status IN ('Renewal In Progress', 'Cancelled') THEN status
+            WHEN expiry_date < CURRENT_DATE() THEN 'Expired'
+            WHEN expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY) THEN 'Expiring Soon'
+            ELSE 'Valid'
+          END AS status,
           doc_file_url AS docFileUrl,
           notes,
           managed_by AS managedBy,
@@ -697,7 +728,7 @@ export class PROService {
     const replacements: Record<string, string | number> = { limit: options.limit || 100 };
 
     if (options.employeeId) {
-      conditions.push('p.employee_id = :employeeId');
+      conditions.push('CAST(e.id AS CHAR) = :employeeId');
       replacements.employeeId = options.employeeId;
     }
 
@@ -706,18 +737,23 @@ export class PROService {
       `
         SELECT
           p.pro_emp_id AS proEmpId,
-          p.employee_id AS employeeId,
+          CAST(e.id AS CHAR) AS employeeId,
           e.name AS employeeName,
           e.nationality,
           e.EID AS emiratesId,
           e.visaExp AS emiratesIdExpiry,
-          p.visa_uid AS visaUid,
-          p.visa_type AS visaType,
+          COALESCE(p.visa_uid, '') AS visaUid,
+          COALESCE(p.visa_type, 'Employment') AS visaType,
           p.visa_issue_date AS visaIssueDate,
-          p.visa_expiry_date AS visaExpiryDate,
-          p.visa_status AS visaStatus,
-          p.labour_card_no AS labourCardNo,
-          p.labour_card_expiry AS labourCardExpiry,
+          COALESCE(p.visa_expiry_date, e.visaExp) AS visaExpiryDate,
+          COALESCE(p.visa_status, CASE
+            WHEN e.visaExp IS NULL THEN 'Under Processing'
+            WHEN e.visaExp < CURRENT_DATE() THEN 'Expired'
+            WHEN e.visaExp <= DATE_ADD(CURRENT_DATE(), INTERVAL 60 DAY) THEN 'Expiring'
+            ELSE 'Active'
+          END) AS visaStatus,
+          COALESCE(p.labour_card_no, '') AS labourCardNo,
+          COALESCE(p.labour_card_expiry, e.labexp) AS labourCardExpiry,
           p.contract_type AS contractType,
           p.mohre_contract_ref AS mohreContractRef,
           p.medical_fitness AS medicalFitness,
@@ -725,13 +761,13 @@ export class PROService {
           p.insurance_expiry AS insuranceExpiry,
           p.entry_permit_no AS entryPermitNo,
           p.status_change_log AS statusChangeLog,
-          DATEDIFF(p.visa_expiry_date, CURRENT_DATE()) AS visaDaysLeft,
-          DATEDIFF(p.labour_card_expiry, CURRENT_DATE()) AS labourDaysLeft,
+          DATEDIFF(COALESCE(p.visa_expiry_date, e.visaExp), CURRENT_DATE()) AS visaDaysLeft,
+          DATEDIFF(COALESCE(p.labour_card_expiry, e.labexp), CURRENT_DATE()) AS labourDaysLeft,
           DATEDIFF(p.insurance_expiry, CURRENT_DATE()) AS insuranceDaysLeft
-        FROM dm_pro_employee_immigration p
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = p.employee_id
+        FROM dm_employee e
+        LEFT JOIN dm_pro_employee_immigration p ON CAST(p.employee_id AS CHAR) = CAST(e.id AS CHAR)
         ${where}
-        ORDER BY p.visa_expiry_date ASC
+        ORDER BY COALESCE(p.visa_expiry_date, e.visaExp, '9999-12-31') ASC, e.id DESC
         LIMIT :limit
       `,
       { replacements, type: QueryTypes.SELECT }
@@ -873,35 +909,60 @@ export class PROService {
 
   static async listWpsRecords(options: { limit?: number; status?: string } = {}) {
     await this.ensureWpsManagementTable();
+    await this.ensureDashboardTables();
     const conditions: string[] = [];
     const replacements: Record<string, string | number> = { limit: options.limit || 100 };
     if (options.status) {
-      conditions.push('w.status = :status');
+      conditions.push('status = :status');
       replacements.status = options.status;
     }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     return sequelize.query(
       `
-        SELECT
-          w.wps_id AS wpsId,
-          w.payroll_month AS payrollMonth,
-          w.employer_code AS employerCode,
-          w.agent_id AS agentId,
-          w.total_employees AS totalEmployees,
-          w.total_amount AS totalAmount,
-          w.sif_file_url AS sifFileUrl,
-          w.submission_date AS submissionDate,
-          w.submission_ref AS submissionRef,
-          w.status,
-          w.rejection_reason AS rejectionReason,
-          w.processed_by AS processedBy,
-          processor.name AS processedByName,
-          w.created_at AS createdAt
-        FROM dm_pro_wps_records w
-        LEFT JOIN dm_employee processor ON CAST(processor.id AS CHAR) = w.processed_by
+        SELECT *
+        FROM (
+          SELECT
+            w.wps_id AS wpsId,
+            w.payroll_month AS payrollMonth,
+            w.employer_code AS employerCode,
+            w.agent_id AS agentId,
+            w.total_employees AS totalEmployees,
+            w.total_amount AS totalAmount,
+            w.total_amount AS grossPayroll,
+            w.sif_file_url AS sifFileUrl,
+            w.submission_date AS submissionDate,
+            w.submission_ref AS submissionRef,
+            w.status,
+            CASE WHEN w.status = 'Confirmed' THEN 'Approved' ELSE w.status END AS sifStatus,
+            w.rejection_reason AS rejectionReason,
+            w.processed_by AS processedBy,
+            processor.name AS processedByName,
+            w.created_at AS createdAt
+          FROM dm_pro_wps_records w
+          LEFT JOIN dm_employee processor ON CAST(processor.id AS CHAR) = w.processed_by
+          UNION ALL
+          SELECT
+            CONCAT('legacy-', r.id) AS wpsId,
+            STR_TO_DATE(CONCAT('01 ', r.month_label), '%d %M %Y') AS payrollMonth,
+            '' AS employerCode,
+            '' AS agentId,
+            r.employees AS totalEmployees,
+            r.gross_payroll AS totalAmount,
+            r.gross_payroll AS grossPayroll,
+            NULL AS sifFileUrl,
+            r.transfer_date AS submissionDate,
+            NULL AS submissionRef,
+            CASE WHEN r.sif_status = 'Approved' THEN 'Confirmed' ELSE 'Generated' END AS status,
+            r.sif_status AS sifStatus,
+            NULL AS rejectionReason,
+            '' AS processedBy,
+            r.bank AS processedByName,
+            r.created_at AS createdAt
+          FROM dm_pro_wps_runs r
+        ) wps
         ${where}
-        ORDER BY w.payroll_month DESC, w.created_at DESC
+        ORDER BY payrollMonth DESC, createdAt DESC
         LIMIT :limit
       `,
       { replacements, type: QueryTypes.SELECT }

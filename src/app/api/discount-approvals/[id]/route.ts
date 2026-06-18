@@ -64,7 +64,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const [existingResult] = await sequelize.query(`
-      SELECT id FROM dm_discount_approvals WHERE id = ?
+      SELECT id, opportunityId, discountedAmount FROM dm_discount_approvals WHERE id = ?
     `, {
       replacements: [discountId]
     });
@@ -113,6 +113,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     `, {
       replacements: [...Object.values(updateData), discountId]
     });
+
+    const existingApproval = (existingResult as any[])[0];
+    if (body.status === 'approved' && existingApproval?.opportunityId) {
+      await sequelize.query(
+        `UPDATE dmc_opportunities
+         SET estimatedValue = ?, actualValue = COALESCE(actualValue, ?), updatedAt = ?
+         WHERE id = ?`,
+        {
+          replacements: [
+            existingApproval.discountedAmount,
+            existingApproval.discountedAmount,
+            new Date(),
+            existingApproval.opportunityId,
+          ],
+        }
+      );
+    }
 
     return NextResponse.json({
       success: true,

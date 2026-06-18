@@ -23,6 +23,20 @@ const ensureDBConnection = async () => {
   }
 };
 
+function getInsertId(result: unknown): number {
+  const values = Array.isArray(result) ? result : [result];
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
+    if (typeof value === 'string' && Number.isInteger(Number(value)) && Number(value) > 0) return Number(value);
+    if (value && typeof value === 'object') {
+      const insertId = (value as { insertId?: unknown }).insertId;
+      if (typeof insertId === 'number' && Number.isInteger(insertId) && insertId > 0) return insertId;
+      if (typeof insertId === 'string' && Number.isInteger(Number(insertId)) && Number(insertId) > 0) return Number(insertId);
+    }
+  }
+  return 0;
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Ensure database connection is established
@@ -132,11 +146,18 @@ export async function GET(request: NextRequest) {
           l.regdate, l.payTotal, l.paidYet, l.payBalance, l.lead_remark, l.created,
           l.assignTo, l.branch, l.region,
           l.opportunity_id, l.opportunity_status,
+          COALESCE(cp.name, l.country_interest) as country_interest_label,
+          COALESCE(s.name, pt.type, l.service_interest) as service_interest_label,
+          COALESCE(ms.name, l.market_source) as market_source_label,
           COALESCE(l.opportunity_id, (SELECT MAX(o.id) FROM dmc_opportunities o WHERE o.leadId = l.id)) as resolved_opportunity_id,
           e1.name as assigned_to_name, b.name as branch_name
         FROM dmc_forum_leads l
         LEFT JOIN dm_employee e1 ON l.assignTo = e1.id
         LEFT JOIN dm_branch b ON l.branch = b.id
+        LEFT JOIN dm_country_proces cp ON cp.id = CAST(l.country_interest AS UNSIGNED)
+        LEFT JOIN dm_service s ON s.id = CAST(l.service_interest AS UNSIGNED)
+        LEFT JOIN dm_program_type pt ON pt.id = CAST(l.service_interest AS UNSIGNED)
+        LEFT JOIN dm_source ms ON ms.id = CAST(l.market_source AS UNSIGNED)
         ${whereClause}
         ORDER BY l.created DESC
       `, {
@@ -159,9 +180,9 @@ export async function GET(request: NextRequest) {
         'Gender': lead.gender,
         'ID Number': lead.id_number,
         'ID Expiry': lead.id_expiry,
-        'Country Interest': lead.country_interest,
-        'Service Interest': lead.service_interest,
-        'Market Source': lead.market_source,
+        'Country Interest': lead.country_interest_label || lead.country_interest,
+        'Service Interest': lead.service_interest_label || lead.service_interest,
+        'Market Source': lead.market_source_label || lead.market_source,
         'Priority': lead.priority,
         'Status': lead.status,
         'Lead Quality': lead.lead_quality,
@@ -199,18 +220,25 @@ export async function GET(request: NextRequest) {
 
     // Get leads with pagination
     const leads = await sequelize.query<any>(`
-      SELECT 
+        SELECT 
         l.id, l.fname, l.mname, l.lname, l.email, l.phone, l.mobile, l.nationality,
         l.address, l.dob, l.gender, l.id_number, l.id_expiry, l.country_interest,
         l.service_interest, l.market_source, l.priority, l.status, l.lead_quality,
         l.regdate, l.payTotal, l.paidYet, l.payBalance, l.lead_remark, l.created,
         l.assignTo, l.branch, l.region,
         l.opportunity_id, l.opportunity_status,
+        COALESCE(cp.name, l.country_interest) as country_interest_label,
+        COALESCE(s.name, pt.type, l.service_interest) as service_interest_label,
+        COALESCE(ms.name, l.market_source) as market_source_label,
         COALESCE(l.opportunity_id, (SELECT MAX(o.id) FROM dmc_opportunities o WHERE o.leadId = l.id)) as resolved_opportunity_id,
         e1.name as assigned_to_name, b.name as branch_name
       FROM dmc_forum_leads l
       LEFT JOIN dm_employee e1 ON l.assignTo = e1.id
       LEFT JOIN dm_branch b ON l.branch = b.id
+      LEFT JOIN dm_country_proces cp ON cp.id = CAST(l.country_interest AS UNSIGNED)
+      LEFT JOIN dm_service s ON s.id = CAST(l.service_interest AS UNSIGNED)
+      LEFT JOIN dm_program_type pt ON pt.id = CAST(l.service_interest AS UNSIGNED)
+      LEFT JOIN dm_source ms ON ms.id = CAST(l.market_source AS UNSIGNED)
       ${whereClause}
       ORDER BY l.created DESC
       LIMIT ? OFFSET ?
@@ -347,7 +375,7 @@ export async function POST(request: NextRequest) {
               status_date: new Date()
             }
 
-            const [, metadata] = await sequelize.query(`
+            const insertResult = await sequelize.query(`
               INSERT INTO dmc_forum_leads (
                 fname, mname, lname, email, phone, mobile, nationality, address, dob, gender,
                 id_number, id_expiry, id_issue_date, country_interest, sub_country_interest,
@@ -387,7 +415,9 @@ export async function POST(request: NextRequest) {
               type: QueryTypes.INSERT
             })
 
-            createdLeads.push({ id: (metadata as any).insertId, ...leadData })
+            const leadId = getInsertId(insertResult)
+            if (!leadId) throw new Error('Lead was created but the new lead ID could not be resolved')
+            createdLeads.push({ id: leadId, ...leadData })
           } catch (error) {
             errors.push({ row: index + 1, error: (error as Error).message })
           }
@@ -543,7 +573,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Insert the lead using raw SQL
-    const [insertId] = await sequelize.query(`
+    const insertResult = await sequelize.query(`
       INSERT INTO dmc_forum_leads (
         fname, mname, lname, email, phone, mobile, nationality, address, dob, gender,
         id_number, id_expiry, id_issue_date, country_interest, sub_country_interest,
@@ -600,6 +630,10 @@ export async function POST(request: NextRequest) {
       ],
       type: QueryTypes.INSERT
     });
+    const insertId = getInsertId(insertResult);
+    if (!insertId) {
+      throw new Error('Lead was created but the new lead ID could not be resolved');
+    }
 
     // Get the created lead with relations
     const [leadWithRelations] = await sequelize.query(`

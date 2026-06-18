@@ -22,7 +22,9 @@ interface Lead {
   id_number: string;
   id_expiry: string;
   country_interest: string;
+  country_interest_label?: string;
   service_interest: string;
+  service_interest_label?: string;
   market_source: string;
   appointment: string;
   followup: string;
@@ -68,6 +70,9 @@ export default function BranchPerformanceReport() {
   const [dateRange, setDateRange] = useState('month');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const formatCurrency = (value: number) => (
+    new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED', maximumFractionDigits: 0 }).format(Number(value || 0))
+  );
 
   useEffect(() => {
     fetchBranchData();
@@ -212,7 +217,7 @@ export default function BranchPerformanceReport() {
 
               <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
                 <span>{branch.totalLeads} leads</span>
-                <span>${branch.revenue.toLocaleString()}</span>
+                <span>{formatCurrency(branch.revenue)}</span>
               </div>
 
               <div className="flex items-center justify-between text-xs text-gray-500">
@@ -267,7 +272,7 @@ export default function BranchPerformanceReport() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {lead.service_interest}
+                      {lead.service_interest_label || lead.service_interest}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -284,7 +289,7 @@ export default function BranchPerformanceReport() {
                       {lead.dmEmployeeByASSIGNTo?.name || 'Unassigned'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${lead.payTotal.toLocaleString()}
+                      {formatCurrency(lead.payTotal)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

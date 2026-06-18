@@ -139,6 +139,13 @@ type EOSBSettlement = {
   settlement_date?: string | null;
   notes?: string | null;
 };
+type EmployeeSummary = {
+  total: number;
+  active: number;
+  inactive: number;
+  missingVisaDates: number;
+  departments: number;
+};
 type PayslipRecord = {
   payslip_id: string;
   employee_id: string;
@@ -289,6 +296,24 @@ const yearsBetween = (start?: string | null, end = new Date()) => {
   return Math.max(0, (end.getTime() - startDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 };
 
+const estimateEOSB = (monthlyBasicSalary: number, yearsOfService: number, separationReason: SeparationReason = 'Termination') => {
+  if (yearsOfService < 1) return 0;
+  const dailyRate = monthlyBasicSalary / 30;
+  let gratuityDays = 0;
+
+  if (separationReason === 'Resignation') {
+    if (yearsOfService < 3) gratuityDays = 21 * yearsOfService * (1 / 3);
+    else if (yearsOfService < 5) gratuityDays = 21 * yearsOfService * (2 / 3);
+    else gratuityDays = 21 * 5 + 30 * (yearsOfService - 5);
+  } else if (yearsOfService <= 5) {
+    gratuityDays = 21 * yearsOfService;
+  } else {
+    gratuityDays = 21 * 5 + 30 * (yearsOfService - 5);
+  }
+
+  return Math.round(dailyRate * gratuityDays);
+};
+
 const departmentName = (department?: number | null) => {
   if (department === 1) return 'Sales';
   if (department === 2) return 'Operations';
@@ -336,6 +361,7 @@ const statusBadge = (status: string) => {
 export default function HRModuleSuite({ activeModule = 'employee-data-sheet' }: { activeModule?: ModuleKey }) {
   const { hasPermission } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeeSummary, setEmployeeSummary] = useState<EmployeeSummary | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [leaves, setLeaves] = useState<LeaveRecord[]>([]);
   const [leaveEntitlements, setLeaveEntitlements] = useState<LeaveEntitlement[]>([]);
@@ -467,6 +493,7 @@ export default function HRModuleSuite({ activeModule = 'employee-data-sheet' }: 
 
         const loadedEmployees = employeeJson?.data || [];
         setEmployees(loadedEmployees);
+        setEmployeeSummary(employeeJson?.summary || null);
         setSelectedEmployeeId(loadedEmployees[0]?.id || null);
         setAttendanceForm((previous) => ({
           ...previous,
@@ -519,6 +546,7 @@ export default function HRModuleSuite({ activeModule = 'employee-data-sheet' }: 
       } catch (error) {
         console.error('Failed to load HR module data:', error);
         setEmployees([]);
+        setEmployeeSummary(null);
         setLoadError('Unable to load HR records from the database.');
       } finally {
         setLoading(false);
@@ -550,7 +578,7 @@ export default function HRModuleSuite({ activeModule = 'employee-data-sheet' }: 
   const deductions = 750;
   const netPay = monthlyBase + allowances - deductions;
   const eosbYears = yearsBetween(selectedEmployee?.doj);
-  const eosbEstimate = Math.round((monthlyBase / 30) * 21 * Math.min(eosbYears, 5) + (monthlyBase / 30) * 30 * Math.max(eosbYears - 5, 0));
+  const eosbEstimate = estimateEOSB(monthlyBase, eosbYears, eosbForm.separation_reason);
   const canCreate = hasPermission('hr.create');
   const canUpdate = hasPermission('hr.update');
   const canViewCurrentModule = hasPermission('hr.view') ||
@@ -572,10 +600,10 @@ export default function HRModuleSuite({ activeModule = 'employee-data-sheet' }: 
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         {[
-          ['Active employees', employees.filter((employee) => employee.status === 1).length],
-          ['Departments', new Set(employees.map((employee) => employee.department || 0)).size],
-          ['Missing visa dates', employees.filter((employee) => !employee.visaExp).length],
-          ['Remote/office records', employees.length],
+          ['Active employees', employeeSummary?.active ?? employees.filter((employee) => employee.status === 1).length],
+          ['Departments', employeeSummary?.departments ?? new Set(employees.map((employee) => employee.department || 0)).size],
+          ['Missing visa dates', employeeSummary?.missingVisaDates ?? employees.filter((employee) => !employee.visaExp).length],
+          ['Remote/office records', employeeSummary?.total ?? employees.length],
         ].map(([label, value]) => (
           <div key={label} className="rounded-lg border border-slate-200 bg-white p-4">
             <p className="text-sm text-slate-500">{label}</p>

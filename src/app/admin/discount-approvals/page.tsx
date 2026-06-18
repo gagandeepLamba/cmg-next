@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   CheckCircle, XCircle, Clock, DollarSign, User,
   AlertCircle, Search, RefreshCw, ChevronDown, ChevronUp, Filter
@@ -48,6 +49,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export default function DiscountApprovalsPage() {
+  const { user } = useAuth();
   const [approvals, setApprovals] = useState<DiscountApproval[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
@@ -84,10 +86,12 @@ export default function DiscountApprovalsPage() {
     if (!modal) return;
     try {
       setActionLoading(modal.id);
+      const roleText = `${user?.type || ''} ${user?.role || ''}`.toLowerCase();
+      const approverRole = roleText.includes('director') ? 'director_of_sales' : 'branch_manager';
       const body: any = {
         status: modal.action === 'approve' ? 'approved' : 'rejected',
-        approverRole: 'director_of_sales', // In production, pull from session
-        approvedBy: 1,                     // In production, pull from session user ID
+        approverRole,
+        approvedBy: user?.id || 1,
       };
       if (modal.action === 'approve') {
         body.approvedAt = new Date().toISOString();

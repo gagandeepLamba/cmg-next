@@ -1603,16 +1603,16 @@ export class HRService {
     const dailyBasicRate = monthlyBasicSalary / 30;
     let gratuityDays = 0;
 
-    if (yearsOfService >= 1) {
-      if (separationReason === 'Resignation') {
-        if (yearsOfService < 3) gratuityDays = 21 * yearsOfService * (1 / 3);
-        else if (yearsOfService < 5) gratuityDays = 21 * yearsOfService * (2 / 3);
-        else gratuityDays = 21 * yearsOfService;
-      } else if (yearsOfService <= 5) {
-        gratuityDays = 21 * yearsOfService;
-      } else {
-        gratuityDays = (21 * 5) + (30 * (yearsOfService - 5));
-      }
+    if (yearsOfService < 1) {
+      gratuityDays = 0;
+    } else if (separationReason === 'Resignation') {
+      if (yearsOfService < 3) gratuityDays = 21 * yearsOfService * (1 / 3);
+      else if (yearsOfService < 5) gratuityDays = 21 * yearsOfService * (2 / 3);
+      else gratuityDays = 21 * 5 + 30 * (yearsOfService - 5);
+    } else if (yearsOfService <= 5) {
+      gratuityDays = 21 * yearsOfService;
+    } else {
+      gratuityDays = (21 * 5) + (30 * (yearsOfService - 5));
     }
 
     const eosbAmount = Number((dailyBasicRate * gratuityDays).toFixed(2));
@@ -2326,6 +2326,20 @@ export class HRService {
       `,
       { replacements, type: QueryTypes.SELECT }
     );
+    const [summary] = await sequelize.query<{ total: number; active: number; inactive: number; missingVisaDates: number; departments: number }>(
+      `
+        SELECT
+          COUNT(*) AS total,
+          SUM(CASE WHEN e.status = 1 THEN 1 ELSE 0 END) AS active,
+          SUM(CASE WHEN e.status <> 1 THEN 1 ELSE 0 END) AS inactive,
+          SUM(CASE WHEN e.visaExp IS NULL OR e.visaExp = '' THEN 1 ELSE 0 END) AS missingVisaDates,
+          COUNT(DISTINCT COALESCE(e.department, 0)) AS departments
+        FROM dm_employee e
+        LEFT JOIN dm_department d ON d.id = e.department
+        ${where}
+      `,
+      { replacements, type: QueryTypes.SELECT }
+    );
     const data = await sequelize.query(
       `
         SELECT
@@ -2347,7 +2361,17 @@ export class HRService {
       { replacements, type: QueryTypes.SELECT }
     );
 
-    return { data, pagination: { page, limit, total: numberValue(count?.total), totalPages: Math.ceil(numberValue(count?.total) / limit) } };
+    return {
+      data,
+      summary: {
+        total: numberValue(summary?.total),
+        active: numberValue(summary?.active),
+        inactive: numberValue(summary?.inactive),
+        missingVisaDates: numberValue(summary?.missingVisaDates),
+        departments: numberValue(summary?.departments),
+      },
+      pagination: { page, limit, total: numberValue(count?.total), totalPages: Math.ceil(numberValue(count?.total) / limit) },
+    };
   }
 
   static async createEmployee(input: EmployeeCoreInput) {

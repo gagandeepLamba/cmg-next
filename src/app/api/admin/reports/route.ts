@@ -1,9 +1,54 @@
 import { NextResponse } from 'next/server';
 import { Op } from 'sequelize';
 import { DmcForumLeads } from '@/models';
+import { QueryTypes } from 'sequelize';
+import { sequelize } from '@/lib/sequelize';
 
 const toPlain = (row: any) => row?.get ? row.get({ plain: true }) : row;
 const toPlainArray = (rows: any[]) => rows.map(toPlain);
+const numericValue = (value: unknown) => {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+async function getReferenceMaps() {
+  const [countries, services, programTypes] = await Promise.all([
+    sequelize.query<{ value: number | string; label: string }>(
+      'SELECT id AS value, name AS label FROM dm_country_proces',
+      { type: QueryTypes.SELECT }
+    ),
+    sequelize.query<{ value: number | string; label: string }>(
+      'SELECT id AS value, name AS label FROM dm_service',
+      { type: QueryTypes.SELECT }
+    ),
+    sequelize.query<{ value: number | string; label: string }>(
+      'SELECT id AS value, type AS label FROM dm_program_type',
+      { type: QueryTypes.SELECT }
+    ),
+  ]);
+
+  const countryMap = new Map(countries.map((row) => [String(row.value), row.label]));
+  const serviceMap = new Map([
+    ...services.map((row) => [String(row.value), row.label] as const),
+    ...programTypes.map((row) => [String(row.value), row.label] as const),
+  ]);
+
+  return { countryMap, serviceMap };
+}
+
+const labelFor = (map: Map<string, string>, value: unknown) => {
+  const key = String(value || '').trim();
+  if (!key) return 'Unknown';
+  return map.get(key) || key;
+};
+
+const decorateLeadLabels = (items: any[], maps: Awaited<ReturnType<typeof getReferenceMaps>>) => (
+  items.map((item) => ({
+    ...item,
+    country_interest_label: labelFor(maps.countryMap, item.country_interest),
+    service_interest_label: labelFor(maps.serviceMap, item.service_interest),
+  }))
+);
 
 export async function GET(request: Request) {
   try {
@@ -42,6 +87,7 @@ export async function GET(request: Request) {
     const groupBy = searchParams.get('groupBy');
 
     const where: any = {};
+    const referenceMaps = await getReferenceMaps();
 
     // Date range filter
     if (startDate && endDate) {
@@ -74,7 +120,7 @@ export async function GET(request: Request) {
         ],
         order: [['feeAgreeDate', 'DESC']]
       });
-      const leads = toPlainArray(leadRows);
+      const leads = decorateLeadLabels(toPlainArray(leadRows), referenceMaps);
 
       // Group data if requested
       let groupedData = null;
@@ -92,7 +138,7 @@ export async function GET(request: Request) {
             totalApplicants: leads.reduce((sum: number, l: any) => sum + (l.noOfApplicants || l.no_of_applicants || 0), 0),
             byStatus: countBy(leads, 'status'),
             byType: countBy(leads, 'type'),
-            byCountry: countBy(leads, 'country_interest')
+            byCountry: countBy(leads, 'country_interest_label')
           }
         }
       });
@@ -112,7 +158,7 @@ export async function GET(request: Request) {
         ],
         order: [['feeAgreeDate', 'DESC']]
       });
-      const opportunities = toPlainArray(opportunityRows);
+      const opportunities = decorateLeadLabels(toPlainArray(opportunityRows), referenceMaps);
 
       return NextResponse.json({
         success: true,
@@ -120,10 +166,10 @@ export async function GET(request: Request) {
           opportunities,
           summary: {
             total: opportunities.length,
-            paid: opportunities.filter((o: any) => o.paidYet > 0).length,
-            pending: opportunities.filter((o: any) => o.payBalance > 0).length,
-            totalRevenue: opportunities.reduce((sum: number, o: any) => sum + (o.paidYet || 0), 0),
-            pendingRevenue: opportunities.reduce((sum: number, o: any) => sum + (o.payBalance || 0), 0)
+            paid: opportunities.filter((o: any) => numericValue(o.paidYet) > 0).length,
+            pending: opportunities.filter((o: any) => numericValue(o.payBalance) > 0).length,
+            totalRevenue: opportunities.reduce((sum: number, o: any) => sum + numericValue(o.paidYet), 0),
+            pendingRevenue: opportunities.reduce((sum: number, o: any) => sum + numericValue(o.payBalance), 0)
           }
         }
       });
@@ -149,8 +195,8 @@ export async function GET(request: Request) {
         data: {
           payments,
           summary: {
-            totalReceived: payments.reduce((sum: number, p: any) => sum + (p.paidYet || 0), 0),
-            totalPending: payments.reduce((sum: number, p: any) => sum + (p.payBalance || 0), 0),
+            totalReceived: payments.reduce((sum: number, p: any) => sum + numericValue(p.paidYet), 0),
+            totalPending: payments.reduce((sum: number, p: any) => sum + numericValue(p.payBalance), 0),
             totalTransactions: payments.length,
             byPaymentType: countBy(payments, 'payType'),
             byBranch: countBy(payments, 'branch')
@@ -223,7 +269,7 @@ function groupLeads(leads: any[], groupBy: string) {
     }
     acc[key].count += 1;
     acc[key].applicants += lead.no_of_applicants || 0;
-    acc[key].revenue += lead.paidYet || 0;
+    acc[key].revenue += numericValue(lead.paidYet);
     acc[key].items.push(lead);
     return acc;
   }, {} as Record<string, any>);

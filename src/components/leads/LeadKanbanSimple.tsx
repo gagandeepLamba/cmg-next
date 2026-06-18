@@ -148,9 +148,9 @@ export default function LeadKanbanSimple({
       {/* Interest */}
       <div className="mt-3 pt-3 border-t border-gray-100">
         <div className="text-sm">
-          <div className="font-medium text-gray-900">{lead.country_interest}</div>
-          <div className="text-gray-600">{lead.service_interest}</div>
-          <div className="text-xs text-gray-500 mt-1">Source: {lead.market_source}</div>
+          <div className="font-medium text-gray-900">{lead.country_interest_label || lead.country_interest}</div>
+          <div className="text-gray-600">{lead.service_interest_label || lead.service_interest}</div>
+          <div className="text-xs text-gray-500 mt-1">Source: {lead.market_source_label || lead.market_source}</div>
         </div>
       </div>
 

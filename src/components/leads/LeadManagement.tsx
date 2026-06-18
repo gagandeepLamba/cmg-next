@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Search, Plus, Edit, Trash2, Download, Upload, Users,
@@ -22,6 +22,23 @@ interface PaginationData {
   limit: number;
   total: number;
   pages: number;
+}
+
+interface FilterOption {
+  value: string;
+  label: string;
+  region?: string;
+}
+
+interface LeadFilterOptions {
+  statuses: FilterOption[];
+  priorities: FilterOption[];
+  branches: FilterOption[];
+  regions: FilterOption[];
+  countries: FilterOption[];
+  services: FilterOption[];
+  sources: FilterOption[];
+  leadQualities: FilterOption[];
 }
 
 type LeadActionType = 'appointment' | 'followup' | 'remark';
@@ -73,6 +90,11 @@ interface LeadActivity {
   };
 }
 
+function getSelectableLeadId(lead: Pick<Lead, 'id'>): number | null {
+  const id = Number(lead.id);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, showActions = true }: LeadManagementProps) {
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -90,6 +112,16 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     leadQuality: '',
     dateFrom: '',
     dateTo: ''
+  });
+  const [filterOptions, setFilterOptions] = useState<LeadFilterOptions>({
+    statuses: [],
+    priorities: [],
+    branches: [],
+    regions: [],
+    countries: [],
+    services: [],
+    sources: [],
+    leadQualities: []
   });
   const [pagination, setPagination] = useState<PaginationData>({
     page: 1,
@@ -121,6 +153,14 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   const [leadActivityLoading, setLeadActivityLoading] = useState(false);
   const [leadActivityError, setLeadActivityError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const filteredBranchOptions = useMemo(() => {
+    if (!filters.region) return filterOptions.branches;
+    return filterOptions.branches.filter((branch) => !branch.region || branch.region === filters.region);
+  }, [filterOptions.branches, filters.region]);
+  const selectableLeadIds = useMemo(
+    () => leads.map(getSelectableLeadId).filter((id): id is number => id !== null),
+    [leads]
+  );
 
   // API functions
   const fetchLeads = async (forceKanban?: boolean) => {
@@ -204,6 +244,34 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   useEffect(() => {
     fetchLeads();
   }, [pagination.page, searchTerm, filters, activeTab, viewMode]);
+
+  useEffect(() => {
+    setSelectedLeads((current) => current.filter((id) => selectableLeadIds.includes(id)));
+  }, [selectableLeadIds]);
+
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const response = await fetch('/api/lead-filter-options');
+        if (!response.ok) throw new Error('Failed to fetch lead filter options');
+        const data = await response.json();
+        setFilterOptions({
+          statuses: data.statuses || [],
+          priorities: data.priorities || [],
+          branches: data.branches || [],
+          regions: data.regions || [],
+          countries: data.countries || [],
+          services: data.services || [],
+          sources: data.sources || [],
+          leadQualities: data.leadQualities || []
+        });
+      } catch (error) {
+        console.error('Error fetching lead filter options:', error);
+      }
+    };
+
+    fetchFilterOptions();
+  }, []);
 
   const handleTabChange = (tab: 'leads' | 'opportunities') => {
     setActiveTab(tab);
@@ -633,18 +701,20 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedLeads(leads.map(lead => Number(lead.id)).filter(Boolean));
+      setSelectedLeads(selectableLeadIds);
     } else {
       setSelectedLeads([]);
     }
   };
 
   const handleSelectLead = (id: number, checked: boolean) => {
-    const numericId = Number(id);
+    const numericId = Number.isInteger(id) && id > 0 ? id : null;
+    if (numericId === null) return;
+
     if (checked) {
-      setSelectedLeads([...selectedLeads, numericId]);
+      setSelectedLeads((current) => current.includes(numericId) ? current : [...current, numericId]);
     } else {
-      setSelectedLeads(selectedLeads.filter(leadId => leadId !== numericId));
+      setSelectedLeads((current) => current.filter(leadId => leadId !== numericId));
     }
   };
 
@@ -766,13 +836,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Status</option>
-            <option value="Prospect">Prospect/Interested</option>
-            <option value="Not Interested">Not Interested</option>
-            <option value="DNQ">DNQ</option>
-            <option value="Not_answered">Not Answered</option>
-            <option value="Could Not Connect">Could Not Connect/Wrong Number</option>
-            <option value="Call Back">Call Back</option>
-            <option value="Abroad Lead">Abroad Lead</option>
+            {filterOptions.statuses.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
 
           <select
@@ -781,36 +847,44 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Priority</option>
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
+            {filterOptions.priorities.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
 
+          <select
+            value={filters.region}
+            onChange={(e) => setFilters({...filters, region: e.target.value, branch: ''})}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All Regions</option>
+            {filterOptions.regions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <select
             value={filters.branch}
             onChange={(e) => setFilters({...filters, branch: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Branches</option>
-            <option value="1">Dubai</option>
-            <option value="2">Abu Dhabi</option>
-            <option value="3">Sharjah</option>
+            {filteredBranchOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <select
             value={filters.countryInterest}
             onChange={(e) => setFilters({...filters, countryInterest: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Countries</option>
-            <option value="Canada">Canada</option>
-            <option value="Australia">Australia</option>
-            <option value="UK">UK</option>
-            <option value="USA">USA</option>
-            <option value="Germany">Germany</option>
-            <option value="France">France</option>
+            {filterOptions.countries.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
 
           <select
@@ -818,12 +892,10 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             onChange={(e) => setFilters({...filters, serviceInterest: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="">All Services</option>
-            <option value="Immigration">Immigration</option>
-            <option value="Student Visa">Student Visa</option>
-            <option value="Work Permit">Work Permit</option>
-            <option value="Business Immigration">Business Immigration</option>
-            <option value="Family Sponsorship">Family Sponsorship</option>
+            <option value="">All Programs/Services</option>
+            {filterOptions.services.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
 
           <select
@@ -832,26 +904,24 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Sources</option>
-            <option value="Website">Website</option>
-            <option value="Social Media">Social Media</option>
-            <option value="Referral">Referral</option>
-            <option value="Email Campaign">Email Campaign</option>
-            <option value="Cold Call">Cold Call</option>
+            {filterOptions.sources.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
+        </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <select
             value={filters.leadQuality}
             onChange={(e) => setFilters({...filters, leadQuality: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Qualities</option>
-            <option value="Hot">Hot</option>
-            <option value="Warm">Warm</option>
-            <option value="Cold">Cold</option>
+            {filterOptions.leadQualities.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -985,7 +1055,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                     {activeTab === 'leads' && (
                       <input
                         type="checkbox"
-                        checked={selectedLeads.length === leads.length && leads.length > 0}
+                        checked={selectableLeadIds.length > 0 && selectedLeads.length === selectableLeadIds.length}
                         onChange={(e) => handleSelectAll(e.target.checked)}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
@@ -1012,14 +1082,18 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {leads.map((lead: Lead) => (
-                  <tr key={lead.id} className="hover:bg-gray-50">
+                {leads.map((lead: Lead, index) => {
+                  const leadId = getSelectableLeadId(lead);
+
+                  return (
+                  <tr key={leadId ?? `${lead.email || 'lead'}-${index}`} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       {activeTab === 'leads' && (
                         <input
                           type="checkbox"
-                          checked={selectedLeads.includes(Number(lead.id))}
-                          onChange={(e) => handleSelectLead(Number(lead.id), e.target.checked)}
+                          checked={leadId !== null && selectedLeads.includes(leadId)}
+                          disabled={leadId === null}
+                          onChange={(e) => leadId !== null && handleSelectLead(leadId, e.target.checked)}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                       )}
@@ -1059,9 +1133,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{lead.country_interest}</div>
-                      <div className="text-sm text-gray-500">{lead.service_interest}</div>
-                      <div className="text-sm text-gray-500 mt-1">Source: {lead.market_source}</div>
+                      <div className="text-sm text-gray-900">{(lead as any).country_interest_label || lead.country_interest}</div>
+                      <div className="text-sm text-gray-500">{(lead as any).service_interest_label || lead.service_interest}</div>
+                      <div className="text-sm text-gray-500 mt-1">Source: {(lead as any).market_source_label || lead.market_source}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col space-y-1">
@@ -1155,7 +1229,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1250,9 +1325,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
 
               <div className="rounded-lg border border-gray-200 p-4">
                 <h4 className="font-semibold text-gray-900 mb-3">Interest</h4>
-                <p><span className="font-medium">Country:</span> {currentLead.country_interest || 'N/A'}</p>
-                <p><span className="font-medium">Service:</span> {currentLead.service_interest || 'N/A'}</p>
-                <p><span className="font-medium">Source:</span> {currentLead.market_source || 'N/A'}</p>
+                <p><span className="font-medium">Country:</span> {currentLead.country_interest_label || currentLead.country_interest || 'N/A'}</p>
+                <p><span className="font-medium">Service:</span> {currentLead.service_interest_label || currentLead.service_interest || 'N/A'}</p>
+                <p><span className="font-medium">Source:</span> {currentLead.market_source_label || currentLead.market_source || 'N/A'}</p>
                 <p><span className="font-medium">Quality:</span> {currentLead.lead_quality || 'N/A'}</p>
               </div>
 

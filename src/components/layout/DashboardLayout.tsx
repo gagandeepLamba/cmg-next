@@ -51,12 +51,24 @@ interface NavItem {
   badge?: number;
 }
 
+interface GlobalSearchResult {
+  id: string | number;
+  title: string;
+  subtitle?: string | null;
+  type: string;
+  href: string;
+}
+
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logout, hasPermission, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true); // Set sidebar open by default
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [globalSearchResults, setGlobalSearchResults] = useState<GlobalSearchResult[]>([]);
+  const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
 
   useEffect(() => {
     if (isLoading || !user || canAccessAdminPath(user, pathname)) return;
@@ -85,6 +97,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { name: 'Appointments', href: '/admin/appointments', icon: Calendar, permission: 'appointments.manage' },
         { name: 'Documents', href: '/admin/documents', icon: FileText, permission: 'documents.view' },
         { name: 'Payments', href: '/admin/payments', icon: CreditCard, permission: 'payments.view' },
+        { name: 'Discount Management', href: '/admin/discount-approvals', icon: DollarSign, permissions: ['sales.update', 'admin.access'] },
         { name: 'Invoices', href: '/admin/invoices', icon: FileText, permission: 'invoices.view' },
         { name: 'Agreements', href: '/admin/agreements', icon: FileCheck, permission: 'agreements.view' },
       ]
@@ -173,6 +186,47 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const handleLogout = async () => {
     await logout();
     router.push('/login');
+  };
+
+  useEffect(() => {
+    const query = globalSearchQuery.trim();
+    if (query.length < 2) {
+      setGlobalSearchResults([]);
+      setGlobalSearchLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        setGlobalSearchLoading(true);
+        const response = await fetch(`/api/global-search?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Search failed');
+        const data = await response.json();
+        setGlobalSearchResults(data.results || []);
+      } catch (error) {
+        if ((error as Error).name !== 'AbortError') {
+          console.error('Global search error:', error);
+          setGlobalSearchResults([]);
+        }
+      } finally {
+        setGlobalSearchLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [globalSearchQuery]);
+
+  const openSearchResult = (href: string) => {
+    setGlobalSearchOpen(false);
+    setGlobalSearchQuery('');
+    setGlobalSearchResults([]);
+    router.push(href);
   };
 
   // Show loading state while user data is loading
@@ -306,8 +360,47 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   <input
                     type="text"
                     placeholder="Search reports, leads, or anything..."
+                    value={globalSearchQuery}
+                    onChange={(event) => {
+                      setGlobalSearchQuery(event.target.value);
+                      setGlobalSearchOpen(true);
+                    }}
+                    onFocus={() => setGlobalSearchOpen(true)}
+                    onBlur={() => window.setTimeout(() => setGlobalSearchOpen(false), 150)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && globalSearchResults[0]) {
+                        openSearchResult(globalSearchResults[0].href);
+                      }
+                    }}
                     className="w-full pl-10 pr-4 py-2 border border-[var(--cmg-border)] rounded-md cmg-focus text-[var(--cmg-ink)] placeholder:text-[var(--cmg-muted)]"
                   />
+                  {globalSearchOpen && globalSearchQuery.trim().length >= 2 && (
+                    <div className="absolute left-0 right-0 top-full mt-2 z-50 overflow-hidden rounded-md border border-[var(--cmg-border)] bg-white shadow-lg">
+                      {globalSearchLoading && (
+                        <div className="px-4 py-3 text-sm text-[var(--cmg-muted)]">Searching...</div>
+                      )}
+                      {!globalSearchLoading && globalSearchResults.length === 0 && (
+                        <div className="px-4 py-3 text-sm text-[var(--cmg-muted)]">No results found</div>
+                      )}
+                      {!globalSearchLoading && globalSearchResults.map((result) => (
+                        <button
+                          key={`${result.type}-${result.id}-${result.href}`}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => openSearchResult(result.href)}
+                          className="block w-full px-4 py-3 text-left hover:bg-[#f3f6fb]"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="truncate text-sm font-medium text-[var(--cmg-ink)]">{result.title}</span>
+                            <span className="shrink-0 rounded bg-[var(--cmg-blue-soft)] px-2 py-0.5 text-xs font-medium text-[var(--cmg-blue)]">{result.type}</span>
+                          </div>
+                          {result.subtitle && (
+                            <div className="mt-1 truncate text-xs text-[var(--cmg-muted)]">{result.subtitle}</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lead } from '@/types/lead';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Search, Plus, Edit, Trash2, Download, Upload, CheckCircle, XCircle, Clock,
   AlertCircle, FileText, Send, Eye, User, Calendar, DollarSign, FileSignature,
   Shield, X, ChevronRight, ChevronLeft, Save, Mail, Phone, MapPin, Globe,
   Target, TrendingUp, Users, Briefcase, Flag, MessageSquare, FileCheck,
-  Receipt, FolderOpen, PenTool, ThumbsUp, ThumbsDown, Lock, BookOpen, Plane
+  Receipt, FolderOpen, PenTool, ThumbsUp, ThumbsDown, Lock, BookOpen, Plane, RefreshCw
 } from 'lucide-react';
 
 interface OpportunityFlowWizardProps {
@@ -109,7 +110,8 @@ const stepVariants = {
   exit: { opacity: 0, x: -50 }
 };
 
-export default function OpportunityFlowWizard({ leadId, onFlowComplete }: OpportunityFlowWizardProps) {
+export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardProps) {
+  const { user } = useAuth();
   const [activeStage, setActiveStage] = useState<string>('prospect');
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,7 +200,7 @@ export default function OpportunityFlowWizard({ leadId, onFlowComplete }: Opport
     { id: 'agreement', name: 'Agreement', description: 'Generate agreement', icon: PenTool, status: 'pending' },
     { id: 'signed-agreement', name: 'Signed Agreement', description: 'Upload signed agreement', icon: FileSignature, status: 'pending' },
     { id: 'retained', name: 'Retained', description: 'Compliance review', icon: Shield, status: 'pending' },
-    { id: 'rententention', name: 'Rentention', description: 'Retention status', icon: Lock, status: 'pending' },
+    { id: 'retention-rejected', name: 'Retention Review', description: 'Retention status', icon: Lock, status: 'pending' },
     { id: 'closed', name: 'Closed', description: 'Opportunity closed', icon: CheckCircle, status: 'pending' }
   ]);
 
@@ -370,8 +372,7 @@ export default function OpportunityFlowWizard({ leadId, onFlowComplete }: Opport
         leadId,
         stage: stageId,
         data: stageDataMap[stageId],
-        timestamp: new Date().toISOString(),
-        completeFlow: stageId === 'retained' && retentionData.retentionStatus === 'approved'
+        timestamp: new Date().toISOString()
       };
 
       console.log('Saving stage data:', dataToSave);
@@ -387,14 +388,6 @@ export default function OpportunityFlowWizard({ leadId, onFlowComplete }: Opport
 
       const result = await response.json();
       console.log('Stage data saved successfully:', result);
-      
-      if (result.success && dataToSave.completeFlow) {
-        // Show success message for complete flow
-        alert('🎉 Lead successfully converted to opportunity! All data has been saved to the database.');
-        if (onFlowComplete) {
-          onFlowComplete();
-        }
-      }
     } catch (error) {
       console.error('Error saving stage data:', error);
       alert('Failed to save data. Please try again.');
@@ -412,6 +405,46 @@ export default function OpportunityFlowWizard({ leadId, onFlowComplete }: Opport
     }
   };
 
+  const handleStageClick = (stageId: string) => {
+    const quotationIndex = stages.findIndex(stage => stage.id === 'quotation');
+    const targetIndex = stages.findIndex(stage => stage.id === stageId);
+    if (quotationData.discount > 0 && retentionData.discountStatus !== 'approved' && targetIndex > quotationIndex) {
+      alert('Discount approval is required before moving past quotation. Please request approval and wait for BM or Director of Sales approval in Discount Management.');
+      setActiveStage('quotation');
+      return;
+    }
+
+    setActiveStage(stageId);
+  };
+
+  const refreshDiscountApproval = async () => {
+    const discountResponse = await fetch(`/api/discount-approvals?leadId=${leadId}`);
+    if (!discountResponse.ok) return;
+    const discountData = await discountResponse.json();
+    const latestDiscount = discountData.data?.[0];
+    if (latestDiscount) {
+      setRetentionData(prev => ({
+        ...prev,
+        discountApprovalId: latestDiscount.id,
+        discountStatus: latestDiscount.status || 'pending',
+      }));
+    }
+  };
+
+  const handleDiscountChanged = (discount: number) => {
+    if (discount <= 0) {
+      setRetentionData(prev => ({ ...prev, discountApprovalId: null, discountStatus: 'not_required' }));
+      return;
+    }
+
+    setRetentionData(prev => {
+      if (prev.discountStatus === 'pending' || prev.discountStatus === 'approved') {
+        return { ...prev, discountApprovalId: null, discountStatus: 'not_required' };
+      }
+      return prev;
+    });
+  };
+
   const handleRequestDiscount = async () => {
     try {
       const originalAmount = quotationData.subtotal || parseFloat(prospectData.estimatedValue);
@@ -422,13 +455,14 @@ export default function OpportunityFlowWizard({ leadId, onFlowComplete }: Opport
 
       const discountData = {
         leadId: leadId,
+        opportunityId: completedOpportunityId || (lead as any)?.opportunity_id || null,
         discountType: 'fixed',
         discountAmount: quotationData.discount,
         originalAmount,
         discountedAmount: originalAmount - quotationData.discount,
         currency: 'AED',
         reason: `Discount requested for ${prospectData.opportunityName}`,
-        requestedBy: 1, // Would come from auth context
+        requestedBy: user?.id || 1,
         status: 'pending'
       };
 
@@ -484,65 +518,6 @@ export default function OpportunityFlowWizard({ leadId, onFlowComplete }: Opport
     } catch (error) {
       console.error('Error processing reassignment:', error);
       alert('Error processing reassignment');
-    }
-  };
-
-  const handleApproveDiscount = async () => {
-    try {
-      if (!retentionData.discountApprovalId) {
-        alert('No discount request to approve');
-        return;
-      }
-
-      const response = await fetch(`/api/discount-approvals/${retentionData.discountApprovalId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'approved',
-          approvedBy: 1, // Would come from auth context
-          approverRole: 'branch_manager',
-          approvedAt: new Date()
-        })
-      });
-
-      if (response.ok) {
-        setRetentionData(prev => ({ ...prev, discountStatus: 'approved' }));
-        alert('Discount approved successfully!');
-      } else {
-        alert('Failed to approve discount');
-      }
-    } catch (error) {
-      console.error('Error approving discount:', error);
-      alert('Error approving discount');
-    }
-  };
-
-  const handleRejectDiscount = async () => {
-    try {
-      if (!retentionData.discountApprovalId) {
-        alert('No discount request to reject');
-        return;
-      }
-
-      const response = await fetch(`/api/discount-approvals/${retentionData.discountApprovalId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'rejected',
-          approverRole: 'branch_manager',
-          rejectedDate: new Date()
-        })
-      });
-
-      if (response.ok) {
-        setRetentionData(prev => ({ ...prev, discountStatus: 'rejected' }));
-        alert('Discount rejected successfully!');
-      } else {
-        alert('Failed to reject discount');
-      }
-    } catch (error) {
-      console.error('Error rejecting discount:', error);
-      alert('Error rejecting discount');
     }
   };
 
@@ -646,6 +621,12 @@ export default function OpportunityFlowWizard({ leadId, onFlowComplete }: Opport
         retentionStatus: 'rejected',
         reviewDate: new Date().toISOString().split('T')[0],
       }));
+      const updatedStages = stages.map(stage =>
+        stage.id === 'retained' ? { ...stage, status: 'rejected' as const } :
+          stage.id === 'retention-rejected' ? { ...stage, status: 'current' as const } : stage
+      );
+      setStages(updatedStages);
+      setActiveStage('retention-rejected');
       alert('Compliance review rejected. The opportunity cannot be closed until the signed agreement is corrected and approved.');
     } catch (error) {
       console.error('Error rejecting compliance review:', error);
@@ -868,8 +849,8 @@ export default function OpportunityFlowWizard({ leadId, onFlowComplete }: Opport
           setData={setQuotationData}
           retentionData={retentionData}
           onRequestDiscount={handleRequestDiscount}
-          onApproveDiscount={handleApproveDiscount}
-          onRejectDiscount={handleRejectDiscount}
+          onRefreshDiscount={refreshDiscountApproval}
+          onDiscountChanged={handleDiscountChanged}
           onNext={moveToNextStage}
           onPrevious={moveToPreviousStage}
         />;
@@ -920,22 +901,22 @@ export default function OpportunityFlowWizard({ leadId, onFlowComplete }: Opport
             const newStages = [...stages];
             const retainedIndex = newStages.findIndex(s => s.id === 'retained');
             newStages[retainedIndex].status = 'rejected';
-            const rententionIndex = newStages.findIndex(s => s.id === 'rententention');
-            newStages[rententionIndex].status = 'current';
+            const rejectedIndex = newStages.findIndex(s => s.id === 'retention-rejected');
+            newStages[rejectedIndex].status = 'current';
             setStages(newStages);
-            setActiveStage('rententention');
+            setActiveStage('retention-rejected');
           }}
         />;
-      case 'rententention':
-        return <RententionStage
+      case 'retention-rejected':
+        return <RetentionRejectedStage
           lead={lead}
           data={retentionData}
           onResubmit={() => {
             const newStages = [...stages];
             const retainedIndex = newStages.findIndex(s => s.id === 'retained');
             newStages[retainedIndex].status = 'current';
-            const rententionIndex = newStages.findIndex(s => s.id === 'rententention');
-            newStages[rententionIndex].status = 'pending';
+            const rejectedIndex = newStages.findIndex(s => s.id === 'retention-rejected');
+            newStages[rejectedIndex].status = 'pending';
             setStages(newStages);
             setActiveStage('retained');
           }}
@@ -1025,7 +1006,7 @@ export default function OpportunityFlowWizard({ leadId, onFlowComplete }: Opport
                 return (
                   <div key={stage.id} className="flex items-center">
                     <button
-                      onClick={() => setActiveStage(stage.id)}
+                      onClick={() => handleStageClick(stage.id)}
                       className={`flex items-center px-4 py-2 rounded-lg transition-all ${isActive
                         ? stage.status === 'completed'
                           ? 'bg-green-600 text-white shadow-md'
@@ -1223,7 +1204,7 @@ function ProspectStage({ lead, data, setData, onNext }: any) {
   );
 }
 
-function QuotationStage({ lead, data, setData, retentionData, onRequestDiscount, onApproveDiscount, onRejectDiscount, onNext, onPrevious }: any) {
+function QuotationStage({ lead, data, setData, retentionData, onRequestDiscount, onRefreshDiscount, onDiscountChanged, onNext, onPrevious }: any) {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -1269,6 +1250,7 @@ function QuotationStage({ lead, data, setData, retentionData, onRequestDiscount,
     const discount = Math.max(0, parseFloat(value) || 0);
     const total = data.subtotal + data.tax - discount;
     setData({ ...data, discount, total: Math.max(0, total) });
+    onDiscountChanged?.(discount);
   };
 
   const requiresDiscountApproval = data.discount > 0;
@@ -1376,22 +1358,25 @@ function QuotationStage({ lead, data, setData, retentionData, onRequestDiscount,
                 </button>
               )}
               {requiresDiscountApproval && retentionData.discountStatus === 'pending' && (
-                <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-yellow-700">
+                    Pending BM / Director of Sales approval in Discount Management.
+                  </span>
                   <button
-                    onClick={onRejectDiscount}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center"
+                    onClick={onRefreshDiscount}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center"
                   >
-                    <ThumbsDown className="mr-2" size={16} />
-                    Reject
+                    <RefreshCw className="mr-2" size={16} />
+                    Refresh Status
                   </button>
                   <button
-                    onClick={onApproveDiscount}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
+                    onClick={() => window.open('/admin/discount-approvals?status=pending', '_blank')}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
                   >
-                    <ThumbsUp className="mr-2" size={16} />
-                    Approve
+                    <Shield className="mr-2" size={16} />
+                    Open Management
                   </button>
-                </>
+                </div>
               )}
             </div>
           </div>
@@ -2073,13 +2058,13 @@ function RetainedStage({ lead, data, setData, onApproveCompliance, onRejectCompl
   );
 }
 
-function RententionStage({ lead, data, onResubmit }: any) {
+function RetentionRejectedStage({ lead, data, onResubmit }: any) {
   return (
     <div className="space-y-6">
       <div className="flex items-center mb-6">
         <XCircle className="mr-3 text-red-600" size={28} />
         <div>
-          <h3 className="text-2xl font-bold text-gray-900">Rentention - Retention Rejected</h3>
+          <h3 className="text-2xl font-bold text-gray-900">Retention Review Rejected</h3>
           <p className="text-gray-600 text-sm">Agreement was rejected by compliance manager</p>
         </div>
       </div>

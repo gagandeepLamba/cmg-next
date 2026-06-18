@@ -13,8 +13,11 @@ export interface Lead {
   id_number: string;
   id_expiry: string;
   country_interest: string;
+  country_interest_label?: string;
   service_interest: string;
+  service_interest_label?: string;
   market_source: string;
+  market_source_label?: string;
   appointment: string;
   followup: string;
   folowuptime: string;

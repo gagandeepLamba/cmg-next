@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DmcForumLeadsContracts, DmcForumLeads, DmPayHistory, Dm3partyPayment, DmEmployee, DmBranch, DmVendors } from '@/models';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
+import { sequelize } from '@/lib/sequelize';
 
 const toPlain = (row: any) => row?.get ? row.get({ plain: true }) : row;
 const toPlainArray = (rows: any[]) => rows.map(toPlain);
 const amount = (value: unknown) => Number(value || 0);
+const labelFor = (map: Map<string, string>, value: unknown) => {
+  const key = String(value || '').trim();
+  if (!key) return '';
+  return map.get(key) || key;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -98,10 +104,29 @@ export async function GET(request: NextRequest) {
       attributes: ['id', 'name'],
       where: { status: 1 }
     });
+    const [countries, services, programTypes] = await Promise.all([
+      sequelize.query<{ value: number | string; label: string }>(
+        'SELECT id AS value, name AS label FROM dm_country_proces',
+        { type: QueryTypes.SELECT }
+      ),
+      sequelize.query<{ value: number | string; label: string }>(
+        'SELECT id AS value, name AS label FROM dm_service',
+        { type: QueryTypes.SELECT }
+      ),
+      sequelize.query<{ value: number | string; label: string }>(
+        'SELECT id AS value, type AS label FROM dm_program_type',
+        { type: QueryTypes.SELECT }
+      ),
+    ]);
 
     const employeeMap = new Map(toPlainArray(employees).map(e => [e.id, e.name]));
     const branchMap = new Map(toPlainArray(branches).map(b => [b.id, b.name]));
     const vendorMap = new Map(toPlainArray(vendors).map(v => [v.id, v.name]));
+    const countryMap = new Map(countries.map(row => [String(row.value), row.label]));
+    const serviceMap = new Map([
+      ...services.map(row => [String(row.value), row.label] as const),
+      ...programTypes.map(row => [String(row.value), row.label] as const),
+    ]);
     const leadMap = new Map(leads.map(l => [l.id, l]));
 
     // Calculate comprehensive statistics
@@ -281,7 +306,9 @@ export async function GET(request: NextRequest) {
           email: lead.email,
           phone: lead.phone,
           country_interest: lead.country_interest,
+          country_interest_label: labelFor(countryMap, lead.country_interest),
           service_interest: lead.service_interest,
+          service_interest_label: labelFor(serviceMap, lead.service_interest),
           payTotal: lead.payTotal,
           payBalance: lead.payBalance,
           regdate: lead.regdate,

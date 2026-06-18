@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DmcForumLeads } from '@/models';
 
 interface PaymentWizardProps {
   leadId: number;
@@ -42,6 +41,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
   const [loading, setLoading] = useState(true);
   const [existingPayments, setExistingPayments] = useState<Payment[]>([]);
   const [receiptPreview, setReceiptPreview] = useState(false);
+  const [processedReceiptNumber, setProcessedReceiptNumber] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -119,9 +119,16 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
     return `RCP-${year}-${random}`;
   };
 
+  const getReceiptNumber = () => {
+    if (processedReceiptNumber) return processedReceiptNumber;
+    const receiptNumber = paymentData.receiptNumber || generateReceiptNumber();
+    setPaymentData(prev => ({ ...prev, receiptNumber }));
+    return receiptNumber;
+  };
+
   const processPayments = async () => {
     try {
-      const receiptNumber = generateReceiptNumber();
+      const receiptNumber = getReceiptNumber();
       const finalData = {
         ...paymentData,
         receiptNumber,
@@ -138,6 +145,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
 
       if (response.ok) {
         const result = await response.json();
+        setProcessedReceiptNumber(receiptNumber);
         onPaymentProcessed(result.paymentId);
         setCurrentStep(4); // Success step
       } else {
@@ -149,39 +157,154 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
     }
   };
 
-  const downloadReceipt = () => {
-    // Generate PDF receipt (mock implementation)
-    const receiptContent = `
-      RECEIPT #${paymentData.receiptNumber}
-      Date: ${new Date().toLocaleDateString()}
-      
-      Client: ${lead?.fname} ${lead?.lname}
-      Email: ${lead?.email}
-      Phone: ${lead?.phone}
-      
-      Payment Details:
-      ${paymentData.payments.map((payment, index) => `
-      ${index + 1}. Amount: $${payment.amount}
-         Method: ${payment.method.replace('_', ' ').toUpperCase()}
-         Date: ${payment.date}
-         Reference: ${payment.reference || 'N/A'}
-      `).join('')}
-      
-      Total Amount: $${paymentData.totalAmount.toFixed(2)}
-      
-      Thank you for your payment!
-    `;
+  const numberValue = (value: unknown) => Number(value || 0);
 
-    // Create blob and download
-    const blob = new Blob([receiptContent], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `receipt-${paymentData.receiptNumber}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+  const formatMoney = (value: unknown) => `AED ${numberValue(value).toLocaleString('en-AE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+
+  const getTaxRegistration = (region: unknown) => {
+    const code = String(region || '');
+    if (code === '6' || code === '14') return 'GSTIN : 27AAGCD8611D1ZU';
+    if (code === '8') return 'VATIN : OM1100227556';
+    if (code === '12') return 'GSTIN : 33AAGCD8611D1Z1';
+    if (code === '11') return 'GSTIN : 29AAGCD8611D1ZQ';
+    if (code === '10') return 'GSTIN : 27AAGCD8611D2Z';
+    if (code === '4') return 'TRN : 100434250500003';
+    if (code === '21') return 'TAX ID : 7011119783';
+    if (code === '22') return 'TAX ID : 3119166743';
+    if (['7', '9', '23'].includes(code)) return '';
+    return 'TRN : 100331298800003';
+  };
+
+  const getVatRate = (region: unknown) => {
+    const code = String(region || '');
+    if (lead?.novat === 1) return '0%';
+    if (['6', '10', '11', '12', '14', '15', '16', '17'].includes(code)) return '18%';
+    if (code === '9') return '0%';
+    if (code === '21') return '23%';
+    if (code === '22' || code === '23') return '15%';
+    return '5%';
+  };
+
+  const addWrappedText = (doc: any, text: string, x: number, y: number, maxWidth: number, lineHeight = 12) => {
+    const lines = doc.splitTextToSize(text || '', maxWidth);
+    doc.text(lines, x, y);
+    return y + lines.length * lineHeight;
+  };
+
+  const downloadReceipt = async () => {
+    const { default: jsPDF } = await import('jspdf');
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const receiptNumber = getReceiptNumber();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 42;
+    const right = pageWidth - margin;
+    const clientName = `${lead?.fname || ''} ${lead?.mname || ''} ${lead?.lname || ''}`.replace(/\s+/g, ' ').trim();
+    const serviceName = lead?.service_interest_label || lead?.service_interest || 'Service';
+    const paymentMethod = paymentData.payments.map(payment => payment.method.replace('_', ' ').toUpperCase()).join(', ');
+    const paidAmount = paymentData.totalAmount;
+    const packageAmount = numberValue(lead?.payTotal);
+    const discount = numberValue(lead?.discount);
+    const totalPackage = Math.max(packageAmount - discount, 0);
+    const paidTillNow = numberValue(lead?.paidYet) + paidAmount;
+    const balance = Math.max(totalPackage - paidTillNow, 0);
+    const taxAmount = 0;
+    const invoiceTotalPaid = paidAmount + taxAmount;
+    const invoiceDate = new Date().toLocaleDateString('en-GB');
+
+    doc.setDrawColor(220, 226, 235);
+    doc.setLineWidth(1);
+    doc.roundedRect(28, 24, pageWidth - 56, 780, 8, 8, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(24);
+    doc.text('DM CONSULTANTS', pageWidth / 2, 62, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text('TAX INVOICE', pageWidth / 2, 86, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Agreement: ${lead?.agreement_id || lead?.contract_id || 'N/A'} | Invoice #${receiptNumber} | Date: ${invoiceDate}`, pageWidth / 2, 106, { align: 'center' });
+
+    let y = 136;
+    const colWidth = (pageWidth - margin * 2 - 24) / 2;
+    doc.setFont('helvetica', 'bold');
+    doc.text('From:', margin, y);
+    doc.text('To:', margin + colWidth + 24, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    let leftY = y + 18;
+    leftY = addWrappedText(doc, lead?.dmBranch?.name || lead?.branch_name || 'DM Consultants', margin, leftY, colWidth, 11);
+    leftY = addWrappedText(doc, lead?.dmBranch?.address || lead?.branch_address || '', margin, leftY, colWidth, 11);
+    leftY = addWrappedText(doc, `Email: ${lead?.dmBranch?.email || lead?.branch_email || 'N/A'}`, margin, leftY, colWidth, 11);
+    leftY = addWrappedText(doc, `Phone: ${lead?.dmBranch?.mobile || lead?.branch_mobile || 'N/A'}`, margin, leftY, colWidth, 11);
+    const taxRegistration = getTaxRegistration(lead?.region);
+    if (taxRegistration) leftY = addWrappedText(doc, taxRegistration, margin, leftY, colWidth, 11);
+
+    let rightY = y + 18;
+    rightY = addWrappedText(doc, clientName || 'Client', margin + colWidth + 24, rightY, colWidth, 11);
+    rightY = addWrappedText(doc, `Package Name/Payment Type: ${serviceName} - ${lead?.payType || 'Payment'}`, margin + colWidth + 24, rightY, colWidth, 11);
+    rightY = addWrappedText(doc, `Package Amount: ${formatMoney(packageAmount)}`, margin + colWidth + 24, rightY, colWidth, 11);
+    rightY = addWrappedText(doc, `Discount: ${formatMoney(discount)}`, margin + colWidth + 24, rightY, colWidth, 11);
+    rightY = addWrappedText(doc, `Total Package: ${formatMoney(totalPackage)} (After Discount)`, margin + colWidth + 24, rightY, colWidth, 11);
+    rightY = addWrappedText(doc, `Total Paid Till Now: ${formatMoney(paidTillNow)}`, margin + colWidth + 24, rightY, colWidth, 11);
+    rightY = addWrappedText(doc, `Balance: ${formatMoney(balance)}`, margin + colWidth + 24, rightY, colWidth, 11);
+
+    y = Math.max(leftY, rightY) + 24;
+    const tableX = margin;
+    const tableWidth = pageWidth - margin * 2;
+    const columns = [tableX, tableX + 230, tableX + 370, tableX + tableWidth];
+    const drawRow = (cells: string[], rowY: number, height = 28, header = false) => {
+      doc.setFillColor(header ? 249 : 255, header ? 250 : 255, header ? 252 : 255);
+      doc.rect(tableX, rowY, tableWidth, height, 'FD');
+      doc.line(columns[1], rowY, columns[1], rowY + height);
+      doc.line(columns[2], rowY, columns[2], rowY + height);
+      doc.setFont('helvetica', header ? 'bold' : 'normal');
+      doc.setFontSize(9);
+      doc.text(cells[0], columns[0] + 8, rowY + 18);
+      doc.text(cells[1], columns[1] + 8, rowY + 18);
+      doc.text(cells[2], columns[2] + 8, rowY + 18);
+    };
+
+    drawRow(['Description', 'Product', 'Total'], y, 30, true);
+    y += 30;
+    drawRow(['Fees Paid', '', formatMoney(paidAmount)], y);
+    y += 28;
+    if (String(lead?.region || '') !== '9') {
+      drawRow(['VAT/GST', getVatRate(lead?.region), formatMoney(taxAmount)], y);
+      y += 28;
+    }
+    drawRow(['Total Paid', '', formatMoney(invoiceTotalPaid)], y);
+    y += 28;
+    const nextPayment = numberValue(lead?.demandAmt) > 0 ? numberValue(lead?.demandAmt) : balance;
+    if (nextPayment > 0) {
+      drawRow(['Next Payment', lead?.dueDate ? new Date(lead.dueDate).toLocaleDateString('en-GB') : '', formatMoney(nextPayment)], y);
+      y += 28;
+    }
+    drawRow(['Mode of Payment', '', paymentMethod || 'N/A'], y);
+    y += 38;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text(`Total Paid: ${formatMoney(invoiceTotalPaid)}`, right, y, { align: 'right' });
+    y += 34;
+
+    doc.setFontSize(10);
+    doc.text('Terms & Conditions:', margin, y);
+    doc.setFont('helvetica', 'normal');
+    y += 16;
+    [
+      'Fee once paid is non-refundable.',
+      'The amount is paid for the payment due against service retainer.',
+      'All payment is subject to realization.',
+      "Payment of the service charge must be made by the client into DM's corporate account as mentioned. DM shall not be held responsible if the client deposits the fee into a personal account separate from the business account."
+    ].forEach((line) => {
+      y = addWrappedText(doc, line, margin, y, tableWidth, 12) + 4;
+    });
+
+    doc.save(`receipt-${receiptNumber}.pdf`);
   };
 
   const stepVariants = {
@@ -438,8 +561,12 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.6 }}
                   >
-                    <motion.button
-                      onClick={() => setReceiptPreview(true)}
+                  <motion.button
+                      onClick={() => {
+                        const receiptNumber = getReceiptNumber();
+                        setProcessedReceiptNumber(receiptNumber);
+                        setReceiptPreview(true);
+                      }}
                       className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors mr-2"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
@@ -488,7 +615,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
               >
                 <div className="text-center mb-6">
                   <h1 className="text-2xl font-bold text-gray-900">PAYMENT RECEIPT</h1>
-                  <p className="text-gray-600">Receipt #: {generateReceiptNumber()}</p>
+                  <p className="text-gray-600">Receipt #: {processedReceiptNumber || paymentData.receiptNumber}</p>
                   <p className="text-gray-600">Date: {new Date().toLocaleDateString()}</p>
                 </div>
 
@@ -513,7 +640,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                     <tbody>
                       {paymentData.payments.map((payment, index) => (
                         <tr key={index} className="border-b">
-                          <td className="py-2">${parseFloat(payment.amount || '0').toFixed(2)}</td>
+                          <td className="py-2">AED {parseFloat(payment.amount || '0').toFixed(2)}</td>
                           <td className="py-2">{payment.method.replace('_', ' ').toUpperCase()}</td>
                           <td className="py-2">{payment.date}</td>
                           <td className="py-2">{payment.reference || 'N/A'}</td>
@@ -523,7 +650,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                     <tfoot>
                       <tr>
                         <td colSpan={3} className="pt-2 font-semibold">Total:</td>
-                        <td className="pt-2 font-semibold">${paymentData.totalAmount.toFixed(2)}</td>
+                        <td className="pt-2 font-semibold">AED {paymentData.totalAmount.toFixed(2)}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -582,10 +709,10 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                   </div>
                   <h3 className="text-xl font-bold text-green-800 mb-2">Payment Processed Successfully!</h3>
                   <p className="text-green-700 mb-4">
-                    Receipt Number: {generateReceiptNumber()}
+                    Receipt Number: {processedReceiptNumber || paymentData.receiptNumber}
                   </p>
                   <p className="text-green-700 mb-4">
-                    Total Amount: ${paymentData.totalAmount.toFixed(2)}
+                    Total Amount: AED {paymentData.totalAmount.toFixed(2)}
                   </p>
                   <p className="text-green-700 mb-4">
                     Your payment has been processed and receipt generated.

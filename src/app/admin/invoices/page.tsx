@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react';
 import { DmB2bInvoicesAttributes } from '@/models';
 
+interface FilterOption {
+  value: string;
+  label: string;
+}
+
 export default function InvoicesManagement() {
   const [invoices, setInvoices] = useState<DmB2bInvoicesAttributes[]>([]);
   const [loading, setLoading] = useState(true);
@@ -10,6 +15,7 @@ export default function InvoicesManagement() {
   const [selectedInvoice, setSelectedInvoice] = useState<DmB2bInvoicesAttributes | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [purposeOptions, setPurposeOptions] = useState<FilterOption[]>([]);
   const [newInvoice, setNewInvoice] = useState({
     region: 1,
     receipt: '',
@@ -31,6 +37,7 @@ export default function InvoicesManagement() {
 
   useEffect(() => {
     fetchInvoices();
+    fetchPurposeOptions();
   }, []);
 
   const toNumber = (value: unknown) => Number(value || 0);
@@ -66,10 +73,28 @@ export default function InvoicesManagement() {
     }
   };
 
+  const fetchPurposeOptions = async () => {
+    try {
+      const response = await fetch('/api/lead-filter-options');
+      if (!response.ok) return;
+      const data = await response.json();
+      setPurposeOptions(data.services || []);
+    } catch (error) {
+      console.error('Failed to load purpose options:', error);
+      setPurposeOptions([]);
+    }
+  };
+
+  const getPurposeLabel = (purpose?: string | null) => {
+    const value = String(purpose || '').trim();
+    if (!value) return 'N/A';
+    return purposeOptions.find((option) => option.value === value)?.label || value;
+  };
+
   const filteredInvoices = invoices.filter(invoice =>
     (invoice.receipt || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     invoice.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    invoice.purpose?.toLowerCase().includes(searchTerm.toLowerCase())
+    getPurposeLabel(invoice.purpose).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleViewInvoice = (invoice: DmB2bInvoicesAttributes) => {
@@ -232,7 +257,7 @@ export default function InvoicesManagement() {
                     <div className="text-sm text-gray-900">{invoice.company}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{invoice.purpose}</div>
+                    <div className="text-sm text-gray-900">{getPurposeLabel(invoice.purpose)}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
@@ -307,7 +332,7 @@ export default function InvoicesManagement() {
                   <div className="mt-2 space-y-2">
                     <p><span className="font-medium">Receipt:</span> {selectedInvoice.receipt}</p>
                     <p><span className="font-medium">Company:</span> {selectedInvoice.company}</p>
-                    <p><span className="font-medium">Purpose:</span> {selectedInvoice.purpose}</p>
+                    <p><span className="font-medium">Purpose:</span> {getPurposeLabel(selectedInvoice.purpose)}</p>
                     <p><span className="font-medium">Region:</span> #{selectedInvoice.region}</p>
                     <p><span className="font-medium">Branch:</span> #{selectedInvoice.branch}</p>
                     <p><span className="font-medium">Counselor:</span> #{selectedInvoice.Counsilor}</p>

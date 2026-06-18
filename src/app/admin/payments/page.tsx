@@ -65,6 +65,11 @@ interface OpportunityPayment {
   };
 }
 
+interface FilterOption {
+  value: string;
+  label: string;
+}
+
 export default function PaymentsManagement() {
   const router = useRouter();
   const [opportunityPayments, setOpportunityPayments] = useState<OpportunityPayment[]>([]);
@@ -76,9 +81,11 @@ export default function PaymentsManagement() {
   const [selectedPayment, setSelectedPayment] = useState<ThirdPartyPayment | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'opportunity' | 'thirdparty' | 'fees'>('opportunity');
+  const [serviceOptions, setServiceOptions] = useState<FilterOption[]>([]);
 
   useEffect(() => {
     fetchPayments();
+    fetchServiceOptions();
   }, []);
 
   const toNumber = (value: unknown) => Number(value || 0);
@@ -152,13 +159,31 @@ export default function PaymentsManagement() {
     }
   };
 
+  const fetchServiceOptions = async () => {
+    try {
+      const response = await fetch('/api/lead-filter-options');
+      if (!response.ok) return;
+      const data = await response.json();
+      setServiceOptions(data.services || []);
+    } catch (error) {
+      console.error('Failed to load service options:', error);
+      setServiceOptions([]);
+    }
+  };
+
+  const getServiceLabel = (value?: string | null) => {
+    const key = String(value || '').trim();
+    if (!key) return '';
+    return serviceOptions.find((option) => option.value === key)?.label || key;
+  };
+
   const loweredSearch = searchTerm.toLowerCase();
 
   const filteredOpportunityPayments = opportunityPayments.filter(payment =>
     (payment.paymentNumber || '').toLowerCase().includes(loweredSearch) ||
     (payment.receiptNumber || '').toLowerCase().includes(loweredSearch) ||
     (payment.clientName || '').toLowerCase().includes(loweredSearch) ||
-    (payment.serviceName || '').toLowerCase().includes(loweredSearch) ||
+    getServiceLabel(payment.serviceName).toLowerCase().includes(loweredSearch) ||
     String(payment.opportunityId || '').includes(searchTerm)
   );
 
@@ -336,7 +361,7 @@ export default function PaymentsManagement() {
                       <div className="text-xs text-gray-400">{payment.consultantName || payment.createdEmployee?.name || ''}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{payment.serviceName || payment.dmcOpportunity?.opportunityName || 'Service'}</div>
+                      <div className="text-sm text-gray-900">{getServiceLabel(payment.serviceName) || payment.dmcOpportunity?.opportunityName || 'Service'}</div>
                       <div className="text-sm text-gray-500">{payment.branchName || ''}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

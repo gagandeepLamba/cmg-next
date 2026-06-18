@@ -21,8 +21,11 @@ interface LeadData {
   dob: string;
   gender: string;
   country_interest: string;
+  country_interest_label?: string;
   service_interest: string;
+  service_interest_label?: string;
   market_source: string;
+  market_source_label?: string;
   priority: string;
   status: string;
   regdate: string;
@@ -43,6 +46,10 @@ interface Statistics {
   topServices: Array<{ service: string; count: number }>;
   monthlyTrends: Array<{ month: string; leads: number; revenue: number }>;
 }
+
+const formatCurrency = (value: number) => (
+  new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED', maximumFractionDigits: 0 }).format(value)
+);
 
 export default function LeadStatusReport() {
   const router = useRouter();
@@ -92,13 +99,13 @@ export default function LeadStatusReport() {
     }).length;
     const activeLeads = totalLeads - newLeads - convertedLeads;
     
-    const totalRevenue = leadsData.reduce((sum, lead) => sum + (lead.payTotal || 0), 0);
-    const pendingRevenue = leadsData.reduce((sum, lead) => sum + (lead.payBalance || 0), 0);
+    const totalRevenue = leadsData.reduce((sum, lead) => sum + Number(lead.payTotal || 0), 0);
+    const pendingRevenue = leadsData.reduce((sum, lead) => sum + Number(lead.payBalance || 0), 0);
 
     // Group by country
     const countryCounts: { [key: string]: number } = {};
     leadsData.forEach(lead => {
-      const country = lead.country_interest || 'Unknown';
+      const country = lead.country_interest_label || lead.country_interest || 'Unknown';
       countryCounts[country] = (countryCounts[country] || 0) + 1;
     });
     const topCountries = Object.entries(countryCounts)
@@ -109,7 +116,7 @@ export default function LeadStatusReport() {
     // Group by service
     const serviceCounts: { [key: string]: number } = {};
     leadsData.forEach(lead => {
-      const service = lead.service_interest || 'Unknown';
+      const service = lead.service_interest_label || lead.service_interest || 'Unknown';
       serviceCounts[service] = (serviceCounts[service] || 0) + 1;
     });
     const topServices = Object.entries(serviceCounts)
@@ -123,7 +130,7 @@ export default function LeadStatusReport() {
       const month = date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
       if (!monthlyMap[month]) monthlyMap[month] = { month, leads: 0, revenue: 0 };
       monthlyMap[month].leads += 1;
-      monthlyMap[month].revenue += lead.payTotal || 0;
+      monthlyMap[month].revenue += Number(lead.payTotal || 0);
     });
     const monthlyTrends = Object.values(monthlyMap).slice(-6);
 
@@ -163,8 +170,8 @@ export default function LeadStatusReport() {
         `${lead.fname} ${lead.lname}`,
         lead.email,
         lead.phone,
-        lead.country_interest,
-        lead.service_interest,
+        lead.country_interest_label || lead.country_interest,
+        lead.service_interest_label || lead.service_interest,
         lead.status,
         lead.priority,
         lead.regdate,
@@ -241,7 +248,7 @@ export default function LeadStatusReport() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Total Revenue</p>
-                  <p className="text-2xl font-bold text-blue-600">${statistics.totalRevenue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-blue-600">{formatCurrency(statistics.totalRevenue)}</p>
                 </div>
                 <DollarSign className="w-8 h-8 text-blue-600" />
               </div>
@@ -251,7 +258,7 @@ export default function LeadStatusReport() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Pending Revenue</p>
-                  <p className="text-2xl font-bold text-orange-600">${statistics.pendingRevenue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-orange-600">{formatCurrency(statistics.pendingRevenue)}</p>
                 </div>
                 <Clock className="w-8 h-8 text-orange-600" />
               </div>
@@ -388,8 +395,8 @@ export default function LeadStatusReport() {
                       <div className="text-sm text-gray-500">{lead.phone}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{lead.country_interest}</div>
-                      <div className="text-sm text-gray-500">{lead.service_interest}</div>
+                      <div className="text-sm text-gray-900">{lead.country_interest_label || lead.country_interest}</div>
+                      <div className="text-sm text-gray-500">{lead.service_interest_label || lead.service_interest}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -405,8 +412,8 @@ export default function LeadStatusReport() {
                       {lead.dmEmployeeByASSIGNTo?.name || 'Unassigned'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">${lead.payTotal.toLocaleString()}</div>
-                      <div className="text-sm text-gray-500">Balance: ${lead.payBalance.toLocaleString()}</div>
+                      <div className="text-sm text-gray-900">{formatCurrency(Number(lead.payTotal || 0))}</div>
+                      <div className="text-sm text-gray-500">Balance: {formatCurrency(Number(lead.payBalance || 0))}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

@@ -65,11 +65,22 @@ const aliases: Record<string, string> = {
 const fetchLead = async (id: string) => {
   const rows = await sequelize.query(`
     SELECT
-      l.*, e1.name as assigned_to_name, e2.name as counselor_name, b.name as branch_name
+      l.*,
+      e1.name as assigned_to_name,
+      e2.name as counselor_name,
+      b.name as branch_name,
+      b.address as branch_address,
+      b.email as branch_email,
+      b.mobile as branch_mobile,
+      COALESCE(s.name, pt.type, l.service_interest) as service_interest_label,
+      COALESCE(cp.name, l.country_interest) as country_interest_label
     FROM dmc_forum_leads l
     LEFT JOIN dm_employee e1 ON l.assignTo = e1.id
     LEFT JOIN dm_employee e2 ON l.Counsilor = e2.id
     LEFT JOIN dm_branch b ON l.branch = b.id
+    LEFT JOIN dm_service s ON s.id = CAST(l.service_interest AS UNSIGNED)
+    LEFT JOIN dm_program_type pt ON pt.id = CAST(l.service_interest AS UNSIGNED)
+    LEFT JOIN dm_country_proces cp ON cp.id = CAST(l.country_interest AS UNSIGNED)
     WHERE l.id = ?
     LIMIT 1
   `, {
@@ -84,7 +95,13 @@ const fetchLead = async (id: string) => {
     ...lead,
     dmEmployeeByASSIGNTo: lead.assigned_to_name ? { id: lead.assignTo, name: lead.assigned_to_name } : null,
     dmEmployeeByCoUNSILOR: lead.counselor_name ? { id: lead.Counsilor, name: lead.counselor_name } : null,
-    dmBranch: lead.branch_name ? { id: lead.branch, name: lead.branch_name } : null
+    dmBranch: lead.branch_name ? {
+      id: lead.branch,
+      name: lead.branch_name,
+      address: lead.branch_address,
+      email: lead.branch_email,
+      mobile: lead.branch_mobile
+    } : null
   };
 };
 
