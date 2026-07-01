@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find d:\\\\\\\\xampp\\\\\\\\htdocs\\\\\\\\cmg-next\\\\\\\\src\\\\\\\\app\\\\\\\\api -type f -name \"*.ts\")",
+      "Bash(xargs grep -l \"agreement\\\\|contract\")"
+    ]
+  }
+}

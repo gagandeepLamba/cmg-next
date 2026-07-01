@@ -1,3 +1,4 @@
+
 import crypto from 'crypto';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';

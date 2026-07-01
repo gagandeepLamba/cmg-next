@@ -176,6 +176,7 @@ export default function InvoicesPaymentsPage() {
       trn: null as string | null,
       email: 'accounts@disha-kwt.com',
       headerBg: '#fdf6ee', accentColor: '#7c3d0c', totalBg: '#7c3d0c', labelColor: '#8B5E3C',
+      logoUrl: null as string | null,
       receiptTitle: 'PAYMENT RECEIPT', hasVat: false, vatRate: 0,
       totalLabel: 'TOTAL RECEIVED', statusLabel: 'RECEIVED IN FULL',
       footerNote: 'No VAT or indirect tax applicable in the State of Kuwait',
@@ -186,7 +187,8 @@ export default function InvoicesPaymentsPage() {
       address: 'Dubai, United Arab Emirates',
       trn: '[CMG-TRN-NUMBER]' as string | null,
       email: 'finance@cwmigrationgroup.ae',
-      headerBg: '#eef2f8', accentColor: '#1e3a5f', totalBg: '#1e3a5f', labelColor: '#4a6fa5',
+      headerBg: '#F6F8FB', accentColor: '#0B3F9F', totalBg: '#0B3F9F', labelColor: '#607089',
+      logoUrl: '/cmg-logo.png' as string | null,
       receiptTitle: 'TAX INVOICE / PAYMENT RECEIPT', hasVat: true, vatRate: 5,
       totalLabel: 'TOTAL PAID (INCL. VAT)', statusLabel: 'PAID IN FULL',
       footerNote: 'Tax Invoice per UAE Federal Tax Authority',
@@ -198,6 +200,7 @@ export default function InvoicesPaymentsPage() {
       trn: '1004344250500003' as string | null,
       email: 'finance@didactic-auh.com',
       headerBg: '#eef4ed', accentColor: '#2d5a27', totalBg: '#2d5a27', labelColor: '#4a7c44',
+      logoUrl: null as string | null,
       receiptTitle: 'TAX INVOICE / PAYMENT RECEIPT', hasVat: true, vatRate: 5,
       totalLabel: 'TOTAL PAID (INCL. VAT)', statusLabel: 'PAID IN FULL',
       footerNote: 'Tax Invoice per UAE Federal Tax Authority',
@@ -209,6 +212,7 @@ export default function InvoicesPaymentsPage() {
       trn: '1004344250500003' as string | null,
       email: 'finance@dmc-immigration.com',
       headerBg: '#eef2f8', accentColor: '#2c4a7a', totalBg: '#2c4a7a', labelColor: '#4a6fa5',
+      logoUrl: null as string | null,
       receiptTitle: 'TAX INVOICE / PAYMENT RECEIPT', hasVat: true, vatRate: 5,
       totalLabel: 'TOTAL PAID (INCL. VAT)', statusLabel: 'PAID IN FULL',
       footerNote: 'Tax Invoice per UAE Federal Tax Authority',
@@ -238,7 +242,7 @@ export default function InvoicesPaymentsPage() {
         .header h1{font-size:20px;font-weight:bold;color:#1a1a1a;margin-bottom:4px}
         .header p{font-size:11.5px;color:#555;line-height:1.6}
         .header .trn{font-weight:bold;color:#1a1a1a;font-size:11.5px}
-        .logo{position:absolute;top:18px;right:20px;width:36px;height:36px;background:${cfg.accentColor};border-radius:50%}
+        .logo{position:absolute;top:14px;right:20px;width:${cfg.logoUrl ? '70px' : '36px'};height:${cfg.logoUrl ? 'auto' : '36px'};${cfg.logoUrl ? 'object-fit:contain' : `background:${cfg.accentColor};border-radius:50%`}}
         .body{border:1px solid #ddd;border-top:none}
         .title-row{display:flex;justify-content:space-between;align-items:center;padding:12px 22px;border-bottom:1px solid #e5e5e5}
         .title-row .t{font-weight:bold;font-size:12.5px;color:#1a1a1a}
@@ -263,7 +267,7 @@ export default function InvoicesPaymentsPage() {
       </style></head><body>
       <div class="page">
         <div class="header">
-          <div class="logo"></div>
+          ${cfg.logoUrl ? `<img class="logo" src="${cfg.logoUrl}" alt="${cfg.companyName}" />` : '<div class="logo"></div>'}
           <h1>${cfg.companyName}</h1>
           <p>${cfg.address.replace(/\n/g, '<br>')}</p>
           ${cfg.trn ? `<p class="trn">TRN: ${cfg.trn}</p>` : ''}

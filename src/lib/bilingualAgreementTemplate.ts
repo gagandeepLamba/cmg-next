@@ -8,8 +8,8 @@ type AgreementValues = {
   emiratesId?: string; occupation?: string; clientId?: string;
 };
 
-const clauses: Array<[string, string, string, string]> = [
-  ['1. DEFINITIONS AND INTERPRETATION', '1.1 “DMC” means DM Immigration Consultants DMCC – Dubai Branch, its officers, employees, agents and authorised representatives. 1.2 “Client” means the individual named in this Agreement. 1.3 “Services” means only the consultancy services specified in Annexure A. 1.4 “Retainer Fee” means the professional fees payable to DMC. 1.5 “Government / Authority Fees” means all fees payable to any government department, immigration authority, embassy, consulate, skills assessment body, university, or other competent authority of any destination country. These are excluded from the Retainer Fee and are the Client’s sole responsibility. 1.6 “Authorities” means any government body, immigration department, embassy, consulate, or assessment organisation of any destination country relevant to the Services.', '1. التعريفات والتفسير', '1.1 يقصد بـ DMC شركة دي إم سي للهجرة والاستشارات فرع دبي وموظفيها ووكلائها وممثليها المعتمدين. 1.2 يقصد بالعميل الشخص المحدد في هذه الاتفاقية. 1.3 تعني الخدمات الخدمات الاستشارية المحددة في الملحق أ فقط. 1.4 تعني رسوم التعاقد الأتعاب المهنية المستحقة للشركة. 1.5 رسوم الحكومة والجهات المختصة غير مشمولة في رسوم التعاقد وتقع على عاتق العميل وحده. 1.6 “الجهات المختصة” تعني أي جهة حكومية أو إدارة هجرة أو سفارة أو قنصلية أو منظمة تقييم في أي دولة مقصد ذات صلة بالخدمات.'],
+const getClauses = (companyName: string): Array<[string, string, string, string]> => [
+  ['1. DEFINITIONS AND INTERPRETATION', `1.1 “DMC” means ${companyName}, its officers, employees, agents and authorised representatives. 1.2 “Client” means the individual named in this Agreement. 1.3 “Services” means only the consultancy services specified in Annexure A. 1.4 “Retainer Fee” means the professional fees payable to DMC. 1.5 “Government / Authority Fees” means all fees payable to any government department, immigration authority, embassy, consulate, skills assessment body, university, or other competent authority of any destination country. These are excluded from the Retainer Fee and are the Client’s sole responsibility. 1.6 “Authorities” means any government body, immigration department, embassy, consulate, or assessment organisation of any destination country relevant to the Services.`, '1. التعريفات والتفسير', `1.1 يقصد بـ DMC ${companyName} وموظفيها ووكلائها وممثليها المعتمدين. 1.2 يقصد بالعميل الشخص المحدد في هذه الاتفاقية. 1.3 تعني الخدمات الخدمات الاستشارية المحددة في الملحق أ فقط. 1.4 تعني رسوم التعاقد الأتعاب المهنية المستحقة للشركة. 1.5 رسوم الحكومة والجهات المختصة غير مشمولة في رسوم التعاقد وتقع على عاتق العميل وحده. 1.6 “الجهات المختصة” تعني أي جهة حكومية أو إدارة هجرة أو سفارة أو قنصلية أو منظمة تقييم في أي دولة مقصد ذات صلة بالخدمات.`],
   ['2. SCOPE OF SERVICES', '2.1 DMC provides only the Services specified in Annexure A. Services are limited to consultancy and documentation assistance and do not include legal representation or legal advice. 2.2 Services outside Annexure A require a separate written agreement and additional fees. 2.3 DMC may use third-party agents, assessors or registered migration practitioners; the Client consents to necessary information sharing.', '2. نطاق الخدمات', '2.1 تقدم DMC الخدمات المحددة في الملحق أ فقط، وتقتصر على الاستشارات والمساعدة في المستندات ولا تشمل التمثيل القانوني أو المشورة القانونية. 2.2 تتطلب الخدمات خارج نطاق الملحق أ اتفاقية مكتوبة منفصلة ورسومًا إضافية. 2.3 يجوز لـ DMC الاستعانة بأطراف ثالثة، ويوافق العميل على مشاركة معلوماته عند الحاجة لتقديم الخدمات.'],
   ['3. NO GUARANTEE OF OUTCOME', '3.1 DMC does not guarantee, represent or warrant success, approval or a positive outcome of any visa application, skills assessment, admission or immigration process. 3.2 All decisions are made solely by the relevant Authorities and DMC has no influence over them. 3.3 DMC is not liable for changes in laws, policies, occupation lists, quotas or processing times. 3.4 An unsuccessful outcome does not entitle the Client to a refund except as stated in Clause 6.', '3. عدم ضمان النتائج', '3.1 لا تضمن DMC نجاح أو قبول أي طلب تأشيرة أو تقييم مهارات أو قبول دراسي أو أي إجراء هجرة. 3.2 تصدر جميع القرارات من الجهات المختصة وحدها ولا تملك DMC تأثيرًا عليها. 3.3 لا تتحمل DMC مسؤولية تغيّر القوانين أو السياسات أو قوائم المهن أو الحصص أو أوقات المعالجة. 3.4 لا يحق للعميل استرداد الرسوم بسبب نتيجة غير مواتية إلا وفقًا للبند 6.'],
   ['4. CLIENT OBLIGATIONS AND REPRESENTATIONS', '4.1 The Client warrants that all information and documents are true, accurate, complete and not misleading. 4.2 The Client must promptly provide requested documents; delays remain the Client’s responsibility. 4.3 The Client shall not contact Authorities directly without DMC’s written approval. 4.4 Abusive or inappropriate conduct is a material breach and may result in immediate termination without refund. 4.5 False, fraudulent or forged documents are prohibited and may be reported to Authorities. 4.6 The Client must not make employment or financial decisions in anticipation of an outcome.', '4. التزامات العميل وتعهداته', '4.1 يضمن العميل صحة ودقة واكتمال المعلومات والمستندات المقدمة. 4.2 يلتزم العميل بتقديم المستندات المطلوبة فورًا ويتحمل مسؤولية أي تأخير. 4.3 لا يجوز للعميل التواصل مباشرة مع الجهات المختصة دون موافقة كتابية من DMC. 4.4 يعد السلوك المسيء أو غير اللائق إخلالًا جوهريًا وقد يؤدي إلى الإنهاء الفوري دون استرداد. 4.5 يحظر تقديم مستندات مزورة أو احتيالية ولـ DMC حق إبلاغ الجهات المختصة. 4.6 لا يجوز اتخاذ التزامات وظيفية أو مالية توقعًا لنتيجة البرنامج.'],
@@ -26,6 +26,18 @@ const clauses: Array<[string, string, string, string]> = [
 
 const DEFAULT_COMPANY_NAME = 'DM Immigration Consultants DMCC – Dubai Branch';
 const DEFAULT_ADDRESS = 'Office 3703B, Latifa Tower, Sheikh Zayed Road, Trade Centre First, P.O. Box 29514, Dubai, UAE';
+
+const DMC_LICENSE_EN = [
+  'Professional Licence No. 766222 — Dubai Department of Economy and Tourism (DET)',
+  'Branch of DM Immigration Consultants DMCC — Free Zone Company, Licence No. DMCC-788993, DMCC Authority, Dubai',
+];
+const DMC_LICENSE_AR = [
+  'رخصة مهنية رقم 766222 — دائرة الاقتصاد والسياحة في دبي',
+  'فرع شركة دي إم أيميغرايشون كونسالتنتس م.د.م.س — شركة منطقة حرة، رخصة رقم DMCC-788993، دبي',
+];
+
+const isDmcCompany = (name: string) => /dm immigration consultants|dmcc/i.test(name);
+const isCmgCompany = (name: string) => /commonwealth|\bcmg\b/i.test(name);
 
 const textOrBlank = (value: unknown, fallback = '________________') => {
   const result = String(value ?? '').trim();
@@ -54,50 +66,69 @@ const feeTitle = () => `<section class="agreement-box fee-title" aria-label="Fee
   <div class="language arabic" dir="rtl" lang="ar"><h2>ملخص الرسوم</h2></div>
 </section>`;
 
-const bilingualHeader = (companyName: string, address: string) => `<header class="agreement-header">
+const bilingualHeader = (companyName: string, address: string, licenseEn: string[], licenseAr: string[]) => `<header class="agreement-header">
   <div class="header-column header-english">
     <div class="company-name">${esc(companyName.toUpperCase())}</div>
-    <div>Professional Licence No. 766222 — Dubai Department of Economy and Tourism (DET)</div>
-    <div>Branch of DM Immigration Consultants DMCC — Free Zone Company, Licence No. DMCC-788993, DMCC Authority, Dubai</div>
+    ${licenseEn.map((line) => `<div>${esc(line)}</div>`).join('')}
     <div>Address: ${esc(address)}</div>
     <div class="contact-line">Email: ____________________ &nbsp;|&nbsp; Website: ____________________</div>
     <div class="agreement-name">CLIENT SERVICE AGREEMENT — UNIFIED TERMS (ALL SERVICE PROGRAMS)</div>
   </div>
   <div class="header-column header-arabic" dir="rtl" lang="ar">
-    <div class="company-name">دي إم أيميغرايشون كونسالتنتس م.د.م.س – فرع دبي</div>
-    <div>رخصة مهنية رقم 766222 — دائرة الاقتصاد والسياحة في دبي</div>
-    <div>فرع شركة دي إم أيميغرايشون كونسالتنتس م.د.م.س — شركة منطقة حرة، رخصة رقم DMCC-788993، دبي</div>
+    <div class="company-name">${esc(companyName)}</div>
+    ${licenseAr.map((line) => `<div>${esc(line)}</div>`).join('')}
     <div>العنوان: ${esc(address)}</div>
     <div class="contact-line">البريد الإلكتروني: ____________________ &nbsp;|&nbsp; الموقع الإلكتروني: ____________________</div>
     <div class="agreement-name">اتفاقية خدمات العميل — شروط موحدة لجميع برامج الخدمة</div>
   </div>
 </header>`;
 
-const getAgreementDetails = (v: AgreementValues) => ({
-  agreementNumber: textOrBlank(v.agreementNumber),
-  agreementDate: textOrBlank(v.agreementDate),
-  serviceProgram: textOrBlank(v.serviceProgram),
-  destinationCountry: textOrBlank(v.destinationCountry),
-  clientName: textOrBlank(v.clientName),
-  clientEmail: textOrBlank(v.clientEmail),
-  clientPhone: textOrBlank(v.clientPhone),
-  clientAddress: textOrBlank(v.clientAddress),
-  nationality: textOrBlank(v.nationality),
-  passportNumber: textOrBlank(v.passportNumber),
-  totalAmount: textOrBlank(v.totalAmount),
-  initialPayment: textOrBlank(v.initialPayment),
-  secondPayment: textOrBlank(v.secondPayment),
-  emiratesId: textOrBlank(v.emiratesId),
-  occupation: textOrBlank(v.occupation),
-  companyName: textOrBlank(v.branchName, DEFAULT_COMPANY_NAME),
-  branchAddress: textOrBlank(v.branchAddress, DEFAULT_ADDRESS),
-});
+const getAgreementDetails = (v: AgreementValues) => {
+  const companyName = textOrBlank(v.branchName, DEFAULT_COMPANY_NAME);
+  const isDmc = isDmcCompany(companyName);
+  const licenseLinesEn = isDmc ? DMC_LICENSE_EN : [];
+  const licenseLinesAr = isDmc ? DMC_LICENSE_AR : [];
+  const entityEn = isDmc
+    ? `${companyName}, holding Professional Licence No. 766222 issued by the Dubai Department of Economy and Tourism, being a branch of DM Immigration Consultants DMCC, a free zone company licensed by the DMCC Authority under Licence No. DMCC-788993 ("DMC / the Company")`
+    : `${companyName} ("DMC / the Company")`;
+  const entityAr = isDmc
+    ? `${companyName}، الحاصل على رخصة مهنية رقم 766222 صادرة عن دائرة الاقتصاد والسياحة في دبي، وهو فرع شركة دي إم أيميغرايشون كونسالتنتس م.د.م.س، وهي شركة منطقة حرة مرخصة من سلطة مركز دبي للسلع المتعددة بموجب الرخصة رقم DMCC-788993 ("DMC / الشركة")`
+    : `${companyName} ("DMC / الشركة")`;
+
+  return {
+    agreementNumber: textOrBlank(v.agreementNumber),
+    agreementDate: textOrBlank(v.agreementDate),
+    serviceProgram: textOrBlank(v.serviceProgram),
+    destinationCountry: textOrBlank(v.destinationCountry),
+    clientName: textOrBlank(v.clientName),
+    clientEmail: textOrBlank(v.clientEmail),
+    clientPhone: textOrBlank(v.clientPhone),
+    clientAddress: textOrBlank(v.clientAddress),
+    nationality: textOrBlank(v.nationality),
+    passportNumber: textOrBlank(v.passportNumber),
+    totalAmount: textOrBlank(v.totalAmount),
+    initialPayment: textOrBlank(v.initialPayment),
+    secondPayment: textOrBlank(v.secondPayment),
+    emiratesId: textOrBlank(v.emiratesId),
+    occupation: textOrBlank(v.occupation),
+    companyName,
+    branchAddress: textOrBlank(v.branchAddress, DEFAULT_ADDRESS),
+    licenseLinesEn,
+    licenseLinesAr,
+    entityEn,
+    entityAr,
+    isCmg: isCmgCompany(companyName),
+  };
+};
 
 const renderAgreement = (v: AgreementValues) => {
   const d = getAgreementDetails(v);
-  const clauseHtml = clauses.map(([englishTitle, english, arabicTitle, arabic]) =>
+  const clauseHtml = getClauses(d.companyName).map(([englishTitle, english, arabicTitle, arabic]) =>
     box(englishTitle, english, arabicTitle, arabic, 'clause'),
   ).join('');
+  const theme = d.isCmg
+    ? { headingEn: '#0B3F9F', accentEn: '#0B3F9F', headingAr: '#DF2B22', accentAr: '#DF2B22', gradEnFrom: '#0B3F9F', gradEnTo: '#14213D', gradArFrom: '#DF2B22', gradArTo: '#a3221b' }
+    : { headingEn: '#166534', accentEn: '#166534', headingAr: '#92400e', accentAr: '#b45309', gradEnFrom: '#166534', gradEnTo: '#15803d', gradArFrom: '#92400e', gradArTo: '#b45309' };
 
   return `<!doctype html>
 <html lang="en">
@@ -117,10 +148,14 @@ const renderAgreement = (v: AgreementValues) => {
       --border: #c9cdd4;
       --english-bg: #f0f4ff;
       --arabic-bg: #fdf8f0;
-      --heading-en: #166534;
-      --heading-ar: #92400e;
-      --accent-en: #166534;
-      --accent-ar: #b45309;
+      --heading-en: ${theme.headingEn};
+      --heading-ar: ${theme.headingAr};
+      --accent-en: ${theme.accentEn};
+      --accent-ar: ${theme.accentAr};
+      --grad-en-from: ${theme.gradEnFrom};
+      --grad-en-to: ${theme.gradEnTo};
+      --grad-ar-from: ${theme.gradArFrom};
+      --grad-ar-to: ${theme.gradArTo};
       --important: #b91c1c;
       --page-width: 210mm;
     }
@@ -256,14 +291,14 @@ const renderAgreement = (v: AgreementValues) => {
 
     .english h2 {
       color: #fff;
-      background: linear-gradient(135deg, #166534, #15803d);
+      background: linear-gradient(135deg, var(--grad-en-from), var(--grad-en-to));
     }
 
     .arabic h2 {
       text-transform: none;
       letter-spacing: 0;
       color: #fff;
-      background: linear-gradient(135deg, #92400e, #b45309);
+      background: linear-gradient(135deg, var(--grad-ar-from), var(--grad-ar-to));
     }
 
     .language p {
@@ -324,12 +359,12 @@ const renderAgreement = (v: AgreementValues) => {
     }
 
     .annexure-title-pair > div:first-child {
-      background: linear-gradient(135deg, #166534, #15803d);
+      background: linear-gradient(135deg, var(--grad-en-from), var(--grad-en-to));
       border-right: 1.5px solid var(--border);
     }
 
     .annexure-title-pair > div:last-child {
-      background: linear-gradient(135deg, #92400e, #b45309);
+      background: linear-gradient(135deg, var(--grad-ar-from), var(--grad-ar-to));
       text-align: right;
       font-family: Tahoma, Arial, sans-serif;
       text-transform: none;
@@ -408,7 +443,7 @@ const renderAgreement = (v: AgreementValues) => {
 </head>
 <body>
   <main class="document">
-    ${bilingualHeader(d.companyName, d.branchAddress)}
+    ${bilingualHeader(d.companyName, d.branchAddress, d.licenseLinesEn, d.licenseLinesAr)}
 
     ${box(
       'AGREEMENT DETAILS',
@@ -427,10 +462,8 @@ These unified terms apply to every service program offered by the Company. The s
 
     ${box(
       'SERVICE PROVIDER',
-      `DM Immigration Consultants DMCC – Dubai Branch ("DMC / the Company")
-Professional Licence No. 766222 — Dubai Department of Economy and Tourism (DET)
-Branch of DM Immigration Consultants DMCC — Free Zone Company, Licence No. DMCC-788993, DMCC Authority, Dubai
-Address: ${d.branchAddress}
+      `${d.companyName} ("DMC / the Company")
+${d.licenseLinesEn.length ? d.licenseLinesEn.join('\n') + '\n' : ''}Address: ${d.branchAddress}
 
 CLIENT DETAILS
 Full Name: ${d.clientName}
@@ -441,10 +474,8 @@ Phone: ${d.clientPhone}
 Email: ${d.clientEmail}
 Occupation: ${d.occupation}`,
       'مقدم الخدمة',
-      `دي إم أيميغرايشون كونسالتنتس م.د.م.س – فرع دبي ("DMC / الشركة")
-رخصة مهنية رقم 766222 — دائرة الاقتصاد والسياحة في دبي
-فرع شركة دي إم أيميغرايشون كونسالتنتس م.د.م.س — شركة منطقة حرة، رخصة رقم DMCC-788993، دبي
-العنوان: ${d.branchAddress}
+      `${d.companyName} ("DMC / الشركة")
+${d.licenseLinesAr.length ? d.licenseLinesAr.join('\n') + '\n' : ''}العنوان: ${d.branchAddress}
 
 بيانات العميل
 الاسم الكامل: ${d.clientName}
@@ -481,7 +512,7 @@ VAT: Applicable per UAE VAT Law (Federal Decree-Law No. 8 of 2017, as amended)</
 
     ${box(
       'PREAMBLE',
-      `This Client Service Agreement ("Agreement") is entered into between DM Immigration Consultants DMCC – Dubai Branch, holding Professional Licence No. 766222 issued by the Dubai Department of Economy and Tourism, being a branch of DM Immigration Consultants DMCC, a free zone company licensed by the DMCC Authority under Licence No. DMCC-788993 ("DMC / the Company"), and the Client identified above.
+      `This Client Service Agreement ("Agreement") is entered into between ${d.entityEn}, and the Client identified above.
 
 WHEREAS DMC provides immigration, global mobility, education and related documentation and management consultancy services covering multiple destination countries and programs, for individuals in the UAE and the region.
 
@@ -491,7 +522,7 @@ WHEREAS the Client has been provided a full opportunity to read, review, and see
 
 NOW THEREFORE, in consideration of the mutual covenants herein, the parties agree as follows:`,
       'تمهيد',
-      `أبرمت اتفاقية خدمات العميل هذه ("الاتفاقية") بين دي إم أيميغرايشون كونسالتنتس م.د.م.س – فرع دبي، الحاصل على رخصة مهنية رقم 766222 صادرة عن دائرة الاقتصاد والسياحة في دبي، وهو فرع شركة دي إم أيميغرايشون كونسالتنتس م.د.م.س، وهي شركة منطقة حرة مرخصة من سلطة مركز دبي للسلع المتعددة بموجب الرخصة رقم DMCC-788993 ("DMC / الشركة")، والعميل المحدد أعلاه.
+      `أبرمت اتفاقية خدمات العميل هذه ("الاتفاقية") بين ${d.entityAr}، والعميل المحدد أعلاه.
 
 تقدم DMC خدمات الهجرة والتنقل العالمي والتعليم وخدمات المستندات والاستشارات الإدارية ذات الصلة للأفراد في الإمارات والمنطقة.
 
@@ -542,7 +573,7 @@ VAT: Applicable per UAE VAT Law`,
       'EXECUTION',
       `Each party confirms they have read, understood, and agree to be bound by this Agreement.
 
-FOR AND ON BEHALF OF DM IMMIGRATION CONSULTANTS DMCC – DUBAI BRANCH:
+FOR AND ON BEHALF OF ${d.companyName.toUpperCase()}:
 Authorised Signatory: ________________________________
 Name: ____________________________________________
 Date: _____________________________________________
@@ -554,7 +585,7 @@ Date: _____________________________________________`,
       'التوقيع والإبرام',
       `يقر كل طرف بأنه قرأ وفهم هذه الاتفاقية ويوافق على الالتزام بها.
 
-نيابةً عن دي إم أيميغرايشون كونسالتنتس م.د.م.س – فرع دبي:
+نيابةً عن ${d.companyName}:
 التوقيع المفوض: ________________________________
 الاسم: ________________________________________
 التاريخ: _______________________________________
@@ -567,7 +598,7 @@ Date: _____________________________________________`,
     )}
 
     <footer class="print-footer">
-      DM Immigration Consultants DMCC – Dubai Branch — DET Licence 766222 / Parent: DMCC-788993 — Office 3703B, Latifa Tower, Sheikh Zayed Road, Dubai — Page <span class="page-number"></span>
+      ${d.companyName}${d.licenseLinesEn.length ? ' — DET Licence 766222 / Parent: DMCC-788993' : ''} — ${d.branchAddress} — Page <span class="page-number"></span>
     </footer>
   </main>
 </body>
