@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+:root {
+  /* ── DMC Middle East Brand Palette (from logo) ─────────────────────
+     Extracted from the green starburst logo:
+       Outer dark petals  →  #1C6B10
+       Mid-range petals   →  #289018
+       Bright centre glow →  #35AE22
+       Highlight accent   →  #50C835
+       Light background   →  #EAF7E4
+  ────────────────────────────────────────────────────────────────── */
+  --dmc-green:          #35AE22;   /* primary – bright logo green            */
+  --dmc-green-dark:     #1C6B10;   /* outer petal / hover / sidebar header   */
+  --dmc-green-medium:   #289018;   /* mid-range – borders, secondary buttons */
+  --dmc-green-light:    #50C835;   /* highlight / active indicator           */
+  --dmc-green-soft:     #EAF7E4;   /* page & card background tint            */
+  --dmc-green-softer:   #F3FAF0;   /* subtler surface bg                     */
+
+  /* Neutral / text */
+  --dmc-ink:            #0F3008;   /* primary text – very dark green         */
+  --dmc-muted:          #4A6B42;   /* secondary text / labels                */
+  --dmc-border:         #B8DFB0;   /* borders                                */
+  --dmc-surface:        #FFFFFF;   /* card / panel surface                   */
+
+  /* Semantic */
+  --dmc-red:            #D93025;
+  --dmc-red-dark:       #B0221A;
+  --dmc-gold:           #C49A3C;   /* kept for accents / warning badges      */
+  --dmc-gold-soft:      #FBF5E7;
+
+  /* CSS-layer aliases (used by older components) */
+  --cmg-blue:           var(--dmc-green);
+  --cmg-blue-dark:      var(--dmc-green-dark);
+  --cmg-blue-soft:      var(--dmc-green-soft);
+  --cmg-red:            var(--dmc-red);
+  --cmg-red-dark:       var(--dmc-red-dark);
+  --cmg-ink:            var(--dmc-ink);
+  --cmg-muted:          var(--dmc-muted);
+  --cmg-border:         var(--dmc-border);
+  --cmg-surface:        var(--dmc-surface);
+
+  /* Page background */
+  --background:         var(--dmc-green-softer);
+  --foreground:         var(--dmc-ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+::selection {
+  background: rgba(53, 174, 34, 0.18);
+  color: var(--dmc-ink);
+}
+
+/* ── Page shell ─────────────────────────────────────────────────── */
+.cmg-page-shell {
+  background:
+    linear-gradient(180deg, rgba(234, 247, 228, 0.92), rgba(243, 250, 240, 0.98) 240px),
+    var(--background);
+}
+
+/* ── Card ───────────────────────────────────────────────────────── */
+.cmg-card {
+  background: var(--dmc-surface);
+  border: 1px solid var(--dmc-border);
+  box-shadow: 0 10px 30px rgba(15, 48, 8, 0.07);
+}
+
+/* ── Focus ring ─────────────────────────────────────────────────── */
+.cmg-focus { outline: none; }
+.cmg-focus:focus {
+  box-shadow: 0 0 0 3px rgba(53, 174, 34, 0.22);
+}
+
+/* ── Tailwind blue → DMC green remaps ──────────────────────────── */
+/* These override Tailwind's blue utilities so legacy JSX that still
+   uses e.g. "bg-blue-600" renders with DMC green instead.          */
+.bg-blue-600  { background-color: var(--dmc-green) !important; }
+.bg-blue-700  { background-color: var(--dmc-green-medium) !important; }
+.bg-blue-800  { background-color: var(--dmc-green-dark) !important; }
+.bg-blue-50,
+.bg-blue-100  { background-color: var(--dmc-green-soft) !important; }
+.bg-blue-200  { background-color: #C8ECC0 !important; }
+
+.hover\:bg-blue-700:hover { background-color: var(--dmc-green-medium) !important; }
+.hover\:bg-blue-800:hover { background-color: var(--dmc-green-dark) !important; }
+.hover\:bg-blue-50:hover  { background-color: var(--dmc-green-soft) !important; }
+
+.text-blue-600 { color: var(--dmc-green) !important; }
+.text-blue-700,
+.text-blue-800,
+.text-blue-900 { color: var(--dmc-green-dark) !important; }
+
+.border-blue-200,
+.border-blue-300,
+.border-blue-400,
+.border-blue-500,
+.border-blue-600 { border-color: var(--dmc-border) !important; }
+
+.focus\:ring-blue-500:focus,
+.focus\:ring-blue-400:focus {
+  --tw-ring-color: rgba(53, 174, 34, 0.40) !important;
+}
+
+.ring-blue-500 { --tw-ring-color: rgba(53, 174, 34, 0.40) !important; }
+
+/* ── Indigo / violet → DMC green remaps ─────────────────────────── */
+.bg-indigo-600,
+.bg-indigo-700  { background-color: var(--dmc-green) !important; }
+.text-indigo-600,
+.text-indigo-700 { color: var(--dmc-green) !important; }
+
+/* ── Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--dmc-green-softer); }
+::-webkit-scrollbar-thumb {
+  background: #A8D4A0;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--dmc-green-medium); }
+
+/* ── Sidebar nav scrollbar (always visible, styled) ─────────────── */
+.sidebar-nav {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+.sidebar-nav::-webkit-scrollbar {
+  width: 5px;
+}
+.sidebar-nav::-webkit-scrollbar-track {
+  background: #f0f4f0;
+  border-radius: 4px;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--dmc-border);
+  border-radius: 4px;
+}
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: var(--dmc-green);
+}
