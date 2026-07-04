@@ -8,8 +8,8 @@ export const metadata: Metadata = {
   title: "CMG - Immigration Simplified",
   description: "Lead, client, operations, and reporting platform for CMG.",
   icons: {
-    icon: '/cmg-logo.png',
-    apple: '/cmg-logo.png',
+    icon: '/logo.jpeg',
+    apple: '/logo.jpeg',
   },
 };
 

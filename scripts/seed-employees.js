@@ -23,6 +23,7 @@ const DEPT = { Sales: 5, Admin: 1 };
 // left alone except role/branch/department, which are kept in sync.
 const newEmployees = [
   { branch: 'DXB', dept: 'Admin', doj: null, name: 'Soumya', username: 'Soumya', role: 'CEO' },
+  { branch: 'DXB', dept: 'Admin', doj: null, name: 'Chetan Kumbhar', username: 'chetankumbhar', role: 'CEO' },
   { branch: 'DXB', dept: 'Sales', doj: null, name: 'Sales1', username: 'sales1', role: 'Counsellor' },
   { branch: 'DXB', dept: 'Sales', doj: null, name: 'Sales2', username: 'sales2', role: 'Counsellor' },
   { branch: 'DXB', dept: 'Admin', doj: null, name: 'Accounts', username: 'Accounts', role: 'Accountant' },

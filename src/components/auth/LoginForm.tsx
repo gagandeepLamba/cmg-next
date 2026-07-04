@@ -106,7 +106,7 @@ export default function LoginForm() {
           <div>
             <div className="inline-flex bg-white rounded-md p-4 shadow-sm">
               <div className="relative h-20 w-44">
-                <Image src="/cmg-logo.png" alt="CMG" fill sizes="176px" className="object-contain" priority />
+                <Image src="/logo.jpeg" alt="CMG" fill sizes="176px" className="object-contain" priority />
               </div>
             </div>
 
@@ -164,7 +164,7 @@ export default function LoginForm() {
           <div className="w-full max-w-md">
             <div className="lg:hidden mb-8 flex justify-center">
               <div className="relative h-20 w-44">
-                <Image src="/cmg-logo.png" alt="CMG" fill sizes="176px" className="object-contain" priority />
+                <Image src="/logo.jpeg" alt="CMG" fill sizes="176px" className="object-contain" priority />
               </div>
             </div>
 

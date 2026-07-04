@@ -320,7 +320,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         <div className="flex items-center justify-between h-20 px-5 border-b border-[var(--cmg-border)] flex-shrink-0">
           <div className="flex items-center min-w-0">
             <div className="relative h-11 w-24 flex-shrink-0">
-              <Image src="/cmg-logo.png" alt="CMG" fill sizes="96px" className="object-contain" priority />
+              <Image src="/logo.jpeg" alt="CMG" fill sizes="96px" className="object-contain" priority />
             </div>
             <div className="ml-3 min-w-0">
               <span className="block text-sm font-bold text-[var(--cmg-ink)] leading-tight">CMG</span>
