@@ -563,7 +563,7 @@ export default function LeadPool() {
                     setConfirmVisible(true);
                   }}
                   disabled={!counsellorId}
-                  className="flex items-center gap-2 bg-[#35AE22] hover:bg-[#1C6B10] disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+                  className="flex items-center gap-2 bg-[#003399] hover:bg-[#002266] disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
                 >
                   Transfer
                   <ArrowRight className="w-4 h-4" />
@@ -577,7 +577,7 @@ export default function LeadPool() {
                   <button
                     onClick={handleTransfer}
                     disabled={transferring}
-                    className="flex items-center gap-2 bg-[#35AE22] hover:bg-[#1C6B10] disabled:opacity-70 text-white text-sm font-medium px-4 py-2 rounded-lg"
+                    className="flex items-center gap-2 bg-[#003399] hover:bg-[#002266] disabled:opacity-70 text-white text-sm font-medium px-4 py-2 rounded-lg"
                   >
                     {transferring ? (
                       <span className="flex items-center gap-2">

@@ -69,7 +69,7 @@ export default function OpsFollowUpsPage() {
 
   // Role detection
   const normalizedRole = String(user?.type || '').toLowerCase().replace(/[\s-]+/g, '_');
-  const canViewAll = user?.role === 1 || ['admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos'].includes(normalizedRole);
+  const canViewAll = user?.role === 1 || ['admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos', 'director_of_operations'].includes(normalizedRole);
   const isBranchManager = ['branch_manager', 'bm'].includes(normalizedRole) && !canViewAll;
   const viewLabel = canViewAll ? 'All Follow-ups' : isBranchManager ? 'Branch Follow-ups' : 'My Follow-ups';
 

@@ -3,11 +3,22 @@
 import { useState, useEffect } from 'react';
 import { DmEmployeeAttributes } from '@/models';
 
+type EmployeeRow = DmEmployeeAttributes & {
+  roleName?: string | null;
+  branchName?: string | null;
+  departmentName?: string | null;
+};
+
+type RoleOption = { id: number; name: string; type: string };
+type BranchOption = { id: number; name: string };
+
 export default function EmployeesManagement() {
-  const [employees, setEmployees] = useState<DmEmployeeAttributes[]>([]);
+  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
+  const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [branches, setBranches] = useState<BranchOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedEmployee, setSelectedEmployee] = useState<DmEmployeeAttributes | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeRow | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -25,6 +36,35 @@ export default function EmployeesManagement() {
   useEffect(() => {
     fetchEmployees();
   }, [pagination.page, pagination.limit, filters.department, filters.status]);
+
+  useEffect(() => {
+    fetchRoles();
+    fetchBranches();
+  }, []);
+
+  const fetchRoles = async () => {
+    try {
+      const response = await fetch('/api/admin/roles?limit=100&status=1');
+      const result = await response.json();
+      if (response.ok) {
+        setRoles((result.data || []).map((r: any) => ({ id: r.id, name: r.name, type: r.type })));
+      }
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+    }
+  };
+
+  const fetchBranches = async () => {
+    try {
+      const response = await fetch('/api/admin/branches?limit=200&status=1');
+      const result = await response.json();
+      if (response.ok) {
+        setBranches((result.data || []).map((b: any) => ({ id: b.id, name: b.name })));
+      }
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+    }
+  };
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -245,6 +285,7 @@ export default function EmployeesManagement() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mobile</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role / Branch</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Work Mode</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -278,6 +319,10 @@ export default function EmployeesManagement() {
                     <div className="text-sm text-gray-900">
                       {employee.department === 1 ? 'Sales' : employee.department === 2 ? 'Operations' : 'Admin'}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{employee.roleName || 'Unassigned'}</div>
+                    <div className="text-sm text-gray-500">{employee.branchName || ''}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(employee.status)}`}>
@@ -398,6 +443,8 @@ export default function EmployeesManagement() {
                   <div className="mt-2 space-y-2">
                     <p><span className="font-medium">Employee ID:</span> {selectedEmployee.EID}</p>
                     <p><span className="font-medium">Username:</span> {selectedEmployee.username}</p>
+                    <p><span className="font-medium">Role / Designation:</span> {selectedEmployee.roleName || 'Unassigned'}</p>
+                    <p><span className="font-medium">Branch:</span> {selectedEmployee.branchName || 'N/A'}</p>
                     <p><span className="font-medium">Department:</span> {
                       selectedEmployee.department === 1 ? 'Sales' :
                       selectedEmployee.department === 2 ? 'Operations' : 'Admin'
@@ -458,6 +505,8 @@ export default function EmployeesManagement() {
       {showAddModal && (
         <EmployeeFormModal
           title="Add New Employee"
+          roles={roles}
+          branches={branches}
           onSubmit={handleAddEmployee}
           onClose={() => setShowAddModal(false)}
         />
@@ -468,6 +517,8 @@ export default function EmployeesManagement() {
         <EmployeeFormModal
           title="Edit Employee"
           initialData={selectedEmployee}
+          roles={roles}
+          branches={branches}
           onSubmit={handleUpdateEmployee}
           onClose={() => { setShowEditModal(false); setSelectedEmployee(null); }}
         />
@@ -478,12 +529,14 @@ export default function EmployeesManagement() {
 
 interface EmployeeFormModalProps {
   title: string;
-  initialData?: DmEmployeeAttributes | null;
+  initialData?: EmployeeRow | null;
+  roles: RoleOption[];
+  branches: BranchOption[];
   onSubmit: (data: Partial<DmEmployeeAttributes>) => void;
   onClose: () => void;
 }
 
-function EmployeeFormModal({ title, initialData, onSubmit, onClose }: EmployeeFormModalProps) {
+function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onClose }: EmployeeFormModalProps) {
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     email: initialData?.email || '',
@@ -569,6 +622,36 @@ function EmployeeFormModal({ title, initialData, onSubmit, onClose }: EmployeeFo
                 <option value={1}>Sales</option>
                 <option value={2}>Operations</option>
                 <option value={3}>Admin</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Role / Designation *</label>
+              <select
+                required
+                value={formData.role ?? ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value ? parseInt(e.target.value) : null }))}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select a role</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>{role.name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">Permissions and module access are applied automatically from this role.</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Branch</label>
+              <select
+                value={formData.branch ?? ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, branch: e.target.value ? parseInt(e.target.value) : null }))}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">No branch</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
               </select>
             </div>
 

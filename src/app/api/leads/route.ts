@@ -103,7 +103,10 @@ export async function GET(request: NextRequest) {
     const canViewAll = currentUser.role === 1 || [
       'admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos'
     ].includes(role)
-    const isBranchManager = ['branch_manager', 'bm'].includes(role) && !canViewAll
+    // Receptionists and FOEs share branch-scoped visibility with branch managers so
+    // they can see and (re)assign leads at their own front desk without exposing other branches.
+    const isBranchManager = ['branch_manager', 'bm', 'receptionist', 'foe'].includes(role) && !canViewAll
+    const isRegionalManager = ['regional_manager', 'rm'].includes(role) && !canViewAll && !isBranchManager
 
     const offset = (page - 1) * limit
 
@@ -189,6 +192,9 @@ export async function GET(request: NextRequest) {
       if (isBranchManager) {
         whereConditions.push('(l.branch = ? OR l.branch IS NULL)')
         replacements.push(currentUser.branch)
+      } else if (isRegionalManager) {
+        whereConditions.push('(l.region = ? OR l.region IS NULL)')
+        replacements.push(currentUser.region)
       } else if (!canViewAll) {
         whereConditions.push(`(l.Counsilor = ? OR l.assignTo = ? OR EXISTS (SELECT 1 FROM dmc_opportunities o WHERE o.leadId = l.id AND (o.assignedTo = ? OR o.createdBy = ?)))`)
         replacements.push(currentUser.id, currentUser.id, currentUser.id, currentUser.id)
@@ -199,6 +205,9 @@ export async function GET(request: NextRequest) {
       if (isBranchManager) {
         whereConditions.push('(l.branch = ? OR l.branch IS NULL)')
         replacements.push(currentUser.branch)
+      } else if (isRegionalManager) {
+        whereConditions.push('(l.region = ? OR l.region IS NULL)')
+        replacements.push(currentUser.region)
       } else if (!canViewAll) {
         whereConditions.push(`(
           l.Counsilor = ? OR l.assignTo = ?
@@ -213,17 +222,20 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Leads tab: show only leads (no opportunities) for all roles
-      if (!canViewAll && !isBranchManager) {
+      if (!canViewAll && !isBranchManager && !isRegionalManager) {
         // Counselors: their own leads + unassigned leads, no opportunity
         whereConditions.push(`((l.opportunity_id IS NULL OR l.opportunity_id = 0) AND NOT EXISTS (SELECT 1 FROM dmc_opportunities o WHERE o.leadId = l.id))`)
         whereConditions.push('(l.Counsilor = ? OR l.assignTo = ? OR (l.Counsilor IS NULL AND l.assignTo IS NULL))')
         replacements.push(currentUser.id, currentUser.id)
       } else {
-        // Admin/DS/BM: all leads but exclude those with opportunities
+        // Admin/DS/BM/RM: all leads but exclude those with opportunities
         whereConditions.push(`((l.opportunity_id IS NULL OR l.opportunity_id = 0) AND NOT EXISTS (SELECT 1 FROM dmc_opportunities o WHERE o.leadId = l.id))`)
         if (isBranchManager) {
           whereConditions.push('(l.branch = ? OR l.branch IS NULL)')
           replacements.push(currentUser.branch)
+        } else if (isRegionalManager) {
+          whereConditions.push('(l.region = ? OR l.region IS NULL)')
+          replacements.push(currentUser.region)
         }
       }
     }
@@ -595,7 +607,7 @@ export async function POST(request: NextRequest) {
       id_issue_date: data.id_issue_date || data.idIssueDate || new Date('2015-01-01'),
       country_interest: data.country_interest || data.countryInterest || data.programCountry || data.country || 'Canada',
       sub_country_interest: data.sub_country_interest || 0,
-      service_interest: data.service_interest || data.serviceInterest || data.programType || data.program || 'Student Visa',
+      service_interest: data.service_interest || data.serviceInterest || data.program || data.programType || 'Student Visa',
       market_source: data.market_source || data.leadSource || 'Website',
       sub_market_source: data.sub_market_source || 0,
       appointment: data.appointment || null,

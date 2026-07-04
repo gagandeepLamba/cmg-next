@@ -77,7 +77,7 @@ function KpiTile({ label, value, sub, icon: Icon, color = 'green' }: {
   icon: React.ElementType; color?: string;
 }) {
   const colorMap: Record<string, string> = {
-    green: 'text-[#35AE22] bg-[#EAF7E4]',
+    green: 'text-[#003399] bg-[#E8EEFB]',
     red: 'text-red-600 bg-red-50',
     blue: 'text-blue-600 bg-blue-50',
     orange: 'text-orange-600 bg-orange-50',
@@ -133,7 +133,7 @@ export default function ActivityMonitor() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 gap-3 text-gray-500">
-        <RefreshCw className="w-6 h-6 animate-spin text-[#35AE22]" />
+        <RefreshCw className="w-6 h-6 animate-spin text-[#003399]" />
         Loading live monitoring data…
       </div>
     );
@@ -144,7 +144,7 @@ export default function ActivityMonitor() {
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-red-500">
         <AlertCircle className="w-8 h-8" />
         <span>{error || 'No data'}</span>
-        <button onClick={load} className="px-4 py-2 bg-[#35AE22] text-white rounded-lg text-sm hover:bg-[#1C6B10]">Retry</button>
+        <button onClick={load} className="px-4 py-2 bg-[#003399] text-white rounded-lg text-sm hover:bg-[#002266]">Retry</button>
       </div>
     );
   }
@@ -170,7 +170,7 @@ export default function ActivityMonitor() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setAutoRefresh(v => !v)}
-            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${autoRefresh ? 'bg-[#EAF7E4] border-[#35AE22] text-[#1C6B10]' : 'bg-white border-gray-200 text-gray-500'}`}
+            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${autoRefresh ? 'bg-[#E8EEFB] border-[#003399] text-[#002266]' : 'bg-white border-gray-200 text-gray-500'}`}
           >
             {autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
           </button>
@@ -223,7 +223,7 @@ export default function ActivityMonitor() {
               onClick={() => setActiveTab(tab.key)}
               className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.key
-                  ? 'text-[#1C6B10] border-b-2 border-[#35AE22] bg-[#F3FAF0]'
+                  ? 'text-[#002266] border-b-2 border-[#003399] bg-[#F3F6FC]'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -306,7 +306,7 @@ export default function ActivityMonitor() {
                     <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-[#EAF7E4] flex items-center justify-center text-[#1C6B10] text-xs font-bold shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-[#E8EEFB] flex items-center justify-center text-[#002266] text-xs font-bold shrink-0">
                             {c.name.charAt(0)}
                           </div>
                           <span className="text-sm font-medium text-gray-900">{c.name}</span>
@@ -427,7 +427,7 @@ export default function ActivityMonitor() {
       {statusBreakdown.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-5 h-5 text-[#35AE22]" />
+            <TrendingUp className="w-5 h-5 text-[#003399]" />
             <h3 className="text-sm font-semibold text-gray-700">Today's New Leads by Status</h3>
           </div>
           <div className="flex flex-wrap gap-3">

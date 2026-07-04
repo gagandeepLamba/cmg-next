@@ -2257,19 +2257,19 @@ function PaymentStage({ lead, data, setData, quotationTotal, onNext, onPrevious 
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,sans-serif;color:#222;font-size:11pt;padding:50px 60px 80px}
-  .header{border-bottom:3px solid #35AE22;padding-bottom:14px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
-  .brand{font-size:15pt;font-weight:700;color:#1C6B10}
+  .header{border-bottom:3px solid #003399;padding-bottom:14px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
+  .brand{font-size:15pt;font-weight:700;color:#002266}
   .sub{font-size:9pt;color:#666;margin-top:3px}
-  .badge{background:#35AE22;color:#fff;padding:6px 16px;border-radius:4px;font-weight:700;font-size:10pt}
+  .badge{background:#003399;color:#fff;padding:6px 16px;border-radius:4px;font-weight:700;font-size:10pt}
   table{width:100%;border-collapse:collapse;margin:16px 0}
   td{padding:9px 12px;font-size:10.5pt}
-  tr:nth-child(even) td:first-child{background:#2D6A27;color:#fff;font-weight:600}
-  tr:nth-child(odd)  td:first-child{background:#1C6B10;color:#fff;font-weight:600}
-  tr:nth-child(even) td:last-child{background:#E8F7E4}
+  tr:nth-child(even) td:first-child{background:#0044B3;color:#fff;font-weight:600}
+  tr:nth-child(odd)  td:first-child{background:#002266;color:#fff;font-weight:600}
+  tr:nth-child(even) td:last-child{background:#E8EEFB}
   tr:nth-child(odd)  td:last-child{background:#fff}
-  .total-row td:first-child{background:#14500A!important;font-size:11.5pt}
-  .total-row td:last-child{background:#D4F0D0!important;font-weight:700;font-size:12pt;color:#14500A}
-  .footer{margin-top:30px;border-top:2px solid #35AE22;padding-top:10px;text-align:center;color:#666;font-size:9pt}
+  .total-row td:first-child{background:#001A4D!important;font-size:11.5pt}
+  .total-row td:last-child{background:#DCE6F9!important;font-weight:700;font-size:12pt;color:#001A4D}
+  .footer{margin-top:30px;border-top:2px solid #003399;padding-top:10px;text-align:center;color:#666;font-size:9pt}
   @media print{@page{size:A4;margin:0}body{padding:40px 50px 60px}}
 </style></head><body>
 <div class="header">
@@ -2627,18 +2627,18 @@ function AccountsStage({ lead, leadId, onNext, onPrevious }: any) {
                     const currency = p.currency || 'AED';
                     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Receipt</title>
 <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:50px 60px 80px;color:#222}
-.hdr{border-bottom:3px solid #35AE22;padding-bottom:12px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center}
-.brand{font-size:15pt;font-weight:700;color:#1C6B10}.sub{font-size:9pt;color:#666;margin-top:3px}
-.badge{background:#35AE22;color:#fff;padding:6px 18px;border-radius:4px;font-weight:700}
+.hdr{border-bottom:3px solid #003399;padding-bottom:12px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center}
+.brand{font-size:15pt;font-weight:700;color:#002266}.sub{font-size:9pt;color:#666;margin-top:3px}
+.badge{background:#003399;color:#fff;padding:6px 18px;border-radius:4px;font-weight:700}
 table{width:100%;border-collapse:collapse;margin:14px 0}
 td{padding:9px 12px;font-size:10.5pt}
-tr:nth-child(odd) td:first-child{background:#1C6B10;color:#fff;font-weight:600}
-tr:nth-child(even) td:first-child{background:#2D6A27;color:#fff;font-weight:600}
+tr:nth-child(odd) td:first-child{background:#002266;color:#fff;font-weight:600}
+tr:nth-child(even) td:first-child{background:#0044B3;color:#fff;font-weight:600}
 tr:nth-child(odd) td:last-child{background:#fff}
-tr:nth-child(even) td:last-child{background:#E8F7E4}
-.total td:first-child{background:#14500A!important;font-size:11pt}
-.total td:last-child{background:#D4F0D0!important;font-weight:700;color:#14500A;font-size:12pt}
-.footer{margin-top:28px;border-top:2px solid #35AE22;padding-top:8px;text-align:center;font-size:9pt;color:#666}
+tr:nth-child(even) td:last-child{background:#E8EEFB}
+.total td:first-child{background:#001A4D!important;font-size:11pt}
+.total td:last-child{background:#DCE6F9!important;font-weight:700;color:#001A4D;font-size:12pt}
+.footer{margin-top:28px;border-top:2px solid #003399;padding-top:8px;text-align:center;font-size:9pt;color:#666}
 @media print{@page{size:A4;margin:0}body{padding:40px 50px 60px}}</style></head><body>
 <div class="hdr"><div><div class="brand">DM IMMIGRATION CONSULTANTS DMCC</div>
 <div class="sub">Dubai Branch · 3703, Latifa Tower, Sheikh Zayed Road, Dubai UAE</div>

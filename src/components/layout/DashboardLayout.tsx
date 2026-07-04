@@ -320,10 +320,10 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         <div className="flex items-center justify-between h-20 px-5 border-b border-[var(--cmg-border)] flex-shrink-0">
           <div className="flex items-center min-w-0">
             <div className="relative h-11 w-24 flex-shrink-0">
-              <Image src="/dmc-logo.jpg" alt="DMC Middle East" fill sizes="96px" className="object-contain" priority />
+              <Image src="/cmg-logo.png" alt="CMG" fill sizes="96px" className="object-contain" priority />
             </div>
             <div className="ml-3 min-w-0">
-              <span className="block text-sm font-bold text-[var(--cmg-ink)] leading-tight">DMC Middle East</span>
+              <span className="block text-sm font-bold text-[var(--cmg-ink)] leading-tight">CMG</span>
               <span className="block text-xs font-medium text-[var(--cmg-muted)]">CRM Portal</span>
             </div>
           </div>
@@ -359,7 +359,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
                         className={`
                           w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors border-l-2
                           ${isActive
-                            ? 'bg-[var(--cmg-blue-soft)] text-[var(--cmg-blue)] border-[var(--dmc-gold)]'
+                            ? 'bg-[var(--cmg-blue-soft)] text-[var(--cmg-blue)] border-[var(--cmg-gold)]'
                             : 'text-[var(--cmg-muted)] border-transparent hover:bg-[#f3f6fb] hover:text-[var(--cmg-ink)]'
                           }
                         `}

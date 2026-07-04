@@ -1,8 +1,44 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find d:\\\\\\\\xampp\\\\\\\\htdocs\\\\\\\\cmg-next\\\\\\\\src\\\\\\\\app\\\\\\\\api -type f -name \"*.ts\")",
-      "Bash(xargs grep -l \"agreement\\\\|contract\")"
+      "Bash(node scripts/setup-database.js)",
+      "Bash(grep -n \"dm_role\\\\`\" \"dmconsultant_mydmcons_dm \\(1\\).sql\")",
+      "Bash(node -e ' *)",
+      "Bash(mkdir -p \"d:\\\\xampp\\\\htdocs\\\\dm-next\\\\src\\\\app\\\\api\\\\admin\\\\roles\\\\[id]\\\\permissions\")",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(curl -s \"http://localhost:3000/api/admin/roles?limit=100&status=1\")",
+      "Bash(curl -s \"http://localhost:3000/api/admin/roles/153/permissions\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/admin/roles/permissions)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/admin/employees)",
+      "Bash(curl -s \"http://localhost:3000/api/admin/roles/104/permissions\")",
+      "Bash(curl -s \"http://localhost:3000/api/admin/roles/114/permissions\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('granted:', j.permissions.filter\\(p=>p.granted\\).length\\);}\\);\")",
+      "Bash(curl -s -X PUT \"http://localhost:3000/api/admin/roles/114/permissions\" -H \"Content-Type: application/json\" -d '{\"permissionKeys\":[\"leads.view\",\"leads.create\"]}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('granted:', j.permissions.filter\\(p=>p.granted\\).map\\(p=>p.permission_key\\)\\);}\\);\")",
+      "Bash(curl -s -X PUT \"http://localhost:3000/api/admin/roles/114/permissions\" -H \"Content-Type: application/json\" -d '{\"permissionKeys\":[]}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('granted after revert:', j.permissions.filter\\(p=>p.granted\\).length\\);}\\);\")",
+      "Bash(tail -n 60 /tmp/dm-next-dev.log)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -X PUT \"http://localhost:3000/api/admin/roles/114/permissions\" -H \"Content-Type: application/json\" -d '{\"permissionKeys\":[\"leads.view\",\"leads.create\",\"sales.view\"]}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('granted after cleanup:', j.permissions.filter\\(p=>p.granted\\).length\\);}\\);\")",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"node.*next\")",
+      "Bash(node \"C:\\\\Users\\\\97154\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--xampp-htdocs-dm-next\\\\0fbf0e60-207d-4083-ae17-11a5167ef8c5\\\\scratchpad\\\\import-employees.js\")",
+      "Bash(NODE_PATH=\"d:\\\\xampp\\\\htdocs\\\\dm-next\\\\node_modules\" node \"C:\\\\Users\\\\97154\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--xampp-htdocs-dm-next\\\\0fbf0e60-207d-4083-ae17-11a5167ef8c5\\\\scratchpad\\\\import-employees.js\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000 --max-time 3)",
+      "Bash(NODE_PATH=\"d:\\\\xampp\\\\htdocs\\\\dm-next\\\\node_modules\" node \"C:\\\\Users\\\\97154\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--xampp-htdocs-dm-next\\\\0fbf0e60-207d-4083-ae17-11a5167ef8c5\\\\scratchpad\\\\role-test.js\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/leads -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{console.log\\(d.slice\\(0,500\\)\\);}\\);\")",
+      "Bash(curl -s \"http://localhost:3000/api/admin/fees/lookup?service=1024&country=2&branch=4\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{console.log\\(JSON.stringify\\(JSON.parse\\(d\\),null,2\\)\\);}\\);\")",
+      "Bash(which chromium-cli *)",
+      "Read(//c/Users/97154/.claude/**)",
+      "Bash(curl -s -o /dev/null -w \"create-lead page: %{http_code}\\\\n\" http://localhost:3000/admin/leads/create)",
+      "Bash(curl -s -o /dev/null -w \"server: %{http_code}\\\\n\" http://localhost:3000 --max-time 5)"
+    ],
+    "additionalDirectories": [
+      "d:\\xampp\\htdocs\\dm-next\\src\\app\\api\\admin\\roles\\[id]"
     ]
   }
 }

@@ -1,6 +1,6 @@
 const mysql = require('mysql2/promise');
 
-const databaseUrl = 'mysql://dmconsultant_dm_next:Demo2026DMNEXT@209.124.85.235:3306/dmconsultant_dm_next';
+const databaseUrl = 'mysql://dmconsultant_dm_next:Demo2026DMNEXT@187.127.123.60:3306/dmconsultant_dm_next';
 const parsedUrl = new URL(databaseUrl);
 const database = parsedUrl.pathname.replace(/^\//, '');
 

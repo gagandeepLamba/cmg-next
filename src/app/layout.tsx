@@ -5,11 +5,11 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { QueryProvider } from '@/components/providers/QueryProvider';
 
 export const metadata: Metadata = {
-  title: "DMC Middle East - CRM",
-  description: "Lead, client, operations, and reporting platform for DMC Middle East.",
+  title: "CMG - Immigration Simplified",
+  description: "Lead, client, operations, and reporting platform for CMG.",
   icons: {
-    icon: '/dmc-logo.jpg',
-    apple: '/dmc-logo.jpg',
+    icon: '/cmg-logo.png',
+    apple: '/cmg-logo.png',
   },
 };
 

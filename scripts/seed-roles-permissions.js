@@ -93,18 +93,119 @@ const adminPermissions = [
   'pro.config',
   'pro.wps.view',
   'pro.owners.restricted',
+  'hr.self',
+  'hr.team.attendance_leave',
+  'finance.view',
+  'finance.manage',
+  'fees.view',
 ];
+
+// Full sales-workflow access: leads, clients, appointments, documents,
+// payments, invoices, agreements, reports — everything under the Sales module.
+const salesModulePermissions = [
+  'sales.view', 'sales.create', 'sales.update',
+  'leads.view', 'leads.create', 'leads.update', 'leads.delete',
+  'clients.view', 'clients.create', 'clients.update',
+  'appointments.view', 'appointments.manage',
+  'documents.view', 'documents.create', 'documents.update',
+  'payments.view', 'payments.create',
+  'invoices.view', 'invoices.create',
+  'agreements.view', 'agreements.create',
+  'reports.view',
+  'fees.view',
+];
+
+const branchManagerPermissions = [
+  ...salesModulePermissions,
+  'sales.delete',
+  'counselors.manage',
+];
+
+// Regional Manager: same module access as Branch Manager, scoped by region
+// instead of branch at query time.
+const regionalManagerPermissions = [...branchManagerPermissions];
+
+// Individual-contributor tier: own leads/meetings/agreements only, read-only
+// Operations visibility, and no receipts/invoice access.
+const counsellorPermissions = [
+  'sales.view', 'sales.create', 'sales.update',
+  'leads.view', 'leads.create', 'leads.update',
+  'clients.view', 'clients.create', 'clients.update',
+  'appointments.view', 'appointments.manage',
+  'documents.view', 'documents.create', 'documents.update',
+  'agreements.view', 'agreements.create',
+  'operations.view',
+  'reports.view',
+  'fees.view',
+];
+
+// Director of Sales / Assistant Director of Sales: full company-wide sales +
+// operations + reporting authority, but no user/role/system administration,
+// no fee-plan editing, and no destructive delete/void/refund actions.
+const directorOfSalesPermissions = [
+  'sales.view', 'sales.create', 'sales.update',
+  'leads.view', 'leads.create', 'leads.update',
+  'clients.view', 'clients.create', 'clients.update', 'clients.delete',
+  'appointments.view', 'appointments.manage',
+  'documents.view', 'documents.create', 'documents.update', 'documents.delete',
+  'payments.view', 'payments.create', 'payments.update',
+  'invoices.view', 'invoices.create', 'invoices.update',
+  'agreements.view', 'agreements.create', 'agreements.update',
+  'reports.view', 'reports.create',
+  'analytics.view',
+  'operations.view', 'operations.create', 'operations.update', 'operations.manage',
+  'counselors.manage',
+  'transfers.manage',
+  'recognition.manage',
+  'monitoring.view',
+  'fees.view',
+];
+
+const hrModulePermissions = [
+  'hr.dashboard', 'hr.view', 'hr.create', 'hr.update', 'hr.delete',
+  'hr.config', 'hr.payroll', 'hr.eosb',
+];
+
+const proModulePermissions = [
+  'pro.dashboard', 'pro.view', 'pro.create', 'pro.update', 'pro.delete',
+  'pro.config', 'pro.wps.view', 'pro.owners.restricted',
+];
+
+// Front-desk role: can log new leads and assign/reassign them to a counsellor,
+// but has no visibility into the rest of the Sales module (clients, payments, etc).
+const receptionistPermissions = ['leads.view', 'leads.create', 'leads.update'];
+
+// Front Office Executive: assigns leads, creates balance receipts, and confirms meetings.
+const foePermissions = ['leads.view', 'leads.create', 'leads.update', 'payments.view', 'payments.create', 'appointments.view', 'appointments.manage'];
 
 const roleSeeds = [
   { name: 'Super Admin', type: 'super_admin', hierarchy: 1, departmentId: 1, permissions: adminPermissions },
   { name: 'Founder', type: 'founder', hierarchy: 5, departmentId: 1, permissions: adminPermissions },
+  // CEO reuses the 'director' type so it automatically inherits every hardcoded
+  // "full access" role check across the app (leads, analytics, dashboards, etc.)
+  { name: 'CEO', type: 'director', hierarchy: 8, departmentId: 1, permissions: adminPermissions },
   { name: 'Director', type: 'director', hierarchy: 10, departmentId: 1, permissions: adminPermissions },
-  { name: 'Director of Sales', type: 'director_of_sales', hierarchy: 10, departmentId: 1, permissions: adminPermissions },
-  { name: 'Branch Manager', type: 'branch_manager', hierarchy: 20, departmentId: 1, permissions: ['sales.view', 'leads.view', 'leads.create', 'leads.update', 'reports.view'] },
-  { name: 'HR', type: 'hr', hierarchy: 30, departmentId: 1, permissions: ['hr.dashboard', 'hr.view', 'hr.create', 'hr.update', 'hr.delete', 'hr.payroll', 'hr.eosb'] },
-  { name: 'PRO', type: 'pro', hierarchy: 30, departmentId: 1, permissions: ['pro.dashboard', 'pro.view', 'pro.create', 'pro.update', 'pro.delete', 'pro.wps.view', 'pro.owners.restricted'] },
+  // Company-wide sales/operations authority, but NOT user/system administration
+  // (no employees.manage, roles.manage, settings.manage, fees.manage, etc).
+  { name: 'Director of Sales', type: 'director_of_sales', hierarchy: 10, departmentId: 1, permissions: directorOfSalesPermissions },
+  // Assistant Director of Sales reuses the 'director_of_sales' type so it
+  // automatically inherits the same company-wide data-visibility checks as
+  // Director of Sales, with the identical (non-admin) permission grant.
+  { name: 'Assistant Director of Sales', type: 'director_of_sales', hierarchy: 11, departmentId: 1, permissions: directorOfSalesPermissions },
+  { name: 'Regional Manager', type: 'regional_manager', hierarchy: 15, departmentId: 1, permissions: regionalManagerPermissions },
+  { name: 'Branch Manager', type: 'branch_manager', hierarchy: 20, departmentId: 1, permissions: branchManagerPermissions },
+  // Full, unrestricted view of the whole Operations module.
+  { name: 'Director of Operations', type: 'director_of_operations', hierarchy: 25, departmentId: 1, permissions: ['operations.view', 'operations.create', 'operations.update', 'operations.manage', 'operations.delete'] },
+  { name: 'Accountant', type: 'accountant', hierarchy: 30, departmentId: 1, permissions: [...salesModulePermissions, 'finance.view', 'finance.manage'] },
+  { name: 'HR', type: 'hr', hierarchy: 30, departmentId: 1, permissions: hrModulePermissions },
+  { name: 'PRO', type: 'pro', hierarchy: 30, departmentId: 1, permissions: proModulePermissions },
   { name: 'Operations', type: 'operations', hierarchy: 40, departmentId: 1, permissions: ['operations.view', 'operations.create', 'operations.update', 'operations.manage'] },
-  { name: 'Sales', type: 'sales', hierarchy: 40, departmentId: 1, permissions: ['sales.view', 'leads.view', 'leads.create', 'leads.update', 'reports.view'] },
+  { name: 'Sales', type: 'sales', hierarchy: 40, departmentId: 1, permissions: counsellorPermissions },
+  { name: 'Counsellor', type: 'counsellor', hierarchy: 45, departmentId: 1, permissions: counsellorPermissions },
+  // Sees Operations, scoped at query time to cases where they are the case_officer.
+  { name: 'Process Coordinator', type: 'process_coordinator', hierarchy: 46, departmentId: 1, permissions: ['operations.view', 'operations.update'] },
+  { name: 'Receptionist', type: 'receptionist', hierarchy: 50, departmentId: 1, permissions: receptionistPermissions },
+  { name: 'FOE', type: 'foe', hierarchy: 50, departmentId: 1, permissions: foePermissions },
 ];
 
 const titleCase = (value) => value

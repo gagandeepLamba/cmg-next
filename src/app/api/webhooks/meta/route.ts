@@ -128,10 +128,5 @@ export async function POST(request: NextRequest) {
   return new NextResponse('OK', { status: 200 });
 }
 
-// Tell Next.js not to parse the body as JSON — we need the raw text for HMAC
-export const config = {
-  api: { bodyParser: false },
-};
-
 // Compute a deduplication hash (re-exported so it can be tested)
 export { crypto };

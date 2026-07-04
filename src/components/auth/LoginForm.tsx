@@ -106,17 +106,17 @@ export default function LoginForm() {
           <div>
             <div className="inline-flex bg-white rounded-md p-4 shadow-sm">
               <div className="relative h-20 w-44">
-                <Image src="/dmc-logo.jpg" alt="DMC Middle East" fill sizes="176px" className="object-contain" priority />
+                <Image src="/cmg-logo.png" alt="CMG" fill sizes="176px" className="object-contain" priority />
               </div>
             </div>
 
             <div className="mt-10 max-w-lg">
-              <p className="text-sm font-semibold uppercase text-[#A8F090]">DMC Middle East</p>
+              <p className="text-sm font-semibold uppercase text-[#99B8FF]">CMG</p>
               <h1 className="mt-3 text-4xl font-bold leading-tight">
-                DMC Middle East CRM Portal
+                CMG CRM Portal
               </h1>
               <p className="mt-4 text-base leading-7 text-blue-100">
-                A focused workspace for leads, clients, operations, payments, and reporting across every DMC branch.
+                A focused workspace for leads, clients, operations, payments, and reporting across every CMG branch.
               </p>
             </div>
 
@@ -164,7 +164,7 @@ export default function LoginForm() {
           <div className="w-full max-w-md">
             <div className="lg:hidden mb-8 flex justify-center">
               <div className="relative h-20 w-44">
-                <Image src="/dmc-logo.jpg" alt="DMC Middle East" fill sizes="176px" className="object-contain" priority />
+                <Image src="/cmg-logo.png" alt="CMG" fill sizes="176px" className="object-contain" priority />
               </div>
             </div>
 
@@ -174,7 +174,7 @@ export default function LoginForm() {
                   Secure sign in
                 </div>
                 <h2 className="text-3xl font-bold text-[var(--cmg-ink)] mb-2">Welcome back</h2>
-                <p className="text-[var(--cmg-muted)]">Sign in to continue to the DMC workspace.</p>
+                <p className="text-[var(--cmg-muted)]">Sign in to continue to the CMG workspace.</p>
               </div>
 
               {error && (
@@ -284,7 +284,7 @@ export default function LoginForm() {
                   <p className="text-sm text-[var(--cmg-muted)] mb-3">
                     Immigration simplified for every client interaction.
                   </p>
-                  <p className="text-xs font-semibold uppercase text-[var(--cmg-blue)]">DMC Middle East</p>
+                  <p className="text-xs font-semibold uppercase text-[var(--cmg-blue)]">CMG</p>
                 </div>
               </div>
             </div>

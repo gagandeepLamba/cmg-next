@@ -57,7 +57,7 @@ const monthLabel = (m: string) => {
   return d.toLocaleDateString('en', { month: 'short', year: '2-digit' });
 };
 
-const CHART_COLORS = ['#35AE22', '#1C6B10', '#289018', '#56C73E', '#78D454', '#9EE07A', '#2563eb', '#7c3aed'];
+const CHART_COLORS = ['#003399', '#002266', '#0044B3', '#4D7CD1', '#4D80D9', '#6699DD', '#2563eb', '#7c3aed'];
 
 const STATUS_COLOR: Record<string, string> = {
   won: 'bg-green-100 text-green-700',
@@ -76,8 +76,8 @@ function KpiCard({ label, value, sub, icon: Icon, trend }: {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
       <div className="flex items-start justify-between">
-        <div className="w-10 h-10 rounded-lg bg-[#EAF7E4] flex items-center justify-center shrink-0">
-          <Icon className="w-5 h-5 text-[#35AE22]" />
+        <div className="w-10 h-10 rounded-lg bg-[#E8EEFB] flex items-center justify-center shrink-0">
+          <Icon className="w-5 h-5 text-[#003399]" />
         </div>
         {trend && (
           <div className={`flex items-center gap-1 text-xs font-medium ${trend === 'up' ? 'text-green-600' : 'text-red-500'}`}>
@@ -144,7 +144,7 @@ export default function DMCFinanceModule() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 gap-3 text-gray-400">
-        <RefreshCw className="w-6 h-6 animate-spin text-[#35AE22]" /> Loading finance data…
+        <RefreshCw className="w-6 h-6 animate-spin text-[#003399]" /> Loading finance data…
       </div>
     );
   }
@@ -154,7 +154,7 @@ export default function DMCFinanceModule() {
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-red-500">
         <AlertCircle className="w-8 h-8" />
         <span>{error || 'No data available'}</span>
-        <button onClick={load} className="px-4 py-2 bg-[#35AE22] text-white rounded-lg text-sm hover:bg-[#1C6B10]">Retry</button>
+        <button onClick={load} className="px-4 py-2 bg-[#003399] text-white rounded-lg text-sm hover:bg-[#002266]">Retry</button>
       </div>
     );
   }
@@ -167,7 +167,7 @@ export default function DMCFinanceModule() {
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-sm">
         <div className="flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-[#35AE22]" />
+          <BarChart3 className="w-5 h-5 text-[#003399]" />
           <span className="font-semibold text-gray-800">Finance Dashboard</span>
           <span className="text-xs text-gray-400 hidden sm:inline">· Live database</span>
         </div>
@@ -175,7 +175,7 @@ export default function DMCFinanceModule() {
           <select
             value={months}
             onChange={e => setMonths(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-[#35AE22]"
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-[#003399]"
           >
             <option value="1">Last 1 month</option>
             <option value="3">Last 3 months</option>
@@ -218,7 +218,7 @@ export default function DMCFinanceModule() {
               onClick={() => setActiveTab(tab.key)}
               className={`px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.key
-                  ? 'text-[#1C6B10] border-b-2 border-[#35AE22] bg-[#F3FAF0]'
+                  ? 'text-[#002266] border-b-2 border-[#003399] bg-[#F3F6FC]'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -245,7 +245,7 @@ export default function DMCFinanceModule() {
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtShort} />
                       <Tooltip formatter={(v: number | undefined) => fmtMoney(v ?? 0)} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar dataKey="collected" name="Collected" fill="#35AE22" radius={[3,3,0,0]} />
+                      <Bar dataKey="collected" name="Collected" fill="#003399" radius={[3,3,0,0]} />
                       <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[3,3,0,0]} />
                       <Bar dataKey="profit" name="Net Profit" fill="#2563eb" radius={[3,3,0,0]} />
                     </BarChart>
@@ -291,7 +291,7 @@ export default function DMCFinanceModule() {
                   placeholder="Search client, counselor, service..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="flex-1 min-w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#35AE22]"
+                  className="flex-1 min-w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#003399]"
                 />
                 <select
                   value={statusFilter}
@@ -375,7 +375,7 @@ export default function DMCFinanceModule() {
                 placeholder="Search description or branch..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full max-w-sm px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#35AE22]"
+                className="w-full max-w-sm px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#003399]"
               />
 
               <div className="overflow-x-auto rounded-lg border border-gray-100">
@@ -429,7 +429,7 @@ export default function DMCFinanceModule() {
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtShort} />
                   <Tooltip formatter={(v: number | undefined) => fmtMoney(v ?? 0)} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="Collected" fill="#35AE22" radius={[3,3,0,0]} />
+                  <Bar dataKey="Collected" fill="#003399" radius={[3,3,0,0]} />
                   <Bar dataKey="Revenue" fill="#2563eb" radius={[3,3,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -453,7 +453,7 @@ export default function DMCFinanceModule() {
                         <td className="px-4 py-3 text-right text-gray-800">{fmtMoney(b.revenue)}</td>
                         <td className="px-4 py-3 text-right text-green-700 font-medium">{fmtMoney(b.collected)}</td>
                         <td className="px-4 py-3 text-right">
-                          <span className="font-semibold text-[#35AE22]">
+                          <span className="font-semibold text-[#003399]">
                             {b.revenue > 0 ? ((b.collected / b.revenue) * 100).toFixed(1) : '0'}%
                           </span>
                         </td>
@@ -486,12 +486,12 @@ export default function DMCFinanceModule() {
                       <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-[#EAF7E4] flex items-center justify-center text-[#1C6B10] text-xs font-bold shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-[#E8EEFB] flex items-center justify-center text-[#002266] text-xs font-bold shrink-0">
                               {c.name.charAt(0)}
                             </div>
                             <div>
                               <div className="font-medium text-gray-900">{c.name}</div>
-                              {i === 0 && <div className="text-[10px] text-[#35AE22] font-semibold">Top Performer</div>}
+                              {i === 0 && <div className="text-[10px] text-[#003399] font-semibold">Top Performer</div>}
                             </div>
                           </div>
                         </td>

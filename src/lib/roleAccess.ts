@@ -24,7 +24,7 @@ export const getDefaultAdminPathForUser = (user?: AccessUser | null) => {
   const roleKey = getUserRoleKey(user);
 
   if (['super_admin', 'director', 'founder'].includes(roleKey)) return '/admin';
-  if (['sales', 'branch_manager'].includes(roleKey)) return '/admin/leads';
+  if (['sales', 'branch_manager', 'receptionist', 'foe', 'director_of_sales', 'regional_manager'].includes(roleKey)) return '/admin/leads';
   if (roleKey === 'operations') return '/admin/operations-management';
   if (roleKey === 'hr') return '/admin/hr';
   if (roleKey === 'pro') return '/admin/pro-works';

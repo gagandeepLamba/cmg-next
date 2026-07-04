@@ -79,6 +79,7 @@ export const modulePermissions = {
   proOwnersRestricted: 'pro.owners.restricted',
   financeView: 'finance.view',
   financeManage: 'finance.manage',
+  feesView: 'fees.view',
 } as const;
 
 export type ModulePermission = typeof modulePermissions[keyof typeof modulePermissions];
@@ -87,12 +88,16 @@ export type ModuleRoleKey =
   | 'super_admin'
   | 'director'
   | 'founder'
+  | 'director_of_sales'
+  | 'regional_manager'
   | 'sales'
   | 'operations'
   | 'hr'
   | 'pro'
   | 'finance'
   | 'branch_manager'
+  | 'receptionist'
+  | 'foe'
   | 'employee_self';
 
 const adminPermissions: ModulePermission[] = [
@@ -172,6 +177,104 @@ const adminPermissions: ModulePermission[] = [
   modulePermissions.proConfig,
   modulePermissions.proWpsView,
   modulePermissions.proOwnersRestricted,
+  modulePermissions.hrSelf,
+  modulePermissions.hrTeamAttendanceLeave,
+  modulePermissions.financeView,
+  modulePermissions.financeManage,
+];
+
+const salesModulePermissions: ModulePermission[] = [
+  modulePermissions.salesView,
+  modulePermissions.salesCreate,
+  modulePermissions.salesUpdate,
+  modulePermissions.leadsView,
+  modulePermissions.leadsCreate,
+  modulePermissions.leadsUpdate,
+  modulePermissions.leadsDelete,
+  modulePermissions.clientsView,
+  modulePermissions.clientsCreate,
+  modulePermissions.clientsUpdate,
+  modulePermissions.appointmentsView,
+  modulePermissions.appointmentsManage,
+  modulePermissions.documentsView,
+  modulePermissions.documentsCreate,
+  modulePermissions.documentsUpdate,
+  modulePermissions.paymentsView,
+  modulePermissions.paymentsCreate,
+  modulePermissions.invoicesView,
+  modulePermissions.invoicesCreate,
+  modulePermissions.agreementsView,
+  modulePermissions.agreementsCreate,
+  modulePermissions.reportsView,
+  modulePermissions.feesView,
+];
+
+// Individual-contributor tier: own leads/meetings/agreements only, read-only
+// Operations visibility, and no receipts/invoice access (front-desk/finance
+// handle money; the counsellor generates the paperwork, not the payment).
+const counsellorPermissions: ModulePermission[] = [
+  modulePermissions.salesView,
+  modulePermissions.salesCreate,
+  modulePermissions.salesUpdate,
+  modulePermissions.leadsView,
+  modulePermissions.leadsCreate,
+  modulePermissions.leadsUpdate,
+  modulePermissions.clientsView,
+  modulePermissions.clientsCreate,
+  modulePermissions.clientsUpdate,
+  modulePermissions.appointmentsView,
+  modulePermissions.appointmentsManage,
+  modulePermissions.documentsView,
+  modulePermissions.documentsCreate,
+  modulePermissions.documentsUpdate,
+  modulePermissions.agreementsView,
+  modulePermissions.agreementsCreate,
+  modulePermissions.operationsView,
+  modulePermissions.reportsView,
+  modulePermissions.feesView,
+];
+
+// Director of Sales / Assistant Director of Sales: full company-wide sales +
+// operations + reporting authority, but no user/role/system administration,
+// no fee-plan editing, and no destructive delete/void/refund actions.
+const directorOfSalesPermissions: ModulePermission[] = [
+  modulePermissions.salesView,
+  modulePermissions.salesCreate,
+  modulePermissions.salesUpdate,
+  modulePermissions.leadsView,
+  modulePermissions.leadsCreate,
+  modulePermissions.leadsUpdate,
+  modulePermissions.clientsView,
+  modulePermissions.clientsCreate,
+  modulePermissions.clientsUpdate,
+  modulePermissions.clientsDelete,
+  modulePermissions.appointmentsView,
+  modulePermissions.appointmentsManage,
+  modulePermissions.documentsView,
+  modulePermissions.documentsCreate,
+  modulePermissions.documentsUpdate,
+  modulePermissions.documentsDelete,
+  modulePermissions.paymentsView,
+  modulePermissions.paymentsCreate,
+  modulePermissions.paymentsUpdate,
+  modulePermissions.invoicesView,
+  modulePermissions.invoicesCreate,
+  modulePermissions.invoicesUpdate,
+  modulePermissions.agreementsView,
+  modulePermissions.agreementsCreate,
+  modulePermissions.agreementsUpdate,
+  modulePermissions.reportsView,
+  modulePermissions.reportsCreate,
+  modulePermissions.analyticsView,
+  modulePermissions.operationsView,
+  modulePermissions.operationsCreate,
+  modulePermissions.operationsUpdate,
+  modulePermissions.operationsManage,
+  modulePermissions.counselorsManage,
+  modulePermissions.transfersManage,
+  modulePermissions.recognitionManage,
+  modulePermissions.monitoringView,
+  modulePermissions.feesView,
 ];
 
 export const rolePermissionMatrix: Array<{
@@ -215,35 +318,83 @@ export const rolePermissionMatrix: Array<{
     permissions: adminPermissions,
   },
   {
-    key: 'sales',
-    role: 'Sales',
-    salesModule: 'Leads Add/Edit + Reports',
+    key: 'director_of_sales',
+    role: 'Director of Sales / Assistant Director of Sales',
+    salesModule: 'Full CRUD (company-wide)',
+    operationsModule: 'Full CRUD (company-wide)',
+    hrModule: 'No Access',
+    proModule: 'No Access',
+    admin: 'No',
+    permissions: directorOfSalesPermissions,
+  },
+  {
+    key: 'regional_manager',
+    role: 'Regional Manager',
+    salesModule: 'Full CRUD (own region)',
     operationsModule: 'No Access',
     hrModule: 'No Access',
     proModule: 'No Access',
     admin: 'No',
     permissions: [
-      modulePermissions.salesView,
-      modulePermissions.leadsView,
-      modulePermissions.leadsCreate,
-      modulePermissions.leadsUpdate,
-      modulePermissions.reportsView,
+      ...salesModulePermissions,
+      modulePermissions.salesDelete,
+      modulePermissions.counselorsManage,
     ],
+  },
+  {
+    key: 'sales',
+    role: 'Sales / Counsellor',
+    salesModule: 'Own leads only',
+    operationsModule: 'Read Only',
+    hrModule: 'No Access',
+    proModule: 'No Access',
+    admin: 'No',
+    permissions: counsellorPermissions,
   },
   {
     key: 'branch_manager',
     role: 'Branch Manager',
-    salesModule: 'Leads Add/Edit + Reports',
+    salesModule: 'Full CRUD (own branch)',
     operationsModule: 'No Access',
     hrModule: 'No Access',
     proModule: 'No Access',
     admin: 'No',
     permissions: [
-      modulePermissions.salesView,
+      ...salesModulePermissions,
+      modulePermissions.salesDelete,
+      modulePermissions.counselorsManage,
+    ],
+  },
+  {
+    key: 'receptionist',
+    role: 'Receptionist',
+    salesModule: 'Leads Add/Assign Only',
+    operationsModule: 'No Access',
+    hrModule: 'No Access',
+    proModule: 'No Access',
+    admin: 'No',
+    permissions: [
       modulePermissions.leadsView,
       modulePermissions.leadsCreate,
       modulePermissions.leadsUpdate,
-      modulePermissions.reportsView,
+    ],
+  },
+  {
+    key: 'foe',
+    role: 'FOE (Front Office Executive)',
+    salesModule: 'Leads Assign + Receipts + Meetings',
+    operationsModule: 'No Access',
+    hrModule: 'No Access',
+    proModule: 'No Access',
+    admin: 'No',
+    permissions: [
+      modulePermissions.leadsView,
+      modulePermissions.leadsCreate,
+      modulePermissions.leadsUpdate,
+      modulePermissions.paymentsView,
+      modulePermissions.paymentsCreate,
+      modulePermissions.appointmentsView,
+      modulePermissions.appointmentsManage,
     ],
   },
   {
@@ -275,6 +426,7 @@ export const rolePermissionMatrix: Array<{
       modulePermissions.hrCreate,
       modulePermissions.hrUpdate,
       modulePermissions.hrDelete,
+      modulePermissions.hrConfig,
       modulePermissions.hrPayroll,
       modulePermissions.hrEosb,
     ],
@@ -293,24 +445,23 @@ export const rolePermissionMatrix: Array<{
       modulePermissions.proCreate,
       modulePermissions.proUpdate,
       modulePermissions.proDelete,
+      modulePermissions.proConfig,
       modulePermissions.proWpsView,
       modulePermissions.proOwnersRestricted,
     ],
   },
   {
     key: 'finance',
-    role: 'Finance',
-    salesModule: 'No Access',
+    role: 'Accountant / Finance',
+    salesModule: 'Full CRUD (own leads)',
     operationsModule: 'No Access',
     hrModule: 'No Access',
     proModule: 'No Access',
     admin: 'No',
     permissions: [
+      ...salesModulePermissions,
       modulePermissions.financeView,
       modulePermissions.financeManage,
-      modulePermissions.paymentsView,
-      modulePermissions.invoicesView,
-      modulePermissions.reportsView,
     ],
   },
   {
@@ -363,8 +514,28 @@ export const resolveModuleRoleKey = (input: {
 
   // Text-based matching (covers department_id=1 roles and any name-based roles)
   if (text.includes('founder')) return 'founder';
-  if (text.includes('director') || text.split(' ').includes('ds') || text.includes('director of sales') || text.includes('director sales')) return 'director';
+  if (text.includes('ceo') || text.includes('chief executive')) return 'director';
+  // Must be checked before the generic 'director' match below, since
+  // "director of operations" contains the substring "director".
+  if (text.includes('director of operations') || text.includes('operations director')) return 'operations';
+  // Director of Sales / Assistant Director of Sales: narrower than full
+  // 'director' — must be checked before the generic 'director' match below.
+  if (
+    text.includes('director of sales')
+    || text.includes('director sales')
+    || text.includes('assistant director of sales')
+    || text.includes('asst director of sales')
+    || text.split(' ').includes('ados')
+    || text.split(' ').includes('dos')
+  ) return 'director_of_sales';
+  if (text.includes('director') || text.split(' ').includes('ds')) return 'director';
+  if (text.includes('regional manager') || text.split(' ').includes('rm')) return 'regional_manager';
   if (text.includes('branch manager') || text === 'bm') return 'branch_manager';
+  if (text.includes('receptionist') || text.includes('front desk')) return 'receptionist';
+  if (text.includes('foe') || text.includes('front office executive')) return 'foe';
+  // Must be checked before the generic 'pro' match below, since
+  // "process coordinator" contains the substring "pro".
+  if (text.includes('process coordinator') || text.includes('case officer')) return 'operations';
   if (text.includes('sales') || text.includes('counsellor') || text.includes('counselor')) return 'sales';
   if (text.includes('operations') || text === 'ops' || text === 'op') return 'operations';
   if (text.includes('hr') || text.includes('human resources')) return 'hr';
@@ -380,7 +551,8 @@ export const getModulePermissionsForRole = (input: {
   roleType?: string | null;
 }) => {
   const roleKey = resolveModuleRoleKey(input);
-  const row = rolePermissionMatrix.find((item) => item.key === roleKey) || rolePermissionMatrix[5];
+  const row = rolePermissionMatrix.find((item) => item.key === roleKey)
+    || rolePermissionMatrix.find((item) => item.key === 'employee_self')!;
   return {
     roleKey,
     roleLabel: row.role,

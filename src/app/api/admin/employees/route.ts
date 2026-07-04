@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const data = await sequelize.query(
       `SELECT e.id, e.name, COALESCE(e.email,'') AS email,
         COALESCE(e.mobile,'') AS mobile, e.department, d.name AS departmentName,
-        e.role, e.branch, e.region, e.status, e.EID,
+        e.role, r.name AS roleName, e.branch, b.name AS branchName, e.region, e.status, e.EID,
         COALESCE(e.work_location,'Onshore') AS work_location,
         COALESCE(e.employment_type,'Full-time') AS employment_type,
         COALESCE(e.wfh,0) AS wfh,
@@ -59,6 +59,8 @@ export async function GET(request: NextRequest) {
         e.nationality, e.gender, e.ppNo, e.address, e.photo
        FROM dm_employee e
        LEFT JOIN dm_department d ON d.id = e.department
+       LEFT JOIN dm_role r ON r.id = e.role
+       LEFT JOIN dm_branch b ON b.id = e.branch
        ${where}
        ORDER BY e.id DESC
        LIMIT :limit OFFSET :offset`,

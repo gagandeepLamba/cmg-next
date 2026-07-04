@@ -2,15 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
 import { findProductAgreementTemplate } from '@/lib/productAgreementTemplates';
+import { verifyToken } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+
+    // Process Coordinators only see cases assigned to them (case_officer);
+    // every other role keeps the existing unrestricted view of this endpoint.
+    const authorization = request.headers.get('authorization');
+    const token = request.cookies.get('auth-token')?.value || authorization?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    const currentUserRole = String(currentUser?.type || '').toLowerCase().replace(/[\s-]+/g, '_');
+    const isProcessCoordinator = currentUserRole === 'process_coordinator';
     const search = searchParams.get('search') || '';
     const leadId = searchParams.get('leadId') || '';
     const agreementNumber = searchParams.get('agreementNumber') || '';
-    const module = searchParams.get('module') || '';
-    const product = searchParams.get('product') || module;
+    const operationsModule = searchParams.get('module') || '';
+    const product = searchParams.get('product') || operationsModule;
     const status = searchParams.get('status') || '';
     const limit = Math.min(Number.parseInt(searchParams.get('limit') || '50', 10), 100);
 
@@ -55,6 +64,11 @@ export async function GET(request: NextRequest) {
       replacements.status = status;
     }
 
+    if (isProcessCoordinator && currentUser) {
+      where.push('l.case_officer = :caseOfficerId');
+      replacements.caseOfficerId = currentUser.id;
+    }
+
     if (productTerms.length > 0) {
       const productConditions = productTerms.map((term, index) => {
         replacements[`product${index}`] = `%${term}%`;
@@ -69,7 +83,7 @@ export async function GET(request: NextRequest) {
       });
       // A case that has stage data for a program must always appear in that
       // program's list, even when legacy service fields contain numeric IDs.
-      const stageCondition = module
+      const stageCondition = operationsModule
         ? ` OR EXISTS (
             SELECT 1 FROM dm_operation_stage_data osd
             WHERE osd.module = :operationsModule
@@ -77,7 +91,7 @@ export async function GET(request: NextRequest) {
               AND (osd.opportunityId = o.id OR osd.opportunityId IS NULL)
           )`
         : '';
-      if (module) replacements.operationsModule = module;
+      if (operationsModule) replacements.operationsModule = operationsModule;
       where.push(`(${productConditions.join(' OR ')}${stageCondition})`);
     }
 

@@ -303,7 +303,7 @@ export async function GET(request: NextRequest) {
       percentage: totalLeads > 0 ? ((n(item.count) / totalLeads) * 100).toFixed(1) : '0',
     }));
 
-    const statusDistributionColors = ['#35AE22','#289018','#50C835','#1C6B10','#B8DFB0','#0891b2'];
+    const statusDistributionColors = ['#003399','#0044B3','#3366CC','#002266','#C7D3EA','#0891b2'];
 
     const stats = {
       // Identity / role context

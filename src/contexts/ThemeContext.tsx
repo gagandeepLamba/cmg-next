@@ -71,18 +71,18 @@ const defaultThemes: Theme[] = [
   {
     name: 'CMG Professional',
     colors: {
-      primary: '#0B3F9F',
-      secondary: '#14213D',
-      accent: '#DF2B22',
-      background: '#F6F8FB',
+      primary: '#003399',
+      secondary: '#0A1A33',
+      accent: '#D52B1E',
+      background: '#F3F6FC',
       surface: '#FFFFFF',
-      text: '#14213D',
-      textSecondary: '#607089',
-      border: '#DBE4F0',
+      text: '#0A1A33',
+      textSecondary: '#4A5A75',
+      border: '#C7D3EA',
       success: '#148A5B',
       warning: '#B7791F',
-      error: '#DF2B22',
-      info: '#0B67C2'
+      error: '#D52B1E',
+      info: '#0044B3'
     },
     typography: {
       fontFamily: 'Inter, system-ui, sans-serif',

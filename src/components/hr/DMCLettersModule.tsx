@@ -4,10 +4,10 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Search, Download, Printer, Eye, Edit2, X, User, RefreshCw } from 'lucide-react';
 
 // ── BRAND ─────────────────────────────────────────────────────────────────
-const G  = '#1C6B10';   // dark green — outer petal (table headers, left cells)
-const G2 = '#35AE22';   // primary logo green (subject lines, badges, highlights)
-const GL = '#E8F7E4';   // light green bg (alternating table rows)
-const GD = '#14500A';   // deepest green (total row, darkest accents)
+const G  = '#002266';   // dark blue — table headers, left cells
+const G2 = '#003399';   // primary logo blue — subject lines, badges, highlights
+const GL = '#E8EEFB';   // light blue bg — alternating table rows
+const GD = '#001A4D';   // deepest navy — total row, darkest accents
 const TX = '#2D2D2D';
 const GR = '#666666';
 const RD = '#C0392B';

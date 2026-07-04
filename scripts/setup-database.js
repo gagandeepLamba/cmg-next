@@ -3,6 +3,12 @@ const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
 const { seedRolePermissions } = require('./seed-roles-permissions');
+const { seedSources } = require('./seed-sources');
+const { seedBranches } = require('./seed-branches');
+const { seedCurrency } = require('./seed-currency');
+const { seedCountries } = require('./seed-countries');
+const { seedFees } = require('./seed-fees');
+const { seedEmployees } = require('./seed-employees');
 
 dotenv.config();
 
@@ -681,6 +687,19 @@ async function ensureColumn(connection, tableName, columnName, definition) {
   }
 }
 
+async function ensureColumnType(connection, tableName, columnName, columnType, definition) {
+  const [rows] = await connection.query(
+    `SELECT COLUMN_TYPE AS columnType
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [database, tableName, columnName]
+  );
+
+  if (rows.length && rows[0].columnType !== columnType) {
+    await connection.query(`ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\` ${definition}`);
+  }
+}
+
 async function ensureForeignKey(connection, tableName, constraintName, definition) {
   const [rows] = await connection.query(
     `SELECT COUNT(*) AS count
@@ -774,6 +793,7 @@ async function run() {
   await db.query(`DELETE rp FROM dm_role_permissions rp LEFT JOIN dm_permissions p ON p.id = rp.permission_id WHERE p.id IS NULL`);
   await ensureIndex(db, 'dm_role', 'idx_dm_role_id', '`id`');
   await ensureIndex(db, 'dm_permissions', 'idx_dm_permissions_id', '`id`');
+  await ensureColumnType(db, 'dm_role_permissions', 'role_id', 'int', 'INT NOT NULL');
   await ensureForeignKey(
     db,
     'dm_role_permissions',
@@ -786,9 +806,17 @@ async function run() {
     'fk_dm_role_permissions_permission',
     'FOREIGN KEY (`permission_id`) REFERENCES `dm_permissions`(`id`) ON DELETE CASCADE ON UPDATE CASCADE'
   );
+
+  const sourceSeed = await seedSources(db);
+  const branchSeed = await seedBranches(db);
+  const currencySeed = await seedCurrency(db);
+  const countrySeed = await seedCountries(db);
+  const feeSeed = await seedFees(db);
+  const employeeSeed = await seedEmployees(db);
+
   await db.end();
 
-  console.log(`Database ${database} is ready. Applied ${migrations.length} built-in and ${sqlMigrationCount} SQL migration files, checked ${columnMigrations.length} columns, and seeded ${rolePermissionSeed.roles} roles / ${rolePermissionSeed.permissions} permissions.`);
+  console.log(`Database ${database} is ready. Applied ${migrations.length} built-in and ${sqlMigrationCount} SQL migration files, checked ${columnMigrations.length} columns, and seeded ${rolePermissionSeed.roles} roles / ${rolePermissionSeed.permissions} permissions, ${sourceSeed.sources} lead sources, ${branchSeed.branches} branches, ${currencySeed.currencies} currencies, ${countrySeed.countries} countries, ${feeSeed.fees} fee rows / ${feeSeed.services} services, and employees (created ${employeeSeed.created}, updated ${employeeSeed.updated}, skipped ${employeeSeed.skipped}).`);
 }
 
 run().catch((error) => {

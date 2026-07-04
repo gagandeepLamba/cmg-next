@@ -80,7 +80,7 @@ export default function ContractsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Contract Management</h1>
           <p className="text-gray-500 text-sm mt-1">Manage and track all client contracts and agreements</p>
         </div>
-        <button onClick={fetchContracts} className="flex items-center gap-2 px-4 py-2 bg-[#35AE22] text-white rounded-lg hover:bg-[#1C6B10] text-sm font-medium">
+        <button onClick={fetchContracts} className="flex items-center gap-2 px-4 py-2 bg-[#003399] text-white rounded-lg hover:bg-[#002266] text-sm font-medium">
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
@@ -114,13 +114,13 @@ export default function ContractsPage() {
             placeholder="Search by lead name or contract number..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:ring-2 focus:ring-[#35AE22] focus:border-transparent"
+            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:ring-2 focus:ring-[#003399] focus:border-transparent"
           />
         </div>
         <select
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          className="border border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-[#35AE22]"
+          className="border border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-[#003399]"
         >
           <option value="">All Status</option>
           <option value="signed">Signed</option>
@@ -192,7 +192,7 @@ export default function ContractsPage() {
                     </td>
                     <td className="px-5 py-3">
                       {c.fileName ? (
-                        <span className="text-xs text-[#35AE22] font-medium">{c.fileSize}</span>
+                        <span className="text-xs text-[#003399] font-medium">{c.fileSize}</span>
                       ) : (
                         <span className="text-xs text-gray-400">No file</span>
                       )}

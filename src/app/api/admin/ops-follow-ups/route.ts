@@ -25,8 +25,9 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
 
     const role = String(currentUser.type || '').toLowerCase().replace(/[\s-]+/g, '_');
-    const canViewAll = currentUser.role === 1 || ['admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos'].includes(role);
+    const canViewAll = currentUser.role === 1 || ['admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos', 'director_of_operations'].includes(role);
     const isBranchManager = ['branch_manager', 'bm'].includes(role) && !canViewAll;
+    const isRegionalManager = ['regional_manager', 'rm'].includes(role) && !canViewAll && !isBranchManager;
 
     const conditions: string[] = [];
     const replacements: Record<string, any> = {};
@@ -38,6 +39,10 @@ export async function GET(request: NextRequest) {
       // BM: follow-ups where the assigned employee is in their branch
       conditions.push(`(e.branch = :branch OR e.branch IS NULL)`);
       replacements.branch = currentUser.branch;
+    } else if (isRegionalManager) {
+      // RM: follow-ups where the assigned employee is in their region
+      conditions.push(`(e.region = :region OR e.region IS NULL)`);
+      replacements.region = currentUser.region;
     } else {
       // Counselor: only their own follow-ups
       conditions.push(`r.user_id = :userId`);

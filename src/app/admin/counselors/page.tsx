@@ -77,7 +77,7 @@ export default function CounselorsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Counselor Management</h1>
           <p className="text-gray-500 text-sm mt-1">View and manage counselors and their performance</p>
         </div>
-        <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-[#35AE22] text-white rounded-lg hover:bg-[#1C6B10] text-sm font-medium">
+        <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-[#003399] text-white rounded-lg hover:bg-[#002266] text-sm font-medium">
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
@@ -111,14 +111,14 @@ export default function CounselorsPage() {
             placeholder="Search by name, email, branch..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:ring-2 focus:ring-[#35AE22] focus:border-transparent"
+            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:ring-2 focus:ring-[#003399] focus:border-transparent"
           />
         </div>
         {branches.length > 0 && (
           <select
             value={branchFilter}
             onChange={e => setBranchFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-[#35AE22]"
+            className="border border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-[#003399]"
           >
             <option value="">All Branches</option>
             {branches.map(b => <option key={b.id} value={String(b.id)}>{b.name}</option>)}
@@ -165,7 +165,7 @@ export default function CounselorsPage() {
                         {c.photo ? (
                           <img src={`/uploads/${c.photo}`} alt={c.name} className="w-8 h-8 rounded-full object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-[#EAF7E4] flex items-center justify-center text-[#1C6B10] text-sm font-bold shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[#E8EEFB] flex items-center justify-center text-[#002266] text-sm font-bold shrink-0">
                             {c.name.charAt(0).toUpperCase()}
                           </div>
                         )}
