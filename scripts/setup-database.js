@@ -9,6 +9,7 @@ const { seedCurrency } = require('./seed-currency');
 const { seedCountries } = require('./seed-countries');
 const { seedFees } = require('./seed-fees');
 const { seedEmployees } = require('./seed-employees');
+const { seedProgramTypes } = require('./seed-program-types');
 
 dotenv.config();
 
@@ -811,12 +812,13 @@ async function run() {
   const branchSeed = await seedBranches(db);
   const currencySeed = await seedCurrency(db);
   const countrySeed = await seedCountries(db);
+  const programTypeSeed = await seedProgramTypes(db);
   const feeSeed = await seedFees(db);
   const employeeSeed = await seedEmployees(db);
 
   await db.end();
 
-  console.log(`Database ${database} is ready. Applied ${migrations.length} built-in and ${sqlMigrationCount} SQL migration files, checked ${columnMigrations.length} columns, and seeded ${rolePermissionSeed.roles} roles / ${rolePermissionSeed.permissions} permissions, ${sourceSeed.sources} lead sources, ${branchSeed.branches} branches, ${currencySeed.currencies} currencies, ${countrySeed.countries} countries, ${feeSeed.fees} fee rows / ${feeSeed.services} services, and employees (created ${employeeSeed.created}, updated ${employeeSeed.updated}, skipped ${employeeSeed.skipped}).`);
+  console.log(`Database ${database} is ready. Applied ${migrations.length} built-in and ${sqlMigrationCount} SQL migration files, checked ${columnMigrations.length} columns, and seeded ${rolePermissionSeed.roles} roles / ${rolePermissionSeed.permissions} permissions, ${sourceSeed.sources} lead sources, ${branchSeed.branches} branches, ${currencySeed.currencies} currencies, ${countrySeed.countries} countries, ${programTypeSeed.programTypes} program types, ${feeSeed.fees} fee rows / ${feeSeed.services} services, and employees (created ${employeeSeed.created}, updated ${employeeSeed.updated}, skipped ${employeeSeed.skipped}).`);
 }
 
 run().catch((error) => {

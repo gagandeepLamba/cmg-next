@@ -13,6 +13,7 @@
     "db:seed:roles": "node scripts/seed-roles-permissions.js",
     "db:seed:sources": "node scripts/seed-sources.js",
     "db:seed:fees": "node scripts/seed-fees.js",
+    "db:seed:program-types": "node scripts/seed-program-types.js",
     "db:seed:employees": "node scripts/seed-employees.js"
   },
   "dependencies": {
