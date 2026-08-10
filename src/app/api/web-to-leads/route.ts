@@ -58,15 +58,18 @@ export async function GET() {
     success: true,
     endpoint: '/api/web-to-leads',
     method: 'POST',
-    requiredFields: ['lastName or your-name', 'email or your-email', 'phone or phonetext-718'],
+    requiredFields: ['lastName or your-name', 'email or your-email'],
     acceptsSalesforcePayload: true,
     acceptsContactForm7Payload: true,
     optionalFields: {
+      phone: 'phone or phonetext-718; recommended but not required',
       branch: 'Branch name, abbreviation, or city; defaults to Dubai when omitted',
       DestinationCountry: 'Matches dm_country_proces.name/id',
       ImmigrationType: 'Matches dm_service.name/id',
       LeadSource: 'Matches dm_source.name/id',
       ResidentCountry: 'Stored as nationality/address text',
+      message: "Visitor's free-text enquiry; stored as the lead's enquiry and folded into lead_remark",
+      preferredTime: "Visitor's preferred callback window; folded into lead_remark",
     },
     storesReferenceIds: {
       country_interest: 'dm_country_proces.id',
@@ -84,12 +87,12 @@ export async function POST(request: NextRequest) {
     const email = readField(data, ['email', 'your-email']);
     const phone = readField(data, ['phone', 'phonetext-718', 'mobile','tel-861']);
 
-    if (!fullName || !email || !phone) {
+    if (!fullName || !email) {
       return json(
         {
           success: false,
           error: 'Missing required lead fields',
-          requiredFields: ['lastName or your-name', 'email or your-email', 'phone or phonetext-718'],
+          requiredFields: ['lastName or your-name', 'email or your-email'],
         },
         { status: 400 }
       );
@@ -105,6 +108,8 @@ export async function POST(request: NextRequest) {
     const education = readField(data, ['Education', 'menu-35926']);
     const destinationCountry = readField(data, ['DestinationCountry', 'menu-3065']);
     const leadSource = readField(data, ['LeadSource', 'leadSource'], 'SEO Leads (English)');
+    const message = readField(data, ['message']);
+    const preferredTime = readField(data, ['preferredTime']);
     // Branch wins if the form sent one we recognize. Otherwise, prefer the
     // visitor's own resident country when it matches a branch we operate in
     // (Qatar/Kuwait/India each have exactly one) instead of silently dropping
@@ -168,7 +173,7 @@ export async function POST(request: NextRequest) {
       followup: now,
       folowuptime: time,
       followupstat: 0,
-      enquiry: immigrationType || 'Website lead enquiry',
+      enquiry: message || immigrationType || 'Website lead enquiry',
       convet: 'New',
       priority: 'Medium',
       regdate: now,
@@ -241,6 +246,8 @@ export async function POST(request: NextRequest) {
         Education: education,
         'Immigration Type': immigrationType,
         Destination: destinationCountry,
+        Message: message,
+        'Preferred Time': preferredTime,
       }),
       created: now,
       created_by: 1,
@@ -281,6 +288,8 @@ export async function POST(request: NextRequest) {
         'Service Interest': immigrationType,
         'Destination Country': destinationCountry,
         'Resident Country': residentCountry,
+        Message: message,
+        'Preferred Time': preferredTime,
       }) || 'Lead created via website form.',
       actorRole: 'web_lead',
     });
