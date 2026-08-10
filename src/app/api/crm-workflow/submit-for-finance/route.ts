@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CrmWorkflowService } from '@/services/crm-workflow-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function POST(request: NextRequest) {
   try {
+    // Submitted by whichever counselor/case officer is working the opportunity —
+    // auth-only (no specific permission) to match the broad access needed here,
+    // matching admin/opportunities/save/route.ts's reasoning for the same flow.
+    const auth = requireAuth(request);
+    if (isAuthError(auth)) return auth;
+
     const body = await request.json();
-    const { opportunityId, leadId, officialId, discussionNotes, paymentInput, actorId, actorRole } = body;
+    const { opportunityId, leadId, officialId, discussionNotes, paymentInput } = body;
 
     if (!opportunityId || !leadId) {
       return NextResponse.json(
@@ -40,8 +47,8 @@ export async function POST(request: NextRequest) {
       officialId,
       discussionNotes,
       paymentInput,
-      actorId: actorId || 0,
-      actorRole: actorRole || 'account_manager',
+      actorId: auth.id,
+      actorRole: auth.roleName || auth.type || 'account_manager',
     });
 
     if (!result.success) {

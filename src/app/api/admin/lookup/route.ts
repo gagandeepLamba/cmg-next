@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
+
   try {
     const [programs, countries, programTypes, branches] = await Promise.all([
       sequelize.query<{ id: number; name: string }>(
@@ -18,7 +22,7 @@ export async function GET() {
         { type: QueryTypes.SELECT }
       ),
       sequelize.query<{ id: number; name: string }>(
-        `SELECT id, name FROM dm_branch WHERE status = 1 ORDER BY name ASC`,
+        `SELECT id, branch AS name FROM dm_branch WHERE status = 1 ORDER BY branch ASC`,
         { type: QueryTypes.SELECT }
       ),
     ]);

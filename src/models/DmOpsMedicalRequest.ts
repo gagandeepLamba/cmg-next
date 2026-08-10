@@ -12,12 +12,12 @@ interface DmOpsMedicalRequestAttributes {
 interface DmOpsMedicalRequestCreationAttributes extends Optional<DmOpsMedicalRequestAttributes, never> {}
 
 class DmOpsMedicalRequest extends Model<DmOpsMedicalRequestAttributes, DmOpsMedicalRequestCreationAttributes> implements DmOpsMedicalRequestAttributes {
-  public id!: number;
-  public leadId!: number;
-  public MedicalRequestDate!: Date;
-  public CompletionDate!: Date;
-  public SubmissionDate!: Date;
-  public comments!: string;
+  declare id: number;
+  declare leadId: number;
+  declare MedicalRequestDate: Date;
+  declare CompletionDate: Date;
+  declare SubmissionDate: Date;
+  declare comments: string;
 
   public static associate(models: any) {
   }

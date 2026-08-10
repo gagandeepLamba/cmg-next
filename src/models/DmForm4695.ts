@@ -12,12 +12,12 @@ interface DmForm4695Attributes {
 interface DmForm4695CreationAttributes extends Optional<DmForm4695Attributes, 'name' | 'email' | 'comment_or_message' | 'form_date'> {}
 
 class DmForm4695 extends Model<DmForm4695Attributes, DmForm4695CreationAttributes> implements DmForm4695Attributes {
-  public id!: number;
-  public db4_status!: string;
-  public name!: string | null;
-  public email!: string | null;
-  public comment_or_message!: string | null;
-  public form_date!: Date;
+  declare id: number;
+  declare db4_status: string;
+  declare name: string | null;
+  declare email: string | null;
+  declare comment_or_message: string | null;
+  declare form_date: Date;
 
   public static associate(models: any) {
   }

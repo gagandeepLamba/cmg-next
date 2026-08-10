@@ -28,16 +28,23 @@ export async function GET(request: NextRequest) {
   try {
   await ensureDB();
 
-  const agreementNumber = (new URL(request.url).searchParams.get('agreementNumber') || '').trim();
-  if (!agreementNumber) {
-    return NextResponse.json({ error: 'agreementNumber is required' }, { status: 400 });
+  const url = new URL(request.url);
+  const agreementNumber = (url.searchParams.get('agreementNumber') || '').trim();
+  const opportunityId = (url.searchParams.get('opportunityId') || '').trim();
+  if (!agreementNumber && !opportunityId) {
+    return NextResponse.json({ error: 'agreementNumber or opportunityId is required' }, { status: 400 });
   }
 
-  // Try numeric ID first, then agreementNumber string
+  // Try numeric ID first, then agreementNumber string, then the opportunity's
+  // latest agreement (used by the standalone agreement page, which only
+  // knows the opportunityId).
   const isNumeric = /^\d+$/.test(agreementNumber);
-  const whereClause = isNumeric
-    ? 'a.id = :val'
-    : 'a.agreementNumber = :val';
+  const whereClause = opportunityId && !agreementNumber
+    ? 'a.opportunityId = :val ORDER BY a.id DESC'
+    : isNumeric
+      ? 'a.id = :val'
+      : 'a.agreementNumber = :val';
+  const lookupValue = opportunityId && !agreementNumber ? opportunityId : agreementNumber;
 
   try { await sequelize.authenticate(); } catch (dbErr: any) {
     return NextResponse.json({ error: 'Database connection failed', detail: dbErr.message }, { status: 500 });
@@ -63,8 +70,18 @@ export async function GET(request: NextRequest) {
     passport_no: string;
     emirates_id: string;
     occupation: string;
+    serviceId: number | null;
     serviceName: string;
+    programValidity: string;
     countryName: string;
+    branchName: string;
+    branchNameAr: string;
+    branchAddress: string;
+    branchAddressAr: string;
+    branchEmail: string;
+    branchMobile: string;
+    branchLicenseNumber: string;
+    branchAbbrv: string;
   }>(
     `SELECT
        a.id,
@@ -84,18 +101,29 @@ export async function GET(request: NextRequest) {
        COALESCE(l.lname,'')                           AS lname,
        COALESCE(l.nationality,'')                     AS nationality,
        COALESCE(l.id_number,'')                       AS passport_no,
-       ''                                             AS emirates_id,
+       COALESCE(l.id_number,'')                       AS emirates_id,
        COALESCE(l.profession,'')                      AS occupation,
+       s.id                                           AS serviceId,
        COALESCE(s.name,'')                            AS serviceName,
-       COALESCE(c.name,'')                            AS countryName
+       COALESCE(s.validity,'')                        AS programValidity,
+       COALESCE(c.name,'')                            AS countryName,
+       COALESCE(b.name,'')                            AS branchName,
+       COALESCE(b.ar_name,'')                         AS branchNameAr,
+       COALESCE(b.address,'')                         AS branchAddress,
+       COALESCE(b.ar_address,'')                      AS branchAddressAr,
+       COALESCE(b.email,'')                           AS branchEmail,
+       COALESCE(b.mobile,'')                          AS branchMobile,
+       COALESCE(b.license_number,'')                  AS branchLicenseNumber,
+       COALESCE(b.abbrv,'')                           AS branchAbbrv
      FROM dm_opportunity_agreements a
      LEFT JOIN dmc_opportunities     o ON o.id = a.opportunityId
      LEFT JOIN dmc_forum_leads       l ON l.id = o.leadId
      LEFT JOIN dm_service            s ON s.id = l.service_interest
      LEFT JOIN dm_country_proces     c ON c.id = l.country_interest
+     LEFT JOIN dm_branch             b ON b.id = COALESCE(o.branchId, l.branch)
      WHERE ${whereClause}
      LIMIT 1`,
-    { replacements: { val: isNumeric ? Number(agreementNumber) : agreementNumber }, type: QueryTypes.SELECT }
+    { replacements: { val: isNumeric || (opportunityId && !agreementNumber) ? Number(lookupValue) : lookupValue }, type: QueryTypes.SELECT }
   ).catch((qErr: any) => {
     throw new Error(`Query failed: ${qErr.message}`);
   });
@@ -163,6 +191,8 @@ export async function GET(request: NextRequest) {
       occupation:         row.occupation,
       // Service / program
       serviceProgram:     row.serviceName,
+      programCode:        row.serviceId ? String(row.serviceId) : '',
+      programValidity:    row.programValidity,
       destinationCountry: row.countryName,
       // Fees
       totalRetainerFee:   totalFee,
@@ -178,6 +208,15 @@ export async function GET(request: NextRequest) {
       annexInitialPayment:   initialPayment,
       annexSecondPayment:    secondPayment,
       annexSecondPaymentDue: secondPaymentDue,
+      // Branch (only the fields the agreement template needs — nothing else)
+      branchName:          row.branchName,
+      branchNameAr:        row.branchNameAr,
+      branchAddress:       row.branchAddress,
+      branchAddressAr:     row.branchAddressAr,
+      branchEmail:         row.branchEmail,
+      branchMobile:        row.branchMobile,
+      branchLicenseNumber: row.branchLicenseNumber,
+      branchAbbrv:         row.branchAbbrv,
       // Meta
       opportunityId:  row.opportunityId,
       leadId:         row.leadId,

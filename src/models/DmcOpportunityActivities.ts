@@ -25,24 +25,24 @@ interface DmcOpportunityActivitiesAttributes {
 interface DmcOpportunityActivitiesCreationAttributes extends Optional<DmcOpportunityActivitiesAttributes, 'id'> {}
 
 class DmcOpportunityActivities extends Model<DmcOpportunityActivitiesAttributes, DmcOpportunityActivitiesCreationAttributes> implements DmcOpportunityActivitiesAttributes {
-  public id!: number;
-  public opportunityId!: number;
-  public activityType!: string;
-  public activityTitle!: string;
-  public description!: string;
-  public activityDate!: Date;
-  public duration!: number;
-  public outcome!: string;
-  public nextStep!: string;
-  public assignedTo!: number;
-  public priority!: 'low' | 'medium' | 'high' | 'urgent';
-  public status!: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-  public location!: string;
-  public attendees!: string;
-  public notes!: string;
-  public createdBy!: number;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare opportunityId: number;
+  declare activityType: string;
+  declare activityTitle: string;
+  declare description: string;
+  declare activityDate: Date;
+  declare duration: number;
+  declare outcome: string;
+  declare nextStep: string;
+  declare assignedTo: number;
+  declare priority: 'low' | 'medium' | 'high' | 'urgent';
+  declare status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  declare location: string;
+  declare attendees: string;
+  declare notes: string;
+  declare createdBy: number;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmcOpportunityActivities.belongsTo(models.DmcOpportunities, { foreignKey: 'opportunityId', targetKey: 'id', as: 'dmcOpportunity' });

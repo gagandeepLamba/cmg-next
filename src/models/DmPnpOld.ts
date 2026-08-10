@@ -21,21 +21,21 @@ interface DmPnpOldAttributes {
 interface DmPnpOldCreationAttributes extends Optional<DmPnpOldAttributes, never> {}
 
 class DmPnpOld extends Model<DmPnpOldAttributes, DmPnpOldCreationAttributes> implements DmPnpOldAttributes {
-  public id!: number;
-  public opsid!: number;
-  public agreeNo!: string;
-  public pnp!: string;
-  public subdate!: string;
-  public expdate!: string;
-  public status!: string;
-  public pts!: string;
-  public eoisubdate!: string;
-  public noiexpdate!: string;
-  public noisubdate!: string;
-  public eoiexpdate!: string;
-  public noirecdate!: string;
-  public nomawdate!: string;
-  public nomexpdate!: string;
+  declare id: number;
+  declare opsid: number;
+  declare agreeNo: string;
+  declare pnp: string;
+  declare subdate: string;
+  declare expdate: string;
+  declare status: string;
+  declare pts: string;
+  declare eoisubdate: string;
+  declare noiexpdate: string;
+  declare noisubdate: string;
+  declare eoiexpdate: string;
+  declare noirecdate: string;
+  declare nomawdate: string;
+  declare nomexpdate: string;
 
   public static associate(models: any) {
   }

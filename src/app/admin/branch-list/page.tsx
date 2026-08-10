@@ -1,7 +1,8 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +22,7 @@ import {
 interface Branch {
   id: number
   name: string
+  branch: string
   code: string
   address: string
   city: string
@@ -69,7 +71,7 @@ export default function BranchListPage() {
   }
 
   const filteredBranches = branches.filter(branch => {
-    const matchesSearch = branch.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = branch.branch?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           branch.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           branch.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           branch.managerName?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -82,18 +84,30 @@ export default function BranchListPage() {
     return matchesSearch && matchesRegion && matchesStatus
   })
 
+  const { sorted: sortedBranches, sortKey: branchSortKey, sortDirection: branchSortDirection, toggleSort: toggleBranchSort } = useSortableData(
+    filteredBranches,
+    {
+      branch: (b) => b.branch,
+      location: (b) => `${b.city || ''} ${b.state || ''}`,
+      manager: (b) => b.managerName,
+      region: (b) => b.regionName,
+      employees: (b) => b.employeeCount,
+      status: (b) => b.status,
+    },
+  )
+
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -178,7 +192,7 @@ export default function BranchListPage() {
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 w-full"
                 />
               </div>
-              <select
+              <SearchableSelect
                 value={regionFilter}
                 onChange={(e) => setRegionFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -188,8 +202,8 @@ export default function BranchListPage() {
                 <option value="2">South</option>
                 <option value="3">East</option>
                 <option value="4">West</option>
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -197,7 +211,7 @@ export default function BranchListPage() {
                 <option value="">All Status</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
-              </select>
+              </SearchableSelect>
               <Button variant="outline">
                 <Filter className="h-4 w-4 mr-2" />
                 More Filters
@@ -213,31 +227,19 @@ export default function BranchListPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Branch
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Location
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Manager
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Region
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Employees
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
+                    <SortableTh label="Branch" sortKey="branch" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
+                    <SortableTh label="Location" sortKey="location" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
+                    <SortableTh label="Manager" sortKey="manager" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
+                    <SortableTh label="Region" sortKey="region" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
+                    <SortableTh label="Employees" sortKey="employees" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
+                    <SortableTh label="Status" sortKey="status" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
                     <th className="relative px-6 py-3">
                       <span className="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredBranches.map((branch) => (
+                  {sortedBranches.map((branch) => (
                     <tr key={branch.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -246,7 +248,7 @@ export default function BranchListPage() {
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">
-                              {branch.name}
+                              {branch.branch}
                             </div>
                             <div className="text-sm text-gray-500">
                               {branch.code}
@@ -308,6 +310,6 @@ export default function BranchListPage() {
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+    </>
   )
 }

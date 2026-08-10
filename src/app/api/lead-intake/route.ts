@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
-import { resolveLeadAutoAssignment } from '@/lib/leadAutoAssignment';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,12 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [firstName, ...lastParts] = String(data.name).trim().split(/\s+/);
-    const assignment = await resolveLeadAutoAssignment({
-      branchId: Number(data.branch || data.branchId || 4),
-      // This endpoint is used by external lead forms, so assignment is always server controlled.
-      forceAutoAssign: true,
-      roundRobin: true,
-    });
+    const branchId = Number(data.branch || data.branchId || 4);
 
     const [result] = await sequelize.query(
       `INSERT INTO dmc_forum_leads
@@ -46,11 +41,13 @@ export async function POST(request: NextRequest) {
           new Date().toTimeString().split(' ')[0],
           new Date(),
           Number(data.createdBy || 1),
-          assignment.assignedEmployeeId,
-          assignment.branchId,
+          // New leads enter unassigned; a FOE/Branch Manager/CEO assigns them afterward,
+          // unless the caller explicitly names an owner.
+          data.assignTo ? Number(data.assignTo) : null,
+          branchId,
           Number(data.region || 1),
-          assignment.counselorId,
-          Number(data.caseOfficer || assignment.assignedEmployeeId),
+          data.counselorId ? Number(data.counselorId) : null,
+          data.caseOfficer ? Number(data.caseOfficer) : null,
         ],
       }
     );
@@ -59,8 +56,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       leadId,
-      assignedTo: assignment.assignedEmployeeId,
-      assignment,
+      assignedTo: data.assignTo ? Number(data.assignTo) : null,
     }, { status: 201 });
   } catch (error: any) {
     console.error('Error processing lead intake:', error);
@@ -69,6 +65,13 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  // Unlike POST/PUT (a genuinely public lead-intake webhook — see
+  // WebhookIntegrations.tsx, which documents this endpoint as the receiver for
+  // Facebook/Instagram/LinkedIn/website-form leads), GET returns internal data
+  // (counselor names/emails/phones, allocation rules, system stats) that has
+  // no public use case and must require auth.
+  const auth = requireAuth(request, ['leads.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');

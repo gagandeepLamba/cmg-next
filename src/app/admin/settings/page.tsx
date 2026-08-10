@@ -1,470 +1,260 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Bell, Lock, MessageCircle, RefreshCw, Save } from 'lucide-react';
+
+interface Preferences {
+  emailNotifications: boolean;
+  leadAlerts: boolean;
+  appointmentReminders: boolean;
+  paymentAlerts: boolean;
+  whatsappTemplate: string;
+}
+
+const defaultPreferences: Preferences = {
+  emailNotifications: true,
+  leadAlerts: true,
+  appointmentReminders: true,
+  paymentAlerts: true,
+  whatsappTemplate: '',
+};
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('general');
-  const [settings, setSettings] = useState({
-    general: {
-      siteName: 'CMG Immigration Admin',
-      siteEmail: 'admin@cmgimmigration.com',
-      timezone: 'UTC+4',
-      dateFormat: 'MM/DD/YYYY',
-      currency: 'USD',
-      language: 'en',
-    },
-    notifications: {
-      emailNotifications: true,
-      smsNotifications: false,
-      pushNotifications: true,
-      leadAlerts: true,
-      appointmentReminders: true,
-      paymentAlerts: true,
-    },
-    security: {
-      sessionTimeout: '30',
-      passwordMinLength: '8',
-      requireTwoFactor: false,
-      maxLoginAttempts: '5',
-      lockoutDuration: '15',
-    },
-    appearance: {
-      theme: 'light',
-      primaryColor: '#0B3F9F',
-      sidebarCollapsed: false,
-      compactMode: false,
-      showAnimations: true,
-    },
-  });
+  const [activeTab, setActiveTab] = useState<'notifications' | 'whatsapp' | 'security'>('notifications');
+  const [preferences, setPreferences] = useState<Preferences>(defaultPreferences);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const handleSettingChange = (category: string, setting: string, value: string | boolean) => {
-    setSettings(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category as keyof typeof prev],
-        [setting]: value,
-      },
-    }));
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const load = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/settings');
+      const json = await res.json();
+      if (res.ok && json.preferences) setPreferences(json.preferences);
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to load settings' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSave = () => {
-    // Save settings to backend
-    console.log('Saving settings:', settings);
-    alert('Settings saved successfully!');
+  useEffect(() => { load(); }, []);
+
+  const togglePreference = (key: keyof Preferences) => {
+    setPreferences((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSavePreferences = async () => {
+    setIsSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preferences),
+      });
+      const json = await res.json();
+      setMessage(res.ok
+        ? { type: 'success', text: 'Notification preferences saved.' }
+        : { type: 'error', text: json.error || 'Failed to save preferences' });
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to save preferences' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordMessage(null);
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'New password and confirmation do not match.' });
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const res = await fetch('/api/profile/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setPasswordMessage({ type: 'success', text: 'Password changed successfully.' });
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      } else {
+        setPasswordMessage({ type: 'error', text: json.error || 'Failed to change password' });
+      }
+    } catch {
+      setPasswordMessage({ type: 'error', text: 'Failed to change password' });
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const tabs = [
-    { id: 'general', label: 'General', icon: '⚙️' },
-    { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'security', label: 'Security', icon: '🔒' },
-    { id: 'appearance', label: 'Appearance', icon: '🎨' },
+    { id: 'notifications' as const, label: 'Notifications', icon: Bell },
+    { id: 'whatsapp' as const, label: 'WhatsApp', icon: MessageCircle },
+    { id: 'security' as const, label: 'Security', icon: Lock },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-slate-500">
+        <RefreshCw className="mr-2 h-5 w-5 animate-spin" /> Loading settings…
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600 mt-2">Manage system settings and preferences</p>
-        </div>
-        <button 
-          onClick={handleSave}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Save Settings
-        </button>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="mt-1 text-sm text-slate-500">Manage your notification preferences and account security.</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow">
-        {/* Tabs */}
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6" aria-label="Tabs">
+      <div className="rounded-lg border border-slate-200 bg-white">
+        <div className="border-b border-slate-200">
+          <nav className="flex gap-6 px-6" aria-label="Tabs">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                className={`flex items-center gap-2 border-b-2 py-4 text-sm font-medium ${
+                  activeTab === tab.id ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <span className="mr-2">{tab.icon}</span>
+                <tab.icon className="h-4 w-4" />
                 {tab.label}
               </button>
             ))}
           </nav>
         </div>
 
-        {/* Tab Content */}
         <div className="p-6">
-          {/* General Settings */}
-          {activeTab === 'general' && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">General Settings</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="siteName" className="block text-sm font-medium text-gray-700">
-                    Site Name
-                  </label>
-                  <input
-                    type="text"
-                    id="siteName"
-                    value={settings.general.siteName}
-                    onChange={(e) => handleSettingChange('general', 'siteName', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="siteEmail" className="block text-sm font-medium text-gray-700">
-                    Site Email
-                  </label>
-                  <input
-                    type="email"
-                    id="siteEmail"
-                    value={settings.general.siteEmail}
-                    onChange={(e) => handleSettingChange('general', 'siteEmail', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="timezone" className="block text-sm font-medium text-gray-700">
-                    Timezone
-                  </label>
-                  <select
-                    id="timezone"
-                    value={settings.general.timezone}
-                    onChange={(e) => handleSettingChange('general', 'timezone', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  >
-                    <option value="UTC+4">UTC+4 (Dubai)</option>
-                    <option value="UTC+0">UTC+0 (London)</option>
-                    <option value="UTC-5">UTC-5 (New York)</option>
-                    <option value="UTC-8">UTC-8 (Los Angeles)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="dateFormat" className="block text-sm font-medium text-gray-700">
-                    Date Format
-                  </label>
-                  <select
-                    id="dateFormat"
-                    value={settings.general.dateFormat}
-                    onChange={(e) => handleSettingChange('general', 'dateFormat', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  >
-                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="currency" className="block text-sm font-medium text-gray-700">
-                    Default Currency
-                  </label>
-                  <select
-                    id="currency"
-                    value={settings.general.currency}
-                    onChange={(e) => handleSettingChange('general', 'currency', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  >
-                    <option value="USD">USD - US Dollar</option>
-                    <option value="EUR">EUR - Euro</option>
-                    <option value="GBP">GBP - British Pound</option>
-                    <option value="AED">AED - UAE Dirham</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="language" className="block text-sm font-medium text-gray-700">
-                    Language
-                  </label>
-                  <select
-                    id="language"
-                    value={settings.general.language}
-                    onChange={(e) => handleSettingChange('general', 'language', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  >
-                    <option value="en">English</option>
-                    <option value="ar">العربية</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Notifications Settings */}
           {activeTab === 'notifications' && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Notification Settings</h3>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+            <div className="space-y-5">
+              {message && (
+                <div className={`rounded-md border px-4 py-3 text-sm ${message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                  {message.text}
+                </div>
+              )}
+              {([
+                ['emailNotifications', 'Email Notifications', 'Receive notifications via email'],
+                ['leadAlerts', 'Lead Alerts', 'Get notified when new leads are assigned to you'],
+                ['appointmentReminders', 'Appointment Reminders', 'Get reminded about your upcoming appointments'],
+                ['paymentAlerts', 'Payment Alerts', 'Get notified about payments on your leads'],
+              ] as const).map(([key, label, description]) => (
+                <div key={key} className="flex items-center justify-between border-b border-slate-100 pb-4 last:border-0 last:pb-0">
                   <div>
-                    <label htmlFor="emailNotifications" className="font-medium text-gray-700">
-                      Email Notifications
-                    </label>
-                    <p className="text-sm text-gray-500">Receive notifications via email</p>
+                    <p className="text-sm font-medium text-slate-800">{label}</p>
+                    <p className="text-xs text-slate-500">{description}</p>
                   </div>
                   <input
                     type="checkbox"
-                    id="emailNotifications"
-                    checked={settings.notifications.emailNotifications}
-                    onChange={(e) => handleSettingChange('notifications', 'emailNotifications', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    checked={preferences[key]}
+                    onChange={() => togglePreference(key)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                 </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label htmlFor="smsNotifications" className="font-medium text-gray-700">
-                      SMS Notifications
-                    </label>
-                    <p className="text-sm text-gray-500">Receive notifications via SMS</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="smsNotifications"
-                    checked={settings.notifications.smsNotifications}
-                    onChange={(e) => handleSettingChange('notifications', 'smsNotifications', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label htmlFor="pushNotifications" className="font-medium text-gray-700">
-                      Push Notifications
-                    </label>
-                    <p className="text-sm text-gray-500">Receive browser push notifications</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="pushNotifications"
-                    checked={settings.notifications.pushNotifications}
-                    onChange={(e) => handleSettingChange('notifications', 'pushNotifications', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label htmlFor="leadAlerts" className="font-medium text-gray-700">
-                      Lead Alerts
-                    </label>
-                    <p className="text-sm text-gray-500">Get notified when new leads are created</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="leadAlerts"
-                    checked={settings.notifications.leadAlerts}
-                    onChange={(e) => handleSettingChange('notifications', 'leadAlerts', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label htmlFor="appointmentReminders" className="font-medium text-gray-700">
-                      Appointment Reminders
-                    </label>
-                    <p className="text-sm text-gray-500">Get reminded about upcoming appointments</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="appointmentReminders"
-                    checked={settings.notifications.appointmentReminders}
-                    onChange={(e) => handleSettingChange('notifications', 'appointmentReminders', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label htmlFor="paymentAlerts" className="font-medium text-gray-700">
-                      Payment Alerts
-                    </label>
-                    <p className="text-sm text-gray-500">Get notified about new payments</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="paymentAlerts"
-                    checked={settings.notifications.paymentAlerts}
-                    onChange={(e) => handleSettingChange('notifications', 'paymentAlerts', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                </div>
+              ))}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSavePreferences}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  {isSaving ? 'Saving…' : 'Save Preferences'}
+                </button>
               </div>
             </div>
           )}
 
-          {/* Security Settings */}
-          {activeTab === 'security' && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Security Settings</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="sessionTimeout" className="block text-sm font-medium text-gray-700">
-                    Session Timeout (minutes)
-                  </label>
-                  <input
-                    type="number"
-                    id="sessionTimeout"
-                    value={settings.security.sessionTimeout}
-                    onChange={(e) => handleSettingChange('security', 'sessionTimeout', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
+          {activeTab === 'whatsapp' && (
+            <div className="space-y-4">
+              {message && (
+                <div className={`rounded-md border px-4 py-3 text-sm ${message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                  {message.text}
                 </div>
-
-                <div>
-                  <label htmlFor="passwordMinLength" className="block text-sm font-medium text-gray-700">
-                    Minimum Password Length
-                  </label>
-                  <input
-                    type="number"
-                    id="passwordMinLength"
-                    value={settings.security.passwordMinLength}
-                    onChange={(e) => handleSettingChange('security', 'passwordMinLength', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="maxLoginAttempts" className="block text-sm font-medium text-gray-700">
-                    Max Login Attempts
-                  </label>
-                  <input
-                    type="number"
-                    id="maxLoginAttempts"
-                    value={settings.security.maxLoginAttempts}
-                    onChange={(e) => handleSettingChange('security', 'maxLoginAttempts', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="lockoutDuration" className="block text-sm font-medium text-gray-700">
-                    Lockout Duration (minutes)
-                  </label>
-                  <input
-                    type="number"
-                    id="lockoutDuration"
-                    value={settings.security.lockoutDuration}
-                    onChange={(e) => handleSettingChange('security', 'lockoutDuration', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <label htmlFor="requireTwoFactor" className="font-medium text-gray-700">
-                    Two-Factor Authentication
-                  </label>
-                  <p className="text-sm text-gray-500">Require 2FA for all admin users</p>
-                </div>
-                <input
-                  type="checkbox"
-                  id="requireTwoFactor"
-                  checked={settings.security.requireTwoFactor}
-                  onChange={(e) => handleSettingChange('security', 'requireTwoFactor', e.target.checked)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              )}
+              <div>
+                <p className="text-sm font-medium text-slate-800">Default WhatsApp Message</p>
+                <p className="text-xs text-slate-500">
+                  Sent as the pre-filled message whenever you click the WhatsApp icon next to a lead&apos;s number.
+                </p>
+                <textarea
+                  value={preferences.whatsappTemplate}
+                  onChange={(e) => setPreferences((prev) => ({ ...prev, whatsappTemplate: e.target.value }))}
+                  rows={4}
+                  placeholder="Hi, this is DMC Consultants reaching out regarding your enquiry..."
+                  className="mt-2 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
                 />
               </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSavePreferences}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  {isSaving ? 'Saving…' : 'Save Message'}
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Appearance Settings */}
-          {activeTab === 'appearance' && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Appearance Settings</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="theme" className="block text-sm font-medium text-gray-700">
-                    Theme
-                  </label>
-                  <select
-                    id="theme"
-                    value={settings.appearance.theme}
-                    onChange={(e) => handleSettingChange('appearance', 'theme', e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  >
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                    <option value="auto">Auto</option>
-                  </select>
+          {activeTab === 'security' && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-slate-900">Change Password</h3>
+              {passwordMessage && (
+                <div className={`rounded-md border px-4 py-3 text-sm ${passwordMessage.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                  {passwordMessage.text}
                 </div>
-
-                <div>
-                  <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-700">
-                    Primary Color
-                  </label>
-                  <input
-                    type="color"
-                    id="primaryColor"
-                    value={settings.appearance.primaryColor}
-                    onChange={(e) => handleSettingChange('appearance', 'primaryColor', e.target.value)}
-                    className="mt-1 block w-full h-10 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Current Password</label>
+                <input
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm((f) => ({ ...f, currentPassword: e.target.value }))}
+                  className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                />
               </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label htmlFor="sidebarCollapsed" className="font-medium text-gray-700">
-                      Collapsed Sidebar
-                    </label>
-                    <p className="text-sm text-gray-500">Keep sidebar collapsed by default</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="sidebarCollapsed"
-                    checked={settings.appearance.sidebarCollapsed}
-                    onChange={(e) => handleSettingChange('appearance', 'sidebarCollapsed', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label htmlFor="compactMode" className="font-medium text-gray-700">
-                      Compact Mode
-                    </label>
-                    <p className="text-sm text-gray-500">Use compact layout with less spacing</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="compactMode"
-                    checked={settings.appearance.compactMode}
-                    onChange={(e) => handleSettingChange('appearance', 'compactMode', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label htmlFor="showAnimations" className="font-medium text-gray-700">
-                      Show Animations
-                    </label>
-                    <p className="text-sm text-gray-500">Enable UI animations and transitions</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    id="showAnimations"
-                    checked={settings.appearance.showAnimations}
-                    onChange={(e) => handleSettingChange('appearance', 'showAnimations', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">New Password</label>
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm((f) => ({ ...f, newPassword: e.target.value }))}
+                  className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm((f) => ({ ...f, confirmPassword: e.target.value }))}
+                  className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleChangePassword}
+                  disabled={isChangingPassword || !passwordForm.currentPassword || !passwordForm.newPassword}
+                  className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <Lock className="h-4 w-4" />
+                  {isChangingPassword ? 'Updating…' : 'Change Password'}
+                </button>
               </div>
             </div>
           )}

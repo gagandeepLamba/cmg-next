@@ -1,5 +1,7 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect } from 'react';
 import {
   Clock, Users, AlertTriangle, RefreshCw, Play, Pause, Settings,
@@ -62,6 +64,18 @@ export default function LeadReassignmentManager() {
 
   const [rules, setRules] = useState<ReassignmentRule[]>([]);
   const [reassignmentHistory, setReassignmentHistory] = useState<ReassignmentRecord[]>([]);
+  const { sorted: sortedReassignmentHistory, sortKey: reassignmentSortKey, sortDirection: reassignmentSortDirection, toggleSort: toggleReassignmentSort } = useSortableData(
+    reassignmentHistory,
+    {
+      leadId: (r) => r.leadId,
+      originalCounselor: (r) => r.originalCounselorName,
+      newCounselor: (r) => r.newCounselorName,
+      reason: (r) => r.reassignmentReason,
+      timeSinceAssignment: (r) => r.timeSinceAssignment,
+      date: (r) => r.reassignmentTime,
+      systemTriggered: (r) => r.systemTriggered,
+    },
+  );
   const [selectedRule, setSelectedRule] = useState<ReassignmentRule | null>(null);
   const [showRuleModal, setShowRuleModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -389,7 +403,7 @@ export default function LeadReassignmentManager() {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Target Selection</label>
-                  <select
+                  <SearchableSelect
                     defaultValue={selectedRule?.targetSelection || 'least_loaded'}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
@@ -398,7 +412,7 @@ export default function LeadReassignmentManager() {
                     <option value="random">Random</option>
                     <option value="specialty_match">Specialty Match</option>
                     <option value="round_robin">Round Robin</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
             </div>
@@ -455,17 +469,17 @@ export default function LeadReassignmentManager() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lead ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Original Counselor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">New Counselor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time Since Assignment</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">System Triggered</th>
+                    <SortableTh label="Lead ID" sortKey="leadId" activeKey={reassignmentSortKey} direction={reassignmentSortDirection} onSort={toggleReassignmentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="Original Counselor" sortKey="originalCounselor" activeKey={reassignmentSortKey} direction={reassignmentSortDirection} onSort={toggleReassignmentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="New Counselor" sortKey="newCounselor" activeKey={reassignmentSortKey} direction={reassignmentSortDirection} onSort={toggleReassignmentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="Reason" sortKey="reason" activeKey={reassignmentSortKey} direction={reassignmentSortDirection} onSort={toggleReassignmentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="Time Since Assignment" sortKey="timeSinceAssignment" activeKey={reassignmentSortKey} direction={reassignmentSortDirection} onSort={toggleReassignmentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="Date" sortKey="date" activeKey={reassignmentSortKey} direction={reassignmentSortDirection} onSort={toggleReassignmentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="System Triggered" sortKey="systemTriggered" activeKey={reassignmentSortKey} direction={reassignmentSortDirection} onSort={toggleReassignmentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {reassignmentHistory.map((record) => (
+                  {sortedReassignmentHistory.map((record) => (
                     <tr key={record.id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {record.leadId}

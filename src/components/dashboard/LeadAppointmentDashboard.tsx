@@ -51,6 +51,18 @@ interface DashboardStats {
   priorityBreakdown?: Array<{ name: string; value: number }>;
   todayCounselorAppointments?: number;
   todayCounselorFollowUps?: number;
+  totalPaidAmount?: number;
+  totalBalance?: number;
+  branchPerformance?: Array<{ branch: string; leads: number; conversion: string }>;
+  topEmployees?: Array<{ name: string; leads: number; conversion: string }>;
+  monthTrend?: {
+    thisMonthLeads: number;
+    lastMonthLeads: number;
+    thisMonthConverted: number;
+    lastMonthConverted: number;
+    thisMonthAppointments: number;
+    lastMonthAppointments: number;
+  };
 }
 
 type StatCardProps = {
@@ -111,7 +123,7 @@ function StatCard({ title, value, icon, change, changeType }: StatCardProps) {
 }
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
+  const { user, currencyCode } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalLeads: 0,
     totalEmployees: 0,
@@ -172,6 +184,11 @@ export default function AdminDashboard() {
               priorityBreakdown: realStats.priorityBreakdown || data.data?.stats?.priorityBreakdown || [],
               todayCounselorAppointments: realStats.todayCounselorAppointments || data.data?.todayAppointments?.length || 0,
               todayCounselorFollowUps: realStats.todayCounselorFollowUps || data.data?.todayFollowUps?.length || 0,
+              totalPaidAmount: realStats.totalPaidAmount || 0,
+              totalBalance: realStats.totalBalance || 0,
+              branchPerformance: realStats.branchPerformance || [],
+              topEmployees: realStats.topEmployees || [],
+              monthTrend: realStats.monthTrend,
             });
             
             // Set recent leads and appointments from API
@@ -233,7 +250,7 @@ export default function AdminDashboard() {
       setRemarkSuccess('Remark saved successfully');
       setTimeout(() => setRemarkSuccess(''), 3000);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save remark');
+      window.toast.error(err instanceof Error ? err.message : 'Failed to save remark');
     } finally {
       setRemarkSaving(false);
     }
@@ -361,6 +378,24 @@ export default function AdminDashboard() {
     [stats]
   );
 
+  const pctChange = useCallback((current: number, previous: number): { change: number; changeType: ChangeType } | null => {
+    if (!previous) return null;
+    const change = Math.round(((current - previous) / previous) * 100);
+    return { change: Math.abs(change), changeType: change >= 0 ? 'increase' : 'decrease' };
+  }, []);
+
+  const leadsChange = useMemo(
+    () => stats.monthTrend ? pctChange(stats.monthTrend.thisMonthLeads, stats.monthTrend.lastMonthLeads) : null,
+    [stats.monthTrend, pctChange]
+  );
+  const conversionChange = useMemo(() => {
+    if (!stats.monthTrend) return null;
+    const { thisMonthLeads, thisMonthConverted, lastMonthLeads, lastMonthConverted } = stats.monthTrend;
+    const thisRate = thisMonthLeads > 0 ? (thisMonthConverted / thisMonthLeads) * 100 : 0;
+    const lastRate = lastMonthLeads > 0 ? (lastMonthConverted / lastMonthLeads) * 100 : 0;
+    return pctChange(thisRate, lastRate);
+  }, [stats.monthTrend, pctChange]);
+
   const recentLeads = useMemo(
     () => {
       // Transform real API data to the format expected by the component
@@ -389,6 +424,17 @@ export default function AdminDashboard() {
     [recentAppointmentsData]
   );
 
+  const appointmentStatusColor = (status: string) => {
+    switch (status) {
+      case 'Meeting Done': return 'bg-green-50 text-green-700';
+      case 'Verification Rejected': return 'bg-red-50 text-red-700';
+      case 'Awaiting Verification': return 'bg-amber-50 text-amber-700';
+      case 'Not Done': return 'bg-gray-100 text-gray-600';
+      case 'Fixed': return 'bg-blue-50 text-blue-700';
+      default: return 'bg-indigo-50 text-indigo-700';
+    }
+  };
+
   const todayAppointments = useMemo(
     () => todayAppointmentsData.map((appointment: any) => ({
       id: appointment.id,
@@ -396,7 +442,9 @@ export default function AdminDashboard() {
       client: `${appointment.fname || ''} ${appointment.lname || ''}`.trim() || `Lead #${appointment.leadid || ''}`,
       phone: appointment.phone || appointment.mobile || 'No phone',
       time: appointment.appointtime ? String(appointment.appointtime).slice(0, 5) : 'No time',
-      status: Number(appointment.done || 0) === 1 ? 'Completed' : Number(appointment.not_done || 0) === 1 ? 'Not Done' : Number(appointment.booked || 0) === 1 ? 'Fixed' : 'Pending',
+      status: Number(appointment.done || 0) === 1
+        ? (appointment.meeting_verified === 1 ? 'Meeting Done' : appointment.meeting_verified === 0 ? 'Verification Rejected' : 'Awaiting Verification')
+        : Number(appointment.not_done || 0) === 1 ? 'Not Done' : Number(appointment.booked || 0) === 1 ? 'Fixed' : 'Pending',
       branch: appointment.branchName || 'No branch'
     })),
     [todayAppointmentsData]
@@ -525,17 +573,107 @@ export default function AdminDashboard() {
        
         {/* Stats Grid */}
         <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard title="Total Leads" value={stats.totalLeads.toLocaleString()} icon="👥" change={12} changeType="increase" />
-          <StatCard title="Total Clients" value={stats.totalClients.toLocaleString()} icon="👤" change={8} changeType="increase" />
-          <StatCard title="Revenue" value={`$${stats.totalRevenue.toLocaleString()}`} icon="💰" change={15} changeType="increase" />
-          <StatCard title="Conversion Rate" value={`${stats.conversionRate}%`} icon="📈" change={3} changeType="increase" />
+          <StatCard title="Total Leads" value={stats.totalLeads.toLocaleString()} icon="👥" change={leadsChange?.change} changeType={leadsChange?.changeType} />
+          <StatCard title="Total Clients" value={stats.totalClients.toLocaleString()} icon="👤" />
+          <StatCard title="Revenue" value={`${currencyCode} ${stats.totalRevenue.toLocaleString()}`} icon="💰" />
+          <StatCard title="Conversion Rate" value={`${stats.conversionRate}%`} icon="📈" change={conversionChange?.change} changeType={conversionChange?.changeType} />
         </div>
 
         {/* Additional Stats */}
         <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <StatCard title="Active Projects" value={stats.activeProjects} icon="🚀" change={5} changeType="increase" />
-          <StatCard title="Pending Tasks" value={stats.pendingTasks} icon="📋" change={2} changeType="decrease" />
-          <StatCard title="Total Employees" value={stats.totalEmployees} icon="👔" change={0} changeType="increase" />
+          <StatCard title="Active Projects" value={stats.activeProjects} icon="🚀" />
+          <StatCard title="Pending Tasks" value={stats.pendingTasks} icon="📋" />
+          <StatCard title="Total Employees" value={stats.totalEmployees} icon="👔" />
+        </div>
+
+        {/* Finance snapshot */}
+        <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+          <StatCard title="Collected" value={`${currencyCode} ${(stats.totalPaidAmount || 0).toLocaleString()}`} icon="✅" />
+          <StatCard title="Outstanding Balance (Recovery)" value={`${currencyCode} ${(stats.totalBalance || 0).toLocaleString()}`} icon="⏳" />
+        </div>
+
+        {/* Prospect priority breakdown (P1-P4) */}
+        <motion.section
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
+          className="mb-8 rounded-xl bg-white p-6 shadow-lg"
+        >
+          <h3 className="mb-4 text-lg font-semibold text-gray-900">Prospect Leads by Priority</h3>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {(['P1', 'P2', 'P3', 'P4'] as const).map((tier) => {
+              const count = (stats.priorityBreakdown || []).find((p) => p.name === tier)?.value || 0;
+              const tierColors: Record<string, string> = {
+                P1: 'bg-red-50 text-red-700',
+                P2: 'bg-orange-50 text-orange-700',
+                P3: 'bg-yellow-50 text-yellow-700',
+                P4: 'bg-blue-50 text-blue-700',
+              };
+              return (
+                <div key={tier} className={`rounded-lg p-4 text-center ${tierColors[tier]}`}>
+                  <p className="text-xs font-semibold uppercase tracking-wide">{tier}</p>
+                  <p className="mt-1 text-2xl font-bold">{count.toLocaleString()}</p>
+                </div>
+              );
+            })}
+          </div>
+        </motion.section>
+
+        {/* Leaderboards */}
+        <div className="mb-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
+          <motion.section
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35 }}
+            className="rounded-xl bg-white p-6 shadow-lg"
+          >
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">Branch Leaderboard</h3>
+            <div className="space-y-2">
+              {(!stats.branchPerformance || stats.branchPerformance.length === 0) ? (
+                <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">
+                  No branch data available.
+                </div>
+              ) : stats.branchPerformance.map((b, i) => (
+                <div key={`${b.branch}-${i}`} className="flex items-center justify-between border-b border-gray-100 py-2 last:border-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">{i + 1}</span>
+                    <p className="truncate text-sm font-medium text-gray-900">{b.branch}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-semibold text-gray-900">{b.leads} leads</p>
+                    <p className="text-xs text-gray-500">{b.conversion} conversion</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.section>
+
+          <motion.section
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35 }}
+            className="rounded-xl bg-white p-6 shadow-lg"
+          >
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">Top Counsellors</h3>
+            <div className="space-y-2">
+              {(!stats.topEmployees || stats.topEmployees.length === 0) ? (
+                <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">
+                  No counsellor data available.
+                </div>
+              ) : stats.topEmployees.map((e, i) => (
+                <div key={`${e.name}-${i}`} className="flex items-center justify-between border-b border-gray-100 py-2 last:border-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-700">{i + 1}</span>
+                    <p className="truncate text-sm font-medium text-gray-900">{e.name}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-semibold text-gray-900">{e.leads} leads</p>
+                    <p className="text-xs text-gray-500">{e.conversion} conversion</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.section>
         </div>
 
         <div className="mb-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
@@ -571,7 +709,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-sm font-semibold text-gray-900">{appointment.time}</p>
-                    <span className="mt-1 inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                    <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${appointmentStatusColor(appointment.status)}`}>
                       {appointment.status}
                     </span>
                   </div>

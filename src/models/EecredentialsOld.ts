@@ -28,28 +28,28 @@ interface EecredentialsOldAttributes {
 interface EecredentialsOldCreationAttributes extends Optional<EecredentialsOldAttributes, 'leadid' | 'eeuid' | 'eeusrpsswrd' | 'eeregemail' | 'eeregpsswrd' | 'eesecq1' | 'ee1' | 'eesecq2' | 'ee2' | 'eesecq3' | 'ee3' | 'eesecq4' | 'ee4' | 'recq1' | 'eer1' | 'recq2' | 'eer2' | 'recq3' | 'eer3' | 'recq4' | 'eer4'> {}
 
 class EecredentialsOld extends Model<EecredentialsOldAttributes, EecredentialsOldCreationAttributes> implements EecredentialsOldAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public eeuid!: string | null;
-  public eeusrpsswrd!: string | null;
-  public eeregemail!: string | null;
-  public eeregpsswrd!: string | null;
-  public eesecq1!: string | null;
-  public ee1!: string | null;
-  public eesecq2!: string | null;
-  public ee2!: string | null;
-  public eesecq3!: string | null;
-  public ee3!: string | null;
-  public eesecq4!: string | null;
-  public ee4!: string | null;
-  public recq1!: string | null;
-  public eer1!: string | null;
-  public recq2!: string | null;
-  public eer2!: string | null;
-  public recq3!: string | null;
-  public eer3!: string | null;
-  public recq4!: string | null;
-  public eer4!: string | null;
+  declare id: number;
+  declare leadid: number | null;
+  declare eeuid: string | null;
+  declare eeusrpsswrd: string | null;
+  declare eeregemail: string | null;
+  declare eeregpsswrd: string | null;
+  declare eesecq1: string | null;
+  declare ee1: string | null;
+  declare eesecq2: string | null;
+  declare ee2: string | null;
+  declare eesecq3: string | null;
+  declare ee3: string | null;
+  declare eesecq4: string | null;
+  declare ee4: string | null;
+  declare recq1: string | null;
+  declare eer1: string | null;
+  declare recq2: string | null;
+  declare eer2: string | null;
+  declare recq3: string | null;
+  declare eer3: string | null;
+  declare recq4: string | null;
+  declare eer4: string | null;
 
   public static associate(models: any) {
   }

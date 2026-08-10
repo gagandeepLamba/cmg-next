@@ -14,13 +14,13 @@ interface DmProspectRemarksAttributes {
 interface DmProspectRemarksCreationAttributes extends Optional<DmProspectRemarksAttributes, 'id' | 'date' | 'createdAt' | 'updatedAt'> {}
 
 class DmProspectRemarks extends Model<DmProspectRemarksAttributes, DmProspectRemarksCreationAttributes> implements DmProspectRemarksAttributes {
-  public id!: number;
-  public prospectId!: number;
-  public date!: Date;
-  public remark!: string;
-  public employeeId!: number;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare prospectId: number;
+  declare date: Date;
+  declare remark: string;
+  declare employeeId: number;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmProspectRemarks.belongsTo(models.DmProspects, { foreignKey: 'prospectId', targetKey: 'id', as: 'prospect' });

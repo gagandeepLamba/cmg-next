@@ -20,20 +20,20 @@ interface DmEuropePaymentOperationsAttributes {
 interface DmEuropePaymentOperationsCreationAttributes extends Optional<DmEuropePaymentOperationsAttributes, never> {}
 
 class DmEuropePaymentOperations extends Model<DmEuropePaymentOperationsAttributes, DmEuropePaymentOperationsCreationAttributes> implements DmEuropePaymentOperationsAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public stage_1!: number;
-  public stage_2!: number;
-  public stage_3!: number;
-  public stage_4!: number;
-  public stage_5!: number;
-  public stage_status_1!: string;
-  public stage_status_2!: string;
-  public stage_status_3!: string;
-  public stage_status_4!: string;
-  public stage_status_5!: string;
-  public created_by!: number;
-  public created!: Date;
+  declare id: number;
+  declare lead_id: number;
+  declare stage_1: number;
+  declare stage_2: number;
+  declare stage_3: number;
+  declare stage_4: number;
+  declare stage_5: number;
+  declare stage_status_1: string;
+  declare stage_status_2: string;
+  declare stage_status_3: string;
+  declare stage_status_4: string;
+  declare stage_status_5: string;
+  declare created_by: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

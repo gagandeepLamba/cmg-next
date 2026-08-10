@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { models } from '@/models';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const toPlain = (row: any) => row?.get ? row.get({ plain: true }) : row;
 
@@ -27,6 +28,8 @@ function normalizeAgreement(row: any) {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['agreements.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'list';
@@ -91,6 +94,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // This endpoint's only functional POST action is deleting an agreement
+  // (see below); everything else 400s. Gate on agreements.delete accordingly.
+  const auth = requireAuth(request, ['agreements.delete']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
     const action = body.action;

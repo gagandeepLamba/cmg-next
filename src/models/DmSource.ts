@@ -10,9 +10,9 @@ interface DmSourceAttributes {
 interface DmSourceCreationAttributes extends Optional<DmSourceAttributes, 'id' | 'status'> {}
 
 class DmSource extends Model<DmSourceAttributes, DmSourceCreationAttributes> implements DmSourceAttributes {
-  public id!: number;
-  public name!: string;
-  public status!: number;
+  declare id: number;
+  declare name: string;
+  declare status: number;
 
   public static associate(models: any) {
   }

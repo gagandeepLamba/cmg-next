@@ -27,37 +27,39 @@ interface DmPayHistoryAttributes {
   created_by: number;
   stage: string;
   totaltillnow: number;
+  proof_url: string | null;
 }
 
-interface DmPayHistoryCreationAttributes extends Optional<DmPayHistoryAttributes, 'amount' | 'date' | 'payMethod' | 'tax' | 'payCategory' | 'status' | 'remark' | 'canDate'> {}
+interface DmPayHistoryCreationAttributes extends Optional<DmPayHistoryAttributes, 'amount' | 'date' | 'payMethod' | 'tax' | 'payCategory' | 'status' | 'remark' | 'canDate' | 'proof_url'> {}
 
 class DmPayHistory extends Model<DmPayHistoryAttributes, DmPayHistoryCreationAttributes> implements DmPayHistoryAttributes {
-  public id!: number;
-  public leadId!: number;
-  public amount!: number;
-  public counselor_receipt!: string;
-  public tabby!: number;
-  public date!: Date | null;
-  public payMethod!: string | null;
-  public payoption!: string;
-  public paycardoption!: string;
-  public payNextDate!: Date;
-  public payBalance!: number;
-  public tax!: number;
-  public payCategory!: string | null;
-  public payment_remarks!: string;
-  public status!: number;
-  public remark!: string | null;
-  public canDate!: Date | null;
-  public thirdPartyAmt!: number;
-  public dmAmt!: number;
-  public dmTax!: number;
-  public dmRefundAmt!: number;
-  public curValue!: number;
-  public refNumber!: string;
-  public created_by!: number;
-  public stage!: string;
-  public totaltillnow!: number;
+  declare id: number;
+  declare leadId: number;
+  declare amount: number;
+  declare counselor_receipt: string;
+  declare tabby: number;
+  declare date: Date | null;
+  declare payMethod: string | null;
+  declare payoption: string;
+  declare paycardoption: string;
+  declare payNextDate: Date;
+  declare payBalance: number;
+  declare tax: number;
+  declare payCategory: string | null;
+  declare payment_remarks: string;
+  declare status: number;
+  declare remark: string | null;
+  declare canDate: Date | null;
+  declare thirdPartyAmt: number;
+  declare dmAmt: number;
+  declare dmTax: number;
+  declare dmRefundAmt: number;
+  declare curValue: number;
+  declare refNumber: string;
+  declare created_by: number;
+  declare stage: string;
+  declare totaltillnow: number;
+  declare proof_url: string | null;
 
   public static associate(models: any) {
     DmPayHistory.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLeads' });
@@ -174,6 +176,10 @@ DmPayHistory.init(
     totaltillnow: {
       type: DataTypes.DECIMAL(10,2),
       allowNull: false
+    },
+    proof_url: {
+      type: DataTypes.STRING(500),
+      allowNull: true
     },
   },
   {

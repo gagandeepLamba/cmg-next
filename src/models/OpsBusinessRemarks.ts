@@ -13,13 +13,13 @@ interface OpsBusinessRemarksAttributes {
 interface OpsBusinessRemarksCreationAttributes extends Optional<OpsBusinessRemarksAttributes, 'leadId' | 'added_by' | 'tab' | 'remark'> {}
 
 class OpsBusinessRemarks extends Model<OpsBusinessRemarksAttributes, OpsBusinessRemarksCreationAttributes> implements OpsBusinessRemarksAttributes {
-  public id!: number;
-  public leadId!: number | null;
-  public date!: string;
-  public added_by!: string | null;
-  public tab!: number | null;
-  public remark!: string | null;
-  public followup_remark_date!: Date;
+  declare id: number;
+  declare leadId: number | null;
+  declare date: string;
+  declare added_by: string | null;
+  declare tab: number | null;
+  declare remark: string | null;
+  declare followup_remark_date: Date;
 
   public static associate(models: any) {
   }

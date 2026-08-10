@@ -1,5 +1,6 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -93,7 +94,7 @@ export default function DocumentManagement() {
 
   const handleUploadDocument = async () => {
     if (!file) {
-      alert('Please select a file to upload')
+      window.toast.warning('Please select a file to upload')
       return
     }
 
@@ -446,25 +447,25 @@ export default function DocumentManagement() {
             <div className="mt-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Document Type</label>
-                <select
+                <SearchableSelect
                   value={formData.documentType}
                   onChange={(e) => setFormData({ ...formData, documentType: e.target.value as 'additional' | 'operations' })}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >
                   <option value="additional">Additional Document</option>
                   <option value="operations">Operations Document</option>
-                </select>
+                </SearchableSelect>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Lead</label>
-                <select
+                <SearchableSelect
                   value={formData.leadId}
                   onChange={(e) => setFormData({ ...formData, leadId: parseInt(e.target.value) })}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >
                   <option value={0}>Select Lead</option>
                   {/* Add lead options here */}
-                </select>
+                </SearchableSelect>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Document Type</label>

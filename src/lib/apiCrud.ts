@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Op } from 'sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { isCeo } from '@/lib/roleChecks';
+import { connectDB } from '@/lib/sequelize';
 
 type CrudConfig = {
   model: any;
@@ -11,6 +14,8 @@ type CrudConfig = {
   attributes?: string[];
   defaults?: (body: Record<string, unknown>) => Record<string, unknown>;
   before?: () => Promise<void>;
+  /** Permissions allowed to call this endpoint; any authenticated user if omitted. */
+  requiredPermissions?: string[];
 };
 
 const toPositiveInt = (value: string | null, fallback: number) => {
@@ -44,9 +49,30 @@ const buildWhere = (request: NextRequest, config: CrudConfig) => {
   return where;
 };
 
+let dbReady = false;
+const ensureCrudDB = async () => {
+  if (!dbReady) {
+    await connectDB();
+    dbReady = true;
+  }
+};
+
+const readJsonBody = async (request: NextRequest) => {
+  try {
+    return { body: await request.json() as Record<string, unknown> };
+  } catch {
+    return {
+      error: NextResponse.json({ error: 'Invalid JSON request body' }, { status: 400 }),
+    };
+  }
+};
+
 export const createCrudHandlers = (config: CrudConfig) => ({
   async GET(request: NextRequest) {
+    const auth = requireAuth(request, config.requiredPermissions);
+    if (isAuthError(auth)) return auth;
     try {
+      await ensureCrudDB();
       await config.before?.();
       const { searchParams } = new URL(request.url);
       const page = toPositiveInt(searchParams.get('page'), 1);
@@ -80,9 +106,14 @@ export const createCrudHandlers = (config: CrudConfig) => ({
   },
 
   async POST(request: NextRequest) {
+    const auth = requireAuth(request, config.requiredPermissions);
+    if (isAuthError(auth)) return auth;
     try {
+      await ensureCrudDB();
       await config.before?.();
-      const body = await request.json();
+      const parsed = await readJsonBody(request);
+      if (parsed.error) return parsed.error;
+      const body = parsed.body;
       const { id: _id, ...createData } = {
         ...body,
         ...(config.defaults ? config.defaults(body) : {}),
@@ -100,9 +131,14 @@ export const createCrudHandlers = (config: CrudConfig) => ({
   },
 
   async PUT(request: NextRequest) {
+    const auth = requireAuth(request, config.requiredPermissions);
+    if (isAuthError(auth)) return auth;
     try {
+      await ensureCrudDB();
       await config.before?.();
-      const body = await request.json();
+      const parsed = await readJsonBody(request);
+      if (parsed.error) return parsed.error;
+      const body = parsed.body;
       const id = Number.parseInt(String(body.id || ''), 10);
       const { id: _id, ...updateData } = body;
 
@@ -130,7 +166,15 @@ export const createCrudHandlers = (config: CrudConfig) => ({
   },
 
   async DELETE(request: NextRequest) {
+    const auth = requireAuth(request, config.requiredPermissions);
+    if (isAuthError(auth)) return auth;
+    // Deleting is CEO-only across every CRM module, regardless of what
+    // requiredPermissions this entity's config otherwise allows for GET/POST/PUT.
+    if (!isCeo(auth)) {
+      return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+    }
     try {
+      await ensureCrudDB();
       await config.before?.();
       const { searchParams } = new URL(request.url);
       const id = Number.parseInt(searchParams.get('id') || '', 10);

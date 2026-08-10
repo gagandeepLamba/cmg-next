@@ -30,30 +30,30 @@ interface DmWpCasesAttributes {
 interface DmWpCasesCreationAttributes extends Optional<DmWpCasesAttributes, never> {}
 
 class DmWpCases extends Model<DmWpCasesAttributes, DmWpCasesCreationAttributes> implements DmWpCasesAttributes {
-  public id!: number;
-  public vendor_id!: number;
-  public approve!: number;
-  public stage_2_approve!: number;
-  public stage_3_approve!: number;
-  public stage_2_denied!: number;
-  public stage_3_denied!: number;
-  public declined!: number;
-  public ag_no!: number;
-  public amount!: number;
-  public amount_stage_2!: number;
-  public amount_stage_3!: number;
-  public created!: Date;
-  public created_by!: number;
-  public batch_id!: number;
-  public account_approve!: number;
-  public account_approve_two!: number;
-  public account_approve_three!: number;
-  public ops_approve!: number;
-  public ops_approve_two!: number;
-  public ops_approve_three!: number;
-  public stage_2_file!: string;
-  public stage_3_file!: string;
-  public rejection!: string;
+  declare id: number;
+  declare vendor_id: number;
+  declare approve: number;
+  declare stage_2_approve: number;
+  declare stage_3_approve: number;
+  declare stage_2_denied: number;
+  declare stage_3_denied: number;
+  declare declined: number;
+  declare ag_no: number;
+  declare amount: number;
+  declare amount_stage_2: number;
+  declare amount_stage_3: number;
+  declare created: Date;
+  declare created_by: number;
+  declare batch_id: number;
+  declare account_approve: number;
+  declare account_approve_two: number;
+  declare account_approve_three: number;
+  declare ops_approve: number;
+  declare ops_approve_two: number;
+  declare ops_approve_three: number;
+  declare stage_2_file: string;
+  declare stage_3_file: string;
+  declare rejection: string;
 
   public static associate(models: any) {
   }

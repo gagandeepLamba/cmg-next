@@ -12,12 +12,12 @@ interface DmBranchAllocationsAttributes {
 interface DmBranchAllocationsCreationAttributes extends Optional<DmBranchAllocationsAttributes, never> {}
 
 class DmBranchAllocations extends Model<DmBranchAllocationsAttributes, DmBranchAllocationsCreationAttributes> implements DmBranchAllocationsAttributes {
-  public id!: number;
-  public emp_id!: number;
-  public branches!: string;
-  public status!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare emp_id: number;
+  declare branches: string;
+  declare status: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

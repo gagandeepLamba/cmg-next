@@ -1,8 +1,7 @@
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
 import crypto from 'crypto';
-import path from 'path';
-import { mkdir, writeFile } from 'fs/promises';
+import { put } from '@vercel/blob';
 import { HRService } from '@/services/hr-service';
 
 type RenewalRow = {
@@ -209,8 +208,6 @@ const statusLogEntry = (status: string, changedBy?: string | null) => JSON.strin
   changed_by: changedBy || null,
   changed_at: new Date().toISOString(),
 }]);
-const generatedRoot = path.join(process.cwd(), 'public', 'generated-documents', 'wps');
-const publicBaseUrl = process.env.APP_URL || 'http://localhost:3000';
 const pipeSafe = (value: string | number) => String(value ?? '').replace(/\|/g, ' ').trim();
 
 export class PROService {
@@ -239,7 +236,7 @@ export class PROService {
         issue_date DATE NOT NULL,
         expiry_date DATE NOT NULL,
         reminder_days JSON NULL,
-        status ENUM('Valid', 'Expiring Soon', 'Expired', 'Renewal In Progress', 'Cancelled') NOT NULL DEFAULT 'Valid',
+        status ENUM('Valid', 'Critical', 'Expiring Soon', 'Expired', 'Renewal In Progress', 'Cancelled') NOT NULL DEFAULT 'Valid',
         doc_file_url VARCHAR(500) NULL,
         notes TEXT NULL,
         managed_by CHAR(36) NULL,
@@ -260,6 +257,11 @@ export class PROService {
     await this.addColumnIfMissing('dm_pro_documents', 'managed_by', 'CHAR(36) NULL AFTER notes');
     await this.addColumnIfMissing('dm_pro_documents', 'renewal_cost', 'DECIMAL(12,2) NULL AFTER managed_by');
     await this.addColumnIfMissing('dm_pro_documents', 'last_renewed', 'DATE NULL AFTER renewal_cost');
+    await sequelize.query(`
+      ALTER TABLE dm_pro_documents MODIFY COLUMN status
+      ENUM('Valid', 'Critical', 'Expiring Soon', 'Expired', 'Renewal In Progress', 'Cancelled')
+      NOT NULL DEFAULT 'Valid'
+    `);
 
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS dm_pro_wps_runs (
@@ -731,7 +733,7 @@ export class PROService {
     const replacements: Record<string, string | number> = { limit: options.limit || 100 };
 
     if (options.employeeId) {
-      conditions.push('CAST(e.id AS CHAR) = :employeeId');
+      conditions.push('CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = :employeeId');
       replacements.employeeId = options.employeeId;
     }
 
@@ -740,7 +742,7 @@ export class PROService {
       `
         SELECT
           p.pro_emp_id AS proEmpId,
-          CAST(e.id AS CHAR) AS employeeId,
+          CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci AS employeeId,
           e.name AS employeeName,
           e.nationality,
           e.EID AS emiratesId,
@@ -768,7 +770,7 @@ export class PROService {
           DATEDIFF(COALESCE(p.labour_card_expiry, e.labexp), CURRENT_DATE()) AS labourDaysLeft,
           DATEDIFF(p.insurance_expiry, CURRENT_DATE()) AS insuranceDaysLeft
         FROM dm_employee e
-        LEFT JOIN dm_pro_employee_immigration p ON CAST(p.employee_id AS CHAR) = CAST(e.id AS CHAR)
+        LEFT JOIN dm_pro_employee_immigration p ON CAST(p.employee_id AS CHAR) COLLATE utf8mb4_general_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci
         ${where}
         ORDER BY COALESCE(p.visa_expiry_date, e.visaExp, '9999-12-31') ASC, e.id DESC
         LIMIT :limit
@@ -810,9 +812,7 @@ export class PROService {
     paymentDate: string;
     salaryRecords: WpsSalaryRecord[];
   }) {
-    await mkdir(generatedRoot, { recursive: true });
     const fileName = `wps_sif_${input.employerCode}_${input.payrollMonth.slice(0, 7).replace('-', '_')}_${input.wpsId}.txt`;
-    const filePath = path.join(generatedRoot, fileName);
     const lines = input.salaryRecords.map((record, index) => [
       input.agentId,
       input.employerCode,
@@ -825,8 +825,17 @@ export class PROService {
       record.account_number,
     ].map(pipeSafe).join('|'));
 
-    await writeFile(filePath, lines.join('\n'), 'utf8');
-    return `${publicBaseUrl}/generated-documents/wps/${fileName}`;
+    // Public folder writes only work on a persistent filesystem - on serverless
+    // hosting the write never survives past the request, and the link was also
+    // hardcoded to localhost. Blob storage (already used for payslips/letters)
+    // gives back a URL that's actually reachable regardless of host.
+    const blob = await put(`generated-documents/wps/${fileName}`, lines.join('\n'), {
+      access: 'public',
+      contentType: 'text/plain',
+      addRandomSuffix: true,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    return blob.url;
   }
 
   static async createWpsRecord(input: WpsRecordInput) {
@@ -943,7 +952,7 @@ export class PROService {
             processor.name AS processedByName,
             w.created_at AS createdAt
           FROM dm_pro_wps_records w
-          LEFT JOIN dm_employee processor ON CAST(processor.id AS CHAR) = w.processed_by
+          LEFT JOIN dm_employee processor ON CAST(processor.id AS CHAR) COLLATE utf8mb4_general_ci = w.processed_by
           UNION ALL
           SELECT
             CONCAT('legacy-', r.id) AS wpsId,
@@ -1122,7 +1131,7 @@ export class PROService {
           i.status,
           DATEDIFF(i.policy_expiry, CURRENT_DATE()) AS daysLeft
         FROM dm_pro_insurance_records i
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = i.employee_id
+        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = i.employee_id
         ${where}
         ORDER BY i.policy_expiry ASC
         LIMIT :limit

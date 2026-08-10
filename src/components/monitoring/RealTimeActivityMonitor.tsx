@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useRef } from 'react';
 import { CounselorLogger } from '@/lib/counselorLogger';
 import {
@@ -505,7 +506,7 @@ export default function RealTimeActivityMonitor() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Counselor</label>
-              <select
+              <SearchableSelect
                 value={selectedCounselor || ''}
                 onChange={(e) => setSelectedCounselor(e.target.value ? parseInt(e.target.value) : null)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -514,12 +515,12 @@ export default function RealTimeActivityMonitor() {
                 {counselors.map(counselor => (
                   <option key={counselor.id} value={counselor.id}>{counselor.name}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Time Range</label>
-              <select
+              <SearchableSelect
                 value={timeRange}
                 onChange={(e) => setTimeRange(e.target.value as any)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -529,7 +530,7 @@ export default function RealTimeActivityMonitor() {
                 <option value="24h">Last 24 Hours</option>
                 <option value="7d">Last 7 Days</option>
                 <option value="30d">Last 30 Days</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             <div>
@@ -546,7 +547,7 @@ export default function RealTimeActivityMonitor() {
                   {autoRefresh ? 'Enabled' : 'Disabled'}
                 </button>
                 {autoRefresh && (
-                  <select
+                  <SearchableSelect
                     value={refreshInterval}
                     onChange={(e) => setRefreshInterval(parseInt(e.target.value))}
                     className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -555,7 +556,7 @@ export default function RealTimeActivityMonitor() {
                     <option value={10000}>10 seconds</option>
                     <option value={30000}>30 seconds</option>
                     <option value={60000}>1 minute</option>
-                  </select>
+                  </SearchableSelect>
                 )}
               </div>
             </div>

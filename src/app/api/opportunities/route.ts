@@ -3,9 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DmcOpportunities } from '@/models';
 import { sequelize } from '@/lib/sequelize';
 import { QueryTypes } from 'sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['leads.view']);
+    if (isAuthError(auth)) return auth;
+
     const { searchParams } = new URL(request.url);
     const leadId = searchParams.get('leadId');
     const status = searchParams.get('status');
@@ -115,8 +119,18 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['leads.view', 'leads.create', 'leads.update']);
+    if (isAuthError(auth)) return auth;
+
     const body = await request.json();
-    
+
+    if (body.estimatedValue !== undefined && body.estimatedValue !== null && body.estimatedValue !== '') {
+      const estimatedValue = Number(body.estimatedValue);
+      if (!Number.isFinite(estimatedValue) || estimatedValue <= 0) {
+        return NextResponse.json({ error: 'estimatedValue must be a positive number' }, { status: 422 });
+      }
+    }
+
     const opportunityData = {
       ...body,
       opportunityNumber: `OPP-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
@@ -138,12 +152,22 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['leads.view', 'leads.update']);
+    if (isAuthError(auth)) return auth;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const body = await request.json();
 
+    if (body.estimatedValue !== undefined && body.estimatedValue !== null && body.estimatedValue !== '') {
+      const estimatedValue = Number(body.estimatedValue);
+      if (!Number.isFinite(estimatedValue) || estimatedValue <= 0) {
+        return NextResponse.json({ error: 'estimatedValue must be a positive number' }, { status: 422 });
+      }
+    }
+
     const opportunity = await DmcOpportunities.findByPk(id);
-    
+
     if (!opportunity) {
       return NextResponse.json(
         { error: 'Opportunity not found' },

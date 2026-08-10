@@ -1,7 +1,8 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +24,7 @@ import {
   AlertCircle,
   Clock
 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface BranchTarget {
   id: number
@@ -50,6 +52,7 @@ interface BranchTarget {
 }
 
 export default function BranchTargetPage() {
+  const { currencyCode } = useAuth()
   const [targets, setTargets] = useState<BranchTarget[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -164,18 +167,30 @@ export default function BranchTargetPage() {
       : 0
   }
 
+  const { sorted: sortedTargets, sortKey: targetSortKey, sortDirection: targetSortDirection, toggleSort: toggleTargetSort } = useSortableData(
+    filteredTargets,
+    {
+      branch: (t) => t.branchName,
+      period: (t) => `${t.targetYear}-${t.targetMonth}`,
+      leads: (t) => t.achievedLeads,
+      revenue: (t) => t.achievedRevenue,
+      conversions: (t) => t.achievedConversions,
+      status: (t) => t.status,
+    },
+  )
+
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -214,8 +229,8 @@ export default function BranchTargetPage() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-500">Revenue Target</p>
-                  <p className="text-2xl font-bold text-gray-900">${overallStats.totalRevenueTarget.toLocaleString()}</p>
-                  <p className="text-sm text-gray-500">Actual: ${overallStats.totalRevenueActual.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-gray-900">{currencyCode} {overallStats.totalRevenueTarget.toLocaleString()}</p>
+                  <p className="text-sm text-gray-500">Actual: {currencyCode} {overallStats.totalRevenueActual.toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
@@ -265,7 +280,7 @@ export default function BranchTargetPage() {
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 w-full"
                 />
               </div>
-              <select
+              <SearchableSelect
                 value={yearFilter}
                 onChange={(e) => setYearFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -273,8 +288,8 @@ export default function BranchTargetPage() {
                 <option value="2024">2024</option>
                 <option value="2023">2023</option>
                 <option value="2022">2022</option>
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 value={monthFilter}
                 onChange={(e) => setMonthFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -292,8 +307,8 @@ export default function BranchTargetPage() {
                 <option value="October">October</option>
                 <option value="November">November</option>
                 <option value="December">December</option>
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               >
@@ -301,8 +316,8 @@ export default function BranchTargetPage() {
                 <option value="active">Active</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 value={branchFilter}
                 onChange={(e) => setBranchFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -311,7 +326,7 @@ export default function BranchTargetPage() {
                 <option value="1">Dubai Main</option>
                 <option value="2">Abu Dhabi</option>
                 <option value="3">Sharjah</option>
-              </select>
+              </SearchableSelect>
               <Button variant="outline">
                 <Filter className="h-4 w-4 mr-2" />
                 More Filters
@@ -327,31 +342,19 @@ export default function BranchTargetPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Branch
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Period
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Leads
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Revenue
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Conversions
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
+                    <SortableTh label="Branch" sortKey="branch" activeKey={targetSortKey} direction={targetSortDirection} onSort={toggleTargetSort} />
+                    <SortableTh label="Period" sortKey="period" activeKey={targetSortKey} direction={targetSortDirection} onSort={toggleTargetSort} />
+                    <SortableTh label="Leads" sortKey="leads" activeKey={targetSortKey} direction={targetSortDirection} onSort={toggleTargetSort} />
+                    <SortableTh label="Revenue" sortKey="revenue" activeKey={targetSortKey} direction={targetSortDirection} onSort={toggleTargetSort} />
+                    <SortableTh label="Conversions" sortKey="conversions" activeKey={targetSortKey} direction={targetSortDirection} onSort={toggleTargetSort} />
+                    <SortableTh label="Status" sortKey="status" activeKey={targetSortKey} direction={targetSortDirection} onSort={toggleTargetSort} />
                     <th className="relative px-6 py-3">
                       <span className="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredTargets.map((target) => (
+                  {sortedTargets.map((target) => (
                     <tr key={target.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
@@ -379,7 +382,7 @@ export default function BranchTargetPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
                           <div className="text-sm text-gray-900">
-                            ${target.actualRevenue.toLocaleString()} / ${target.revenueTarget.toLocaleString()}
+                            {currencyCode} {target.actualRevenue.toLocaleString()} / {currencyCode} {target.revenueTarget.toLocaleString()}
                           </div>
                           <div className="text-xs text-gray-500">
                             ({target.achievedRevenue.toFixed(1)}%)
@@ -424,7 +427,7 @@ export default function BranchTargetPage() {
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+    </>
   )
 }
 

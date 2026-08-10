@@ -11,11 +11,11 @@ interface DmExpenseCashAttributes {
 interface DmExpenseCashCreationAttributes extends Optional<DmExpenseCashAttributes, never> {}
 
 class DmExpenseCash extends Model<DmExpenseCashAttributes, DmExpenseCashCreationAttributes> implements DmExpenseCashAttributes {
-  public id!: number;
-  public emp_id!: number;
-  public cash!: number;
-  public branch!: number;
-  public created!: Date;
+  declare id: number;
+  declare emp_id: number;
+  declare cash: number;
+  declare branch: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

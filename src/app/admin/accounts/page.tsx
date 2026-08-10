@@ -1,23 +1,34 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
-import { DmAccounts, DmAccountsAttributes } from '@/models';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { DmAccountsAttributes } from '@/models';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
+
+const emptyAccountForm = {
+  account_no: '',
+  bank_address: '',
+  bank_beneficiary: '',
+  bank_name: '',
+  iban: '',
+  branch_id: '',
+};
 
 export default function AccountsManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [accounts, setAccounts] = useState<DmAccountsAttributes[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAccount, setSelectedAccount] = useState<DmAccountsAttributes | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newAccount, setNewAccount] = useState({
-    account_no: '',
-    bank_address: '',
-    bank_beneficiary: '',
-    bank_name: '',
-    iban: '',
-    branch_id: '',
-  });
+  const [editingAccount, setEditingAccount] = useState<DmAccountsAttributes | null>(null);
+  const [accountForm, setAccountForm] = useState(emptyAccountForm);
+  const [accountFormError, setAccountFormError] = useState('');
+  const [accountFormBusy, setAccountFormBusy] = useState(false);
 
   useEffect(() => {
     fetchAccounts();
@@ -44,41 +55,75 @@ export default function AccountsManagement() {
     account.bank_beneficiary?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const { sorted: sortedAccounts, sortKey: accountSortKey, sortDirection: accountSortDirection, toggleSort: toggleAccountSort } = useSortableData(
+    filteredAccounts,
+    {
+      accountNo: (a) => a.account_no,
+      bankName: (a) => a.bank_name,
+      beneficiary: (a) => a.bank_beneficiary,
+      iban: (a) => a.iban,
+      branch: (a) => a.branch_id,
+    },
+  );
+
   const handleViewAccount = (account: DmAccountsAttributes) => {
     setSelectedAccount(account);
     setShowModal(true);
   };
 
-  const handleAddAccount = async () => {
-    if (newAccount.account_no && newAccount.bank_name) {
-      const response = await fetch('/api/admin/accounts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newAccount),
-      });
-      if (!response.ok) return;
-      await fetchAccounts();
-      setNewAccount({
-        account_no: '',
-        bank_address: '',
-        bank_beneficiary: '',
-        bank_name: '',
-        iban: '',
-        branch_id: '',
-      });
-      setShowAddModal(false);
-    }
+  const openAddAccount = () => {
+    setEditingAccount(null);
+    setAccountForm(emptyAccountForm);
+    setAccountFormError('');
+    setShowAddModal(true);
   };
 
-  const handleEditAccount = async (id: number, updatedAccount: Partial<DmAccountsAttributes>) => {
-    await fetch('/api/admin/accounts', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...updatedAccount }),
+  const openEditAccount = (account: DmAccountsAttributes) => {
+    setEditingAccount(account);
+    setAccountForm({
+      account_no: account.account_no || '',
+      bank_address: account.bank_address || '',
+      bank_beneficiary: account.bank_beneficiary || '',
+      bank_name: account.bank_name || '',
+      iban: account.iban || '',
+      branch_id: account.branch_id || '',
     });
-    await fetchAccounts();
-    setShowModal(false);
-    setSelectedAccount(null);
+    setAccountFormError('');
+    setShowAddModal(true);
+  };
+
+  const closeAccountForm = () => {
+    setShowAddModal(false);
+    setEditingAccount(null);
+    setAccountForm(emptyAccountForm);
+    setAccountFormError('');
+  };
+
+  const handleSaveAccount = async () => {
+    setAccountFormError('');
+    if (!accountForm.account_no.trim() || !accountForm.bank_name.trim()) {
+      setAccountFormError('Account number and bank name are required');
+      return;
+    }
+    setAccountFormBusy(true);
+    try {
+      const response = await fetch('/api/admin/accounts', {
+        method: editingAccount ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingAccount ? { id: editingAccount.id, ...accountForm } : accountForm),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setAccountFormError(result.error || 'Failed to save account');
+        return;
+      }
+      await fetchAccounts();
+      closeAccountForm();
+    } catch {
+      setAccountFormError('Network error while saving account');
+    } finally {
+      setAccountFormBusy(false);
+    }
   };
 
   const handleDeleteAccount = async (id: number) => {
@@ -105,7 +150,7 @@ export default function AccountsManagement() {
           <p className="text-gray-600 mt-2">Manage bank accounts and financial information</p>
         </div>
         <button 
-          onClick={() => setShowAddModal(true)}
+          onClick={openAddAccount}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
           Add New Account
@@ -124,43 +169,33 @@ export default function AccountsManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <SearchableSelect className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All Banks</option>
             <option value="Emirates NBD">Emirates NBD</option>
             <option value="Abu Dhabi Commercial Bank">Abu Dhabi Commercial Bank</option>
             <option value="Sharjah Islamic Bank">Sharjah Islamic Bank</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Accounts Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Account Number
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Bank Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Beneficiary
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  IBAN
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Branch
-                </th>
+                <SortableTh label="Account Number" sortKey="accountNo" activeKey={accountSortKey} direction={accountSortDirection} onSort={toggleAccountSort} />
+                <SortableTh label="Bank Name" sortKey="bankName" activeKey={accountSortKey} direction={accountSortDirection} onSort={toggleAccountSort} />
+                <SortableTh label="Beneficiary" sortKey="beneficiary" activeKey={accountSortKey} direction={accountSortDirection} onSort={toggleAccountSort} />
+                <SortableTh label="IBAN" sortKey="iban" activeKey={accountSortKey} direction={accountSortDirection} onSort={toggleAccountSort} />
+                <SortableTh label="Branch" sortKey="branch" activeKey={accountSortKey} direction={accountSortDirection} onSort={toggleAccountSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAccounts.map((account) => (
+              {sortedAccounts.map((account) => (
                 <tr key={account.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900 font-mono">
@@ -188,18 +223,20 @@ export default function AccountsManagement() {
                     >
                       View
                     </button>
-                    <button className="text-indigo-600 hover:text-indigo-900 mr-3">
+                    <button onClick={() => openEditAccount(account)} className="text-indigo-600 hover:text-indigo-900 mr-3">
                       Edit
                     </button>
-                    <button 
-                      onClick={() => {
-                        setSelectedAccount(account);
-                        setShowModal(true);
-                      }}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => {
+                          setSelectedAccount(account);
+                          setShowModal(true);
+                        }}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -262,13 +299,7 @@ export default function AccountsManagement() {
                 Close
               </button>
               <button 
-                onClick={() => {
-                  const newAccountNo = prompt('Enter new account number:', selectedAccount.account_no || '');
-                  const newBankName = prompt('Enter new bank name:', selectedAccount.bank_name || '');
-                  if (newAccountNo && newBankName) {
-                    handleEditAccount(selectedAccount.id, { account_no: newAccountNo, bank_name: newBankName });
-                  }
-                }}
+                onClick={() => openEditAccount(selectedAccount)}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
                 Edit Account
@@ -293,9 +324,9 @@ export default function AccountsManagement() {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-lg bg-white">
             <div className="flex justify-between items-center pb-3">
-              <h3 className="text-lg font-bold text-gray-900">Add New Account</h3>
+              <h3 className="text-lg font-bold text-gray-900">{editingAccount ? 'Edit Account' : 'Add New Account'}</h3>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={closeAccountForm}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -312,8 +343,8 @@ export default function AccountsManagement() {
                   <input
                     type="text"
                     id="accountNo"
-                    value={newAccount.account_no}
-                    onChange={(e) => setNewAccount({ ...newAccount, account_no: e.target.value })}
+                    value={accountForm.account_no}
+                    onChange={(e) => setAccountForm({ ...accountForm, account_no: e.target.value })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
                     placeholder="Enter account number"
                   />
@@ -325,8 +356,8 @@ export default function AccountsManagement() {
                   <input
                     type="text"
                     id="bankName"
-                    value={newAccount.bank_name}
-                    onChange={(e) => setNewAccount({ ...newAccount, bank_name: e.target.value })}
+                    value={accountForm.bank_name}
+                    onChange={(e) => setAccountForm({ ...accountForm, bank_name: e.target.value })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     placeholder="Enter bank name"
                   />
@@ -338,8 +369,8 @@ export default function AccountsManagement() {
                   <input
                     type="text"
                     id="beneficiary"
-                    value={newAccount.bank_beneficiary}
-                    onChange={(e) => setNewAccount({ ...newAccount, bank_beneficiary: e.target.value })}
+                    value={accountForm.bank_beneficiary}
+                    onChange={(e) => setAccountForm({ ...accountForm, bank_beneficiary: e.target.value })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     placeholder="Enter beneficiary name"
                   />
@@ -351,8 +382,8 @@ export default function AccountsManagement() {
                   <input
                     type="text"
                     id="iban"
-                    value={newAccount.iban}
-                    onChange={(e) => setNewAccount({ ...newAccount, iban: e.target.value })}
+                    value={accountForm.iban}
+                    onChange={(e) => setAccountForm({ ...accountForm, iban: e.target.value })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
                     placeholder="Enter IBAN"
                   />
@@ -364,8 +395,8 @@ export default function AccountsManagement() {
                   <input
                     type="text"
                     id="branchId"
-                    value={newAccount.branch_id}
-                    onChange={(e) => setNewAccount({ ...newAccount, branch_id: e.target.value })}
+                    value={accountForm.branch_id}
+                    onChange={(e) => setAccountForm({ ...accountForm, branch_id: e.target.value })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     placeholder="Enter branch name"
                   />
@@ -377,36 +408,28 @@ export default function AccountsManagement() {
                   <textarea
                     id="bankAddress"
                     rows={3}
-                    value={newAccount.bank_address}
-                    onChange={(e) => setNewAccount({ ...newAccount, bank_address: e.target.value })}
+                    value={accountForm.bank_address}
+                    onChange={(e) => setAccountForm({ ...accountForm, bank_address: e.target.value })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     placeholder="Enter bank address"
                   />
                 </div>
               </div>
+              {accountFormError && <p className="mt-4 text-sm text-red-600">{accountFormError}</p>}
             </div>
             <div className="mt-6 flex justify-end space-x-3">
               <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setNewAccount({
-                    account_no: '',
-                    bank_address: '',
-                    bank_beneficiary: '',
-                    bank_name: '',
-                    iban: '',
-                    branch_id: '',
-                  });
-                }}
+                onClick={closeAccountForm}
                 className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
               >
                 Cancel
               </button>
               <button 
-                onClick={handleAddAccount}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                onClick={handleSaveAccount}
+                disabled={accountFormBusy}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                Add Account
+                {accountFormBusy ? 'Saving...' : editingAccount ? 'Update Account' : 'Add Account'}
               </button>
             </div>
           </div>

@@ -3,14 +3,24 @@ import { sequelize } from '@/lib/sequelize';
 import { Dm3partyPayment, DmcForumLeads, DmcForumLeadsFee } from '@/models';
 import { DmcForumLeadsFeeCreationAttributes } from '@/models/DmcForumLeadsFee';
 import { Dm3partyPaymentCreationAttributes } from '@/models/Dm3partyPayment';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['payments.view', 'payments.create', 'finance.view', 'finance.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
     const { leadId, payments, totalAmount, receiptNumber } = body;
 
     if (!leadId) {
       return NextResponse.json({ message: 'Lead ID is required' }, { status: 400 });
+    }
+
+    if (!Number.isFinite(Number(totalAmount)) || Number(totalAmount) <= 0) {
+      return NextResponse.json({ message: 'totalAmount must be greater than zero' }, { status: 422 });
+    }
+    if (Array.isArray(payments) && payments.some((p) => !(Number(p?.amount) > 0))) {
+      return NextResponse.json({ message: 'Each payment amount must be greater than zero' }, { status: 422 });
     }
 
     const lead = await DmcForumLeads.findByPk(leadId);
@@ -20,6 +30,30 @@ export async function POST(request: NextRequest) {
 
     if (!Array.isArray(payments) || payments.length === 0) {
       return NextResponse.json({ message: 'payments array is required' }, { status: 400 });
+    }
+
+    // Duplicate-submission guard: dm_3party_payment has no insertion
+    // timestamp to check a "just now" window against, so this blocks an
+    // exact repeat instead - same lead, amount, method, and date already on
+    // file is overwhelmingly more likely to be a resubmitted click than a
+    // genuine second identical payment (mirrors the same-slot check already
+    // used for appointments in src/app/api/appointments/route.ts).
+    for (const payment of payments) {
+      const [existing] = await Dm3partyPayment.findAll({
+        where: {
+          leadId,
+          amount: parseFloat(payment.amount),
+          payMethod: payment.method,
+          date: new Date(payment.date),
+        },
+        limit: 1,
+      });
+      if (existing) {
+        return NextResponse.json(
+          { message: 'A matching payment for this lead has already been recorded - check the payment history before resubmitting.' },
+          { status: 409 }
+        );
+      }
     }
 
     const t = await sequelize.transaction();

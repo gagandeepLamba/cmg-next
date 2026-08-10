@@ -23,23 +23,23 @@ interface DmEmployeeAttendanceAttributes {
 interface DmEmployeeAttendanceCreationAttributes extends Optional<DmEmployeeAttendanceAttributes, never> {}
 
 class DmEmployeeAttendance extends Model<DmEmployeeAttendanceAttributes, DmEmployeeAttendanceCreationAttributes> implements DmEmployeeAttendanceAttributes {
-  public id!: number;
-  public emp_id!: number;
-  public ip_address!: string;
-  public device!: string;
-  public agent!: string;
-  public login_time!: Date;
-  public logout_time!: Date;
-  public total_hours!: number;
-  public short_fall!: number;
-  public remarks!: string;
-  public watch_by!: number;
-  public created!: Date;
-  public created_by!: number;
-  public checkin!: number;
-  public checkout!: number;
-  public logout_ip_address!: string;
-  public extra_hours!: number;
+  declare id: number;
+  declare emp_id: number;
+  declare ip_address: string;
+  declare device: string;
+  declare agent: string;
+  declare login_time: Date;
+  declare logout_time: Date;
+  declare total_hours: number;
+  declare short_fall: number;
+  declare remarks: string;
+  declare watch_by: number;
+  declare created: Date;
+  declare created_by: number;
+  declare checkin: number;
+  declare checkout: number;
+  declare logout_ip_address: string;
+  declare extra_hours: number;
 
   public static associate(models: any) {
   }

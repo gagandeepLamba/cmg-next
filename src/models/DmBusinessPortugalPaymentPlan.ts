@@ -20,20 +20,20 @@ interface DmBusinessPortugalPaymentPlanAttributes {
 interface DmBusinessPortugalPaymentPlanCreationAttributes extends Optional<DmBusinessPortugalPaymentPlanAttributes, never> {}
 
 class DmBusinessPortugalPaymentPlan extends Model<DmBusinessPortugalPaymentPlanAttributes, DmBusinessPortugalPaymentPlanCreationAttributes> implements DmBusinessPortugalPaymentPlanAttributes {
-  public leadId!: number;
-  public legal_fees!: number;
-  public total_fees!: number;
-  public vat!: number;
-  public first_payment!: number;
-  public due_diligence_fees!: number;
-  public government_application_fees!: number;
-  public government_passport_fees!: number;
-  public governement_cert_of_naturalization!: number;
-  public second_payment!: number;
-  public bank_charges!: number;
-  public created!: Date;
-  public created_by!: number;
-  public id!: number;
+  declare leadId: number;
+  declare legal_fees: number;
+  declare total_fees: number;
+  declare vat: number;
+  declare first_payment: number;
+  declare due_diligence_fees: number;
+  declare government_application_fees: number;
+  declare government_passport_fees: number;
+  declare governement_cert_of_naturalization: number;
+  declare second_payment: number;
+  declare bank_charges: number;
+  declare created: Date;
+  declare created_by: number;
+  declare id: number;
 
   public static associate(models: any) {
   }

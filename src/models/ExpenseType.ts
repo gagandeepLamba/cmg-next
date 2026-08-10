@@ -11,11 +11,11 @@ interface ExpenseTypeAttributes {
 interface ExpenseTypeCreationAttributes extends Optional<ExpenseTypeAttributes, never> {}
 
 class ExpenseType extends Model<ExpenseTypeAttributes, ExpenseTypeCreationAttributes> implements ExpenseTypeAttributes {
-  public id!: number;
-  public expense_type!: string;
-  public status!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare expense_type: string;
+  declare status: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

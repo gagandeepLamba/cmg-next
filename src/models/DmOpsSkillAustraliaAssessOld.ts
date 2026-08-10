@@ -17,17 +17,17 @@ interface DmOpsSkillAustraliaAssessOldAttributes {
 interface DmOpsSkillAustraliaAssessOldCreationAttributes extends Optional<DmOpsSkillAustraliaAssessOldAttributes, never> {}
 
 class DmOpsSkillAustraliaAssessOld extends Model<DmOpsSkillAustraliaAssessOldAttributes, DmOpsSkillAustraliaAssessOldCreationAttributes> implements DmOpsSkillAustraliaAssessOldAttributes {
-  public id!: number;
-  public agreeNo!: string;
-  public anzCode!: string;
-  public chklistDate!: string;
-  public resultDate!: string;
-  public assmAuthority!: string;
-  public assmSubDate!: string;
-  public assmStatus!: string;
-  public spSkillAssm!: string;
-  public remark!: string;
-  public skilFile!: string;
+  declare id: number;
+  declare agreeNo: string;
+  declare anzCode: string;
+  declare chklistDate: string;
+  declare resultDate: string;
+  declare assmAuthority: string;
+  declare assmSubDate: string;
+  declare assmStatus: string;
+  declare spSkillAssm: string;
+  declare remark: string;
+  declare skilFile: string;
 
   public static associate(models: any) {
   }

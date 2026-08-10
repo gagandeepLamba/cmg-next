@@ -19,18 +19,18 @@ interface DmcAutoReassignmentRulesAttributes {
 interface DmcAutoReassignmentRulesCreationAttributes extends Optional<DmcAutoReassignmentRulesAttributes, 'id' | 'description' | 'inactive_hours_threshold' | 'auto_reassign' | 'reassign_to_role' | 'reassign_to_branch' | 'priority_filter' | 'lead_quality_filter' | 'is_active' | 'created_at' | 'updated_at'> {}
 
 class DmcAutoReassignmentRules extends Model<DmcAutoReassignmentRulesAttributes, DmcAutoReassignmentRulesCreationAttributes> implements DmcAutoReassignmentRulesAttributes {
-  public id!: number;
-  public rule_name!: string;
-  public description!: string | null;
-  public inactive_hours_threshold!: number;
-  public auto_reassign!: boolean;
-  public reassign_to_role!: string;
-  public reassign_to_branch!: number;
-  public priority_filter!: string;
-  public lead_quality_filter!: string;
-  public is_active!: boolean;
-  public created_at!: Date;
-  public updated_at!: Date;
+  declare id: number;
+  declare rule_name: string;
+  declare description: string | null;
+  declare inactive_hours_threshold: number;
+  declare auto_reassign: boolean;
+  declare reassign_to_role: string;
+  declare reassign_to_branch: number;
+  declare priority_filter: string;
+  declare lead_quality_filter: string;
+  declare is_active: boolean;
+  declare created_at: Date;
+  declare updated_at: Date;
 }
 
 DmcAutoReassignmentRules.init(

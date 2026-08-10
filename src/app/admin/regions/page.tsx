@@ -1,11 +1,26 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { DmRegion } from '@/models/DmRegion';
 import type { DmRegionAttributes } from '@/models/DmRegion';
+import { useBulkSelection } from '@/hooks/useBulkSelection';
+import BulkActionBar from '@/components/admin/BulkActionBar';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 export default function RegionsManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [regions, setRegions] = useState<DmRegionAttributes[]>([]);
+  const { sorted: sortedRegions, sortKey: regionSortKey, sortDirection: regionSortDirection, toggleSort: toggleRegionSort } = useSortableData(
+    regions,
+    {
+      name: (r) => r.name,
+      status: (r) => r.status,
+    },
+  );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRegion, setSelectedRegion] = useState<DmRegionAttributes | null>(null);
@@ -21,6 +36,8 @@ export default function RegionsManagement() {
   const [filters, setFilters] = useState({
     status: ''
   });
+  const { selectedIds, toggleOne, toggleAll, clear, isSelected, allSelected } = useBulkSelection(regions);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     fetchRegions();
@@ -88,11 +105,11 @@ export default function RegionsManagement() {
         fetchRegions();
       } else {
         const error = await response.json();
-        alert('Error deleting region: ' + error.error);
+        window.toast.error('Error deleting region: ' + error.error);
       }
     } catch (error) {
       console.error('Error deleting region:', error);
-      alert('Error deleting region');
+      window.toast.error('Error deleting region');
     }
   };
 
@@ -111,11 +128,11 @@ export default function RegionsManagement() {
         fetchRegions();
       } else {
         const error = await response.json();
-        alert('Error adding region: ' + error.error);
+        window.toast.error('Error adding region: ' + error.error);
       }
     } catch (error) {
       console.error('Error adding region:', error);
-      alert('Error adding region');
+      window.toast.error('Error adding region');
     }
   };
 
@@ -137,16 +154,46 @@ export default function RegionsManagement() {
         fetchRegions();
       } else {
         const error = await response.json();
-        alert('Error updating region: ' + error.error);
+        window.toast.error('Error updating region: ' + error.error);
       }
     } catch (error) {
       console.error('Error updating region:', error);
-      alert('Error updating region');
+      window.toast.error('Error updating region');
     }
   };
 
   const getStatusColor = (status: number) => {
     return status === 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+  };
+
+  const setBulkStatus = async (status: 0 | 1) => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch('/api/admin/regions', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status }),
+        })
+      ));
+      clear();
+      fetchRegions();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch(`/api/admin/regions?id=${id}`, { method: 'DELETE' })
+      ));
+      clear();
+      fetchRegions();
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   if (loading) {
@@ -185,7 +232,7 @@ export default function RegionsManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select 
+          <SearchableSelect 
             value={filters.status}
             onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -193,30 +240,42 @@ export default function RegionsManagement() {
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Regions Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Region Name
+                <th className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <SortableTh label="Region Name" sortKey="name" activeKey={regionSortKey} direction={regionSortDirection} onSort={toggleRegionSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={regionSortKey} direction={regionSortDirection} onSort={toggleRegionSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {regions.map((region: DmRegionAttributes) => (
+              {sortedRegions.map((region: DmRegionAttributes) => (
                 <tr key={region.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected(region.id)}
+                      onChange={(e) => toggleOne(region.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
                       {region.name}
@@ -240,12 +299,14 @@ export default function RegionsManagement() {
                     >
                       Edit
                     </button>
-                    <button 
-                      onClick={() => handleDeleteRegion(region.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteRegion(region.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -253,6 +314,17 @@ export default function RegionsManagement() {
           </table>
         </div>
       </div>
+
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        busy={bulkBusy}
+        onActivate={() => setBulkStatus(1)}
+        onDeactivate={() => setBulkStatus(0)}
+        onDelete={handleBulkDelete}
+        onClear={clear}
+        entityLabel="region"
+        deleteConfirmMessage={`Delete ${selectedIds.size} region(s)? This may affect associated branches. This cannot be undone.`}
+      />
 
       {/* Pagination */}
       <div className="bg-white rounded-lg shadow p-4">
@@ -404,7 +476,7 @@ function RegionFormModal({ title, initialData, onSubmit, onClose }: RegionFormMo
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Status *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.status}
                 onChange={(e) => setFormData(prev => ({ ...prev, status: parseInt(e.target.value) }))}
@@ -412,7 +484,7 @@ function RegionFormModal({ title, initialData, onSubmit, onClose }: RegionFormMo
               >
                 <option value="1">Active</option>
                 <option value="0">Inactive</option>
-              </select>
+              </SearchableSelect>
             </div>
           </div>
           <div className="mt-6 flex justify-end space-x-3">

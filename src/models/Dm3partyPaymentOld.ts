@@ -13,13 +13,13 @@ interface Dm3partyPaymentOldAttributes {
 interface Dm3partyPaymentOldCreationAttributes extends Optional<Dm3partyPaymentOldAttributes, 'Tax'> {}
 
 class Dm3partyPaymentOld extends Model<Dm3partyPaymentOldAttributes, Dm3partyPaymentOldCreationAttributes> implements Dm3partyPaymentOldAttributes {
-  public id!: number;
-  public agreeNo!: string;
-  public date!: Date;
-  public amount!: number;
-  public Tax!: number;
-  public payMethod!: string;
-  public particular!: string;
+  declare id: number;
+  declare agreeNo: string;
+  declare date: Date;
+  declare amount: number;
+  declare Tax: number;
+  declare payMethod: string;
+  declare particular: string;
 
   public static associate(models: any) {
   }

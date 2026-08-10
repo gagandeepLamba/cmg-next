@@ -12,12 +12,12 @@ interface DmCounsilorAllocationsAttributes {
 interface DmCounsilorAllocationsCreationAttributes extends Optional<DmCounsilorAllocationsAttributes, never> {}
 
 class DmCounsilorAllocations extends Model<DmCounsilorAllocationsAttributes, DmCounsilorAllocationsCreationAttributes> implements DmCounsilorAllocationsAttributes {
-  public id!: number;
-  public branch_id!: number;
-  public counsilors!: string;
-  public status!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare branch_id: number;
+  declare counsilors: string;
+  declare status: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

@@ -23,23 +23,23 @@ interface DmcForumLeadsContractsAttributes {
 interface DmcForumLeadsContractsCreationAttributes extends Optional<DmcForumLeadsContractsAttributes, 'new_contract' | 'garys' | 'verify' | 'remarks' | 'verify_by' | 'verify_date'> {}
 
 class DmcForumLeadsContracts extends Model<DmcForumLeadsContractsAttributes, DmcForumLeadsContractsCreationAttributes> implements DmcForumLeadsContractsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public contract!: string;
-  public unsigned_contract!: string;
-  public new_contract!: string | null;
-  public ar_contract!: string;
-  public garys!: string | null;
-  public verify!: number;
-  public remarks!: string | null;
-  public verify_by!: number;
-  public verify_date!: Date | null;
-  public batch_id!: number;
-  public wp_batch_id!: number;
-  public vendor_id!: number;
-  public employer_id!: number;
-  public old_crm_ag_id!: number;
-  public payment_status!: number;
+  declare id: number;
+  declare leadId: number;
+  declare contract: string;
+  declare unsigned_contract: string;
+  declare new_contract: string | null;
+  declare ar_contract: string;
+  declare garys: string | null;
+  declare verify: number;
+  declare remarks: string | null;
+  declare verify_by: number;
+  declare verify_date: Date | null;
+  declare batch_id: number;
+  declare wp_batch_id: number;
+  declare vendor_id: number;
+  declare employer_id: number;
+  declare old_crm_ag_id: number;
+  declare payment_status: number;
 
   public static associate(models: any) {
     DmcForumLeadsContracts.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLeads' });

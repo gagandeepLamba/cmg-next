@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PROService } from '@/services/pro-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const visaTypes = ['Employment', 'Mission', 'Investor', 'Partner', 'Other'] as const;
 const contractTypes = ['Limited', 'Unlimited'] as const;
@@ -26,6 +27,8 @@ const isVisaStatus = (value: unknown): value is VisaStatus => (
 );
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const records = await PROService.listEmployeeImmigrationRecords({
@@ -41,6 +44,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.create']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
 
@@ -81,6 +86,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const proEmpId = readString(body, 'pro_emp_id');

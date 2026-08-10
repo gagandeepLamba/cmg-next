@@ -9,9 +9,9 @@ interface IeltsAttributes {
 interface IeltsCreationAttributes extends Optional<IeltsAttributes, 'timing' | 'link'> {}
 
 class Ielts extends Model<IeltsAttributes, IeltsCreationAttributes> implements IeltsAttributes {
-  public id!: number;
-  public timing!: string | null;
-  public link!: string | null;
+  declare id: number;
+  declare timing: string | null;
+  declare link: string | null;
 
   public static associate(models: any) {
   }

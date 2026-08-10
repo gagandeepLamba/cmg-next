@@ -16,16 +16,16 @@ interface AusEoiOldAttributes {
 interface AusEoiOldCreationAttributes extends Optional<AusEoiOldAttributes, 'leadid' | 'dol' | 'doe' | 'points' | 'eoi_status' | 'pof' | 'state' | 'file'> {}
 
 class AusEoiOld extends Model<AusEoiOldAttributes, AusEoiOldCreationAttributes> implements AusEoiOldAttributes {
-  public id!: number;
-  public leadid!: string | null;
-  public dol!: string | null;
-  public doe!: string | null;
-  public points!: number | null;
-  public eoi_status!: string | null;
-  public pof!: string | null;
-  public statcat!: string;
-  public state!: string | null;
-  public file!: string | null;
+  declare id: number;
+  declare leadid: string | null;
+  declare dol: string | null;
+  declare doe: string | null;
+  declare points: number | null;
+  declare eoi_status: string | null;
+  declare pof: string | null;
+  declare statcat: string;
+  declare state: string | null;
+  declare file: string | null;
 
   public static associate(models: any) {
   }

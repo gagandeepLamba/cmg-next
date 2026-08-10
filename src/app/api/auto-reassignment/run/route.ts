@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { DmcForumLeads, DmcLeadReassignments, DmEmployee } from '@/models';
 import { sequelize } from '@/lib/sequelize';
 import { Op, QueryTypes } from 'sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 type Rule = {
   id: number;
@@ -42,7 +43,9 @@ const ensureRulesTable = async () => {
   `);
 };
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['transfers.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureRulesTable();
     const activeRules = await sequelize.query<Rule>(

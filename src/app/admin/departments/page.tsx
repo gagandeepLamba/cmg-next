@@ -1,11 +1,27 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { DmDepartment } from '@/models/DmDepartment';
 import type { DmDepartmentAttributes } from '@/models/DmDepartment';
+import { useBulkSelection } from '@/hooks/useBulkSelection';
+import BulkActionBar from '@/components/admin/BulkActionBar';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 export default function DepartmentsManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [departments, setDepartments] = useState<DmDepartmentAttributes[]>([]);
+  const { sorted: sortedDepartments, sortKey: departmentSortKey, sortDirection: departmentSortDirection, toggleSort: toggleDepartmentSort } = useSortableData(
+    departments,
+    {
+      id: (d) => d.id,
+      name: (d) => d.name,
+      status: (d) => d.status,
+    },
+  );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<DmDepartmentAttributes | null>(null);
@@ -21,6 +37,8 @@ export default function DepartmentsManagement() {
   const [filters, setFilters] = useState({
     status: ''
   });
+  const { selectedIds, toggleOne, toggleAll, clear, isSelected, allSelected } = useBulkSelection(departments);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     fetchDepartments();
@@ -88,11 +106,11 @@ export default function DepartmentsManagement() {
         fetchDepartments();
       } else {
         const error = await response.json();
-        alert('Error deleting department: ' + error.error);
+        window.toast.error('Error deleting department: ' + error.error);
       }
     } catch (error) {
       console.error('Error deleting department:', error);
-      alert('Error deleting department');
+      window.toast.error('Error deleting department');
     }
   };
 
@@ -111,11 +129,11 @@ export default function DepartmentsManagement() {
         fetchDepartments();
       } else {
         const error = await response.json();
-        alert('Error adding department: ' + error.error);
+        window.toast.error('Error adding department: ' + error.error);
       }
     } catch (error) {
       console.error('Error adding department:', error);
-      alert('Error adding department');
+      window.toast.error('Error adding department');
     }
   };
 
@@ -137,16 +155,46 @@ export default function DepartmentsManagement() {
         fetchDepartments();
       } else {
         const error = await response.json();
-        alert('Error updating department: ' + error.error);
+        window.toast.error('Error updating department: ' + error.error);
       }
     } catch (error) {
       console.error('Error updating department:', error);
-      alert('Error updating department');
+      window.toast.error('Error updating department');
     }
   };
 
   const getStatusColor = (status: number) => {
     return status === 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+  };
+
+  const setBulkStatus = async (status: 0 | 1) => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch('/api/admin/departments', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status }),
+        })
+      ));
+      clear();
+      fetchDepartments();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch(`/api/admin/departments?id=${id}`, { method: 'DELETE' })
+      ));
+      clear();
+      fetchDepartments();
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   if (loading) {
@@ -185,7 +233,7 @@ export default function DepartmentsManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select 
+          <SearchableSelect 
             value={filters.status}
             onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -193,33 +241,43 @@ export default function DepartmentsManagement() {
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Departments Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
+                <th className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <SortableTh label="ID" sortKey="id" activeKey={departmentSortKey} direction={departmentSortDirection} onSort={toggleDepartmentSort} />
+                <SortableTh label="Name" sortKey="name" activeKey={departmentSortKey} direction={departmentSortDirection} onSort={toggleDepartmentSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={departmentSortKey} direction={departmentSortDirection} onSort={toggleDepartmentSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {departments.map((department: DmDepartmentAttributes) => (
+              {sortedDepartments.map((department: DmDepartmentAttributes) => (
                 <tr key={department.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected(department.id)}
+                      onChange={(e) => toggleOne(department.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
                       #{department.id}
@@ -248,12 +306,14 @@ export default function DepartmentsManagement() {
                     >
                       Edit
                     </button>
-                    <button 
-                      onClick={() => handleDeleteDepartment(department.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteDepartment(department.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -261,6 +321,17 @@ export default function DepartmentsManagement() {
           </table>
         </div>
       </div>
+
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        busy={bulkBusy}
+        onActivate={() => setBulkStatus(1)}
+        onDeactivate={() => setBulkStatus(0)}
+        onDelete={handleBulkDelete}
+        onClear={clear}
+        entityLabel="department"
+        deleteConfirmMessage={`Delete ${selectedIds.size} department(s)? This cannot be undone.`}
+      />
 
       {/* Pagination */}
       <div className="bg-white rounded-lg shadow p-4">
@@ -412,7 +483,7 @@ function DepartmentFormModal({ title, initialData, onSubmit, onClose }: Departme
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Status *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.status}
                 onChange={(e) => setFormData(prev => ({ ...prev, status: parseInt(e.target.value) }))}
@@ -420,7 +491,7 @@ function DepartmentFormModal({ title, initialData, onSubmit, onClose }: Departme
               >
                 <option value="1">Active</option>
                 <option value="0">Inactive</option>
-              </select>
+              </SearchableSelect>
             </div>
           </div>
           <div className="mt-6 flex justify-end space-x-3">

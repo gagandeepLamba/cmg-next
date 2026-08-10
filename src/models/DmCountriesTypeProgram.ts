@@ -12,12 +12,12 @@ interface DmCountriesTypeProgramAttributes {
 interface DmCountriesTypeProgramCreationAttributes extends Optional<DmCountriesTypeProgramAttributes, never> {}
 
 class DmCountriesTypeProgram extends Model<DmCountriesTypeProgramAttributes, DmCountriesTypeProgramCreationAttributes> implements DmCountriesTypeProgramAttributes {
-  public id!: number;
-  public country!: number;
-  public type!: number;
-  public program!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare country: number;
+  declare type: number;
+  declare program: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
     DmCountriesTypeProgram.belongsTo(models.DmCountryProces, { foreignKey: 'country', targetKey: 'id', as: 'countryDetails' });

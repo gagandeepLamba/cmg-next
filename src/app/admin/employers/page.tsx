@@ -1,9 +1,15 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { DmEmployerAttributes } from '@/models';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 export default function EmployersManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [employers, setEmployers] = useState<DmEmployerAttributes[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,6 +63,19 @@ export default function EmployersManagement() {
     (employer.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     employer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     employer.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const { sorted: sortedEmployers, sortKey: employerSortKey, sortDirection: employerSortDirection, toggleSort: toggleEmployerSort } = useSortableData(
+    filteredEmployers,
+    {
+      id: (e) => e.id,
+      name: (e) => e.name,
+      company: (e) => e.company_name,
+      email: (e) => e.email,
+      mobile: (e) => e.mobile,
+      website: (e) => e.website,
+      status: (e) => e.status,
+    },
   );
 
   const handleViewEmployer = (employer: DmEmployerAttributes) => {
@@ -157,54 +176,40 @@ export default function EmployersManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <SearchableSelect className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All Vendors</option>
             <option value="1">Vendor 1</option>
             <option value="2">Vendor 2</option>
             <option value="3">Vendor 3</option>
-          </select>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          </SearchableSelect>
+          <SearchableSelect className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Employers Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Company
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Mobile
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Website
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <SortableTh label="ID" sortKey="id" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
+                <SortableTh label="Name" sortKey="name" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
+                <SortableTh label="Company" sortKey="company" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
+                <SortableTh label="Email" sortKey="email" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
+                <SortableTh label="Mobile" sortKey="mobile" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
+                <SortableTh label="Website" sortKey="website" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredEmployers.map((employer) => (
+              {sortedEmployers.map((employer) => (
                 <tr key={employer.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
@@ -248,15 +253,17 @@ export default function EmployersManagement() {
                     <button className="text-indigo-600 hover:text-indigo-900 mr-3">
                       Edit
                     </button>
-                    <button 
-                      onClick={() => {
-                        setSelectedEmployer(employer);
-                        setShowModal(true);
-                      }}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => {
+                          setSelectedEmployer(employer);
+                          setShowModal(true);
+                        }}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -444,7 +451,7 @@ export default function EmployersManagement() {
                   <label htmlFor="vendorId" className="block text-sm font-medium text-gray-700">
                     Vendor
                   </label>
-                  <select
+                  <SearchableSelect
                     id="vendorId"
                     value={newEmployer.vendor_id}
                     onChange={(e) => setNewEmployer({ ...newEmployer, vendor_id: parseInt(e.target.value) })}
@@ -453,13 +460,13 @@ export default function EmployersManagement() {
                     <option value={1}>Vendor 1</option>
                     <option value={2}>Vendor 2</option>
                     <option value={3}>Vendor 3</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label htmlFor="employerStatus" className="block text-sm font-medium text-gray-700">
                     Status
                   </label>
-                  <select
+                  <SearchableSelect
                     id="employerStatus"
                     value={newEmployer.status}
                     onChange={(e) => setNewEmployer({ ...newEmployer, status: parseInt(e.target.value) })}
@@ -467,7 +474,7 @@ export default function EmployersManagement() {
                   >
                     <option value={1}>Active</option>
                     <option value={0}>Inactive</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
               <div className="mt-4">

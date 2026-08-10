@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface DeliveryRow {
@@ -36,6 +37,16 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function MetaLogsPage() {
   const [rows, setRows]         = useState<DeliveryRow[]>([]);
+  const { sorted: sortedRows, sortKey: logSortKey, sortDirection: logSortDirection, toggleSort: toggleLogSort } = useSortableData(
+    rows,
+    {
+      lead: (r) => r.full_name,
+      status: (r) => r.status,
+      error: (r) => r.last_error,
+      retries: (r) => r.retry_count,
+      received: (r) => r.created_at,
+    },
+  );
   const [pagination, setPag]    = useState<Pagination>({ page: 1, limit: 25, total: 0, pages: 0 });
   const [loading, setLoading]   = useState(true);
   const [statusFilter, setStatus] = useState('');
@@ -59,11 +70,11 @@ export default function MetaLogsPage() {
           meta_lead_id: lead.id,
           full_name: lead.full_name || '—',
           status: lead.delivery_status,
-          response_status: 0,
+          response_status: lead.response_status ?? 0,
           last_error: lead.last_error || '',
           retry_count: lead.retry_count || 0,
-          next_retry_at: '',
-          delivered_at: '',
+          next_retry_at: lead.next_retry_at || '',
+          delivered_at: lead.delivered_at || '',
           created_at: lead.created_at,
           updated_at: lead.created_at,
         });
@@ -123,19 +134,19 @@ export default function MetaLogsPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-gray-100 bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500">
             <tr>
-              <th className="px-4 py-3 text-left">Lead</th>
-              <th className="px-4 py-3 text-left">CRM Status</th>
-              <th className="px-4 py-3 text-left">Error</th>
-              <th className="px-4 py-3 text-right">Retries</th>
-              <th className="px-4 py-3 text-left">Received</th>
+              <SortableTh label="Lead" sortKey="lead" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} className="px-4 py-3 text-left" />
+              <SortableTh label="CRM Status" sortKey="status" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Error" sortKey="error" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Retries" sortKey="retries" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} className="px-4 py-3 text-right" />
+              <SortableTh label="Received" sortKey="received" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} className="px-4 py-3 text-left" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
-            ) : rows.length === 0 ? (
+            ) : sortedRows.length === 0 ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No logs found</td></tr>
-            ) : rows.map(row => (
+            ) : sortedRows.map(row => (
               <tr key={row.id} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 font-medium text-gray-900">{row.full_name}</td>
                 <td className="px-4 py-2.5"><StatusBadge status={row.status} /></td>

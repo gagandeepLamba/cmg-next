@@ -1,9 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
 import { apiError } from '@/lib/apiError';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['operations.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const batches = await sequelize.query<any>(`
       SELECT b.id, b.batch_name, NULL AS created, 0 AS vendor_id, 1 AS status,

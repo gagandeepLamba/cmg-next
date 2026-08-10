@@ -13,13 +13,13 @@ interface DmForm4691Attributes {
 interface DmForm4691CreationAttributes extends Optional<DmForm4691Attributes, 'name' | 'email' | 'phone' | 'your_message' | 'form_date'> {}
 
 class DmForm4691 extends Model<DmForm4691Attributes, DmForm4691CreationAttributes> implements DmForm4691Attributes {
-  public id!: number;
-  public db4_status!: string;
-  public name!: string | null;
-  public email!: string | null;
-  public phone!: string | null;
-  public your_message!: string | null;
-  public form_date!: Date;
+  declare id: number;
+  declare db4_status: string;
+  declare name: string | null;
+  declare email: string | null;
+  declare phone: string | null;
+  declare your_message: string | null;
+  declare form_date: Date;
 
   public static associate(models: any) {
   }

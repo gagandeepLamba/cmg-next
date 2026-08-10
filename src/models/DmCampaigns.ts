@@ -11,11 +11,11 @@ interface DmCampaignsAttributes {
 interface DmCampaignsCreationAttributes extends Optional<DmCampaignsAttributes, never> {}
 
 class DmCampaigns extends Model<DmCampaignsAttributes, DmCampaignsCreationAttributes> implements DmCampaignsAttributes {
-  public id!: number;
-  public campaign!: string;
-  public created!: Date;
-  public created_by!: number;
-  public status!: number;
+  declare id: number;
+  declare campaign: string;
+  declare created: Date;
+  declare created_by: number;
+  declare status: number;
 
   public static associate(models: any) {
   }

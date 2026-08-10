@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
-import { verifyToken } from '@/lib/auth';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 let dbReady = false;
 async function ensureDB() {
   if (!dbReady) { await connectDB(); dbReady = true; }
 }
 
-function authUser(request: NextRequest) {
-  const token =
-    request.cookies.get('auth-token')?.value ||
-    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-  return token ? verifyToken(token) : null;
-}
-
 export async function GET(request: NextRequest) {
-  if (!authUser(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = requireAuth(request, ['admin.access', 'marketing.manage']);
+  if (isAuthError(auth)) return auth;
   await ensureDB();
 
   const { searchParams } = new URL(request.url);
@@ -46,8 +40,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const cu = authUser(request);
-  if (!cu) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = requireAuth(request, ['admin.access', 'marketing.manage']);
+  if (isAuthError(auth)) return auth;
   await ensureDB();
 
   const body = await request.json() as {

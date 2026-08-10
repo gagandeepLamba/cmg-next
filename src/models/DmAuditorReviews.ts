@@ -12,12 +12,12 @@ interface DmAuditorReviewsAttributes {
 interface DmAuditorReviewsCreationAttributes extends Optional<DmAuditorReviewsAttributes, never> {}
 
 class DmAuditorReviews extends Model<DmAuditorReviewsAttributes, DmAuditorReviewsCreationAttributes> implements DmAuditorReviewsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public status!: string;
-  public remarks!: string;
-  public created_by!: number;
-  public created!: Date;
+  declare id: number;
+  declare leadId: number;
+  declare status: string;
+  declare remarks: string;
+  declare created_by: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

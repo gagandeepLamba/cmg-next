@@ -12,24 +12,29 @@ interface DmTaskAttributes {
   doc: string | null;
   notf: number;
   created: Date;
+  opportunityId: number | null;
+  visaType: string | null;
 }
 
-interface DmTaskCreationAttributes extends Optional<DmTaskAttributes, 'task' | 'dob' | 'date_created' | 'stage' | 'asignTo' | 'asignBy' | 'status' | 'doc' | 'notf' | 'created'> {}
+interface DmTaskCreationAttributes extends Optional<DmTaskAttributes, 'task' | 'dob' | 'date_created' | 'stage' | 'asignTo' | 'asignBy' | 'status' | 'doc' | 'notf' | 'created' | 'opportunityId' | 'visaType'> {}
 
 class DmTask extends Model<DmTaskAttributes, DmTaskCreationAttributes> implements DmTaskAttributes {
-  public id!: number;
-  public task!: string | null;
-  public dob!: Date | null;
-  public date_created!: string | null;
-  public stage!: number;
-  public asignTo!: number;
-  public asignBy!: number;
-  public status!: string;
-  public doc!: string | null;
-  public notf!: number;
-  public created!: Date;
+  declare id: number;
+  declare task: string | null;
+  declare dob: Date | null;
+  declare date_created: string | null;
+  declare stage: number;
+  declare asignTo: number;
+  declare asignBy: number;
+  declare status: string;
+  declare doc: string | null;
+  declare notf: number;
+  declare created: Date;
+  declare opportunityId: number | null;
+  declare visaType: string | null;
 
   public static associate(models: any) {
+    DmTask.belongsTo(models.DmcOpportunities, { foreignKey: 'opportunityId', targetKey: 'id', as: 'opportunity' });
   }
 }
 
@@ -86,6 +91,16 @@ DmTask.init(
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: '\'0000-00-00'
+    },
+    opportunityId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: 'opportunity_id',
+    },
+    visaType: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      field: 'visa_type',
     },
   },
   {

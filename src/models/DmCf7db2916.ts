@@ -17,17 +17,17 @@ interface DmCf7db2916Attributes {
 interface DmCf7db2916CreationAttributes extends Optional<DmCf7db2916Attributes, 'form_date'> {}
 
 class DmCf7db2916 extends Model<DmCf7db2916Attributes, DmCf7db2916CreationAttributes> implements DmCf7db2916Attributes {
-  public id!: number;
-  public cf7dbp_status!: string;
-  public your_name!: string;
-  public phonetext_512!: string;
-  public your_email!: string;
-  public menu_3065!: string;
-  public menu_359!: string;
-  public menu_35926!: string;
-  public menu_55692!: string;
-  public hidden_field_1!: string;
-  public form_date!: Date;
+  declare id: number;
+  declare cf7dbp_status: string;
+  declare your_name: string;
+  declare phonetext_512: string;
+  declare your_email: string;
+  declare menu_3065: string;
+  declare menu_359: string;
+  declare menu_35926: string;
+  declare menu_55692: string;
+  declare hidden_field_1: string;
+  declare form_date: Date;
 
   public static associate(models: any) {
   }

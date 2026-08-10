@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { 
   Users, TrendingUp, Calendar, FileText, AlertCircle, CheckCircle, 
@@ -8,6 +9,7 @@ import {
 } from 'lucide-react';
 import { LeadOpportunityConversion } from '@/lib/leadOpportunityConversion';
 import { WorkflowManagement } from '@/lib/workflowManagement';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UnifiedDashboardProps {
   leads: any[];
@@ -51,6 +53,7 @@ interface OpportunityMetrics {
 }
 
 export default function UnifiedWorkflowDashboard({ leads, opportunities, caseOfficers }: UnifiedDashboardProps) {
+  const { currencyCode } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalLeads: 0,
     convertedLeads: 0,
@@ -218,7 +221,7 @@ export default function UnifiedWorkflowDashboard({ leads, opportunities, caseOff
             <p className="text-gray-600 mt-1">Complete overview of leads, opportunities, and operations</p>
           </div>
           <div className="flex items-center space-x-4">
-            <select
+            <SearchableSelect
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -227,8 +230,8 @@ export default function UnifiedWorkflowDashboard({ leads, opportunities, caseOff
               <option value="30days">Last 30 Days</option>
               <option value="90days">Last 90 Days</option>
               <option value="1year">Last Year</option>
-            </select>
-            <select
+            </SearchableSelect>
+            <SearchableSelect
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -237,7 +240,7 @@ export default function UnifiedWorkflowDashboard({ leads, opportunities, caseOff
               <option value="1">Delhi</option>
               <option value="2">Mumbai</option>
               <option value="3">Bangalore</option>
-            </select>
+            </SearchableSelect>
             <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
@@ -381,11 +384,11 @@ export default function UnifiedWorkflowDashboard({ leads, opportunities, caseOff
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Total Revenue</span>
-              <span className="text-lg font-bold text-gray-900">${(stats.totalRevenue / 1000000).toFixed(2)}M</span>
+              <span className="text-lg font-bold text-gray-900">{currencyCode} {(stats.totalRevenue / 1000000).toFixed(2)}M</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Avg Opportunity Value</span>
-              <span className="text-lg font-bold text-gray-900">${opportunityMetrics.avgOpportunityValue.toLocaleString()}</span>
+              <span className="text-lg font-bold text-gray-900">{currencyCode} {opportunityMetrics.avgOpportunityValue.toLocaleString()}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Retention Rate</span>
@@ -393,7 +396,7 @@ export default function UnifiedWorkflowDashboard({ leads, opportunities, caseOff
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Avg Lead Value</span>
-              <span className="text-lg font-bold text-gray-900">${leadMetrics.avgLeadValue.toLocaleString()}</span>
+              <span className="text-lg font-bold text-gray-900">{currencyCode} {leadMetrics.avgLeadValue.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -435,7 +438,7 @@ export default function UnifiedWorkflowDashboard({ leads, opportunities, caseOff
                 </div>
                 <div className="flex items-center">
                   <span className="text-sm text-gray-600 mr-2">{service.count} opportunities</span>
-                  <span className="text-sm font-medium text-gray-900">${(service.value / 1000).toFixed(0)}K</span>
+                  <span className="text-sm font-medium text-gray-900">{currencyCode} {(service.value / 1000).toFixed(0)}K</span>
                 </div>
               </div>
             ))}

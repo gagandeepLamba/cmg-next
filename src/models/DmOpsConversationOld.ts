@@ -15,15 +15,15 @@ interface DmOpsConversationOldAttributes {
 interface DmOpsConversationOldCreationAttributes extends Optional<DmOpsConversationOldAttributes, 'agreeNo' | 'date' | 'type' | 'conversation' | 'emp'> {}
 
 class DmOpsConversationOld extends Model<DmOpsConversationOldAttributes, DmOpsConversationOldCreationAttributes> implements DmOpsConversationOldAttributes {
-  public id!: number;
-  public agreeNo!: string | null;
-  public date!: Date | null;
-  public type!: string | null;
-  public conversation!: string | null;
-  public emp!: number | null;
-  public followup!: Date;
-  public status!: number;
-  public status_date!: Date;
+  declare id: number;
+  declare agreeNo: string | null;
+  declare date: Date | null;
+  declare type: string | null;
+  declare conversation: string | null;
+  declare emp: number | null;
+  declare followup: Date;
+  declare status: number;
+  declare status_date: Date;
 
   public static associate(models: any) {
   }

@@ -18,18 +18,18 @@ interface DmThirdPartyPaymentsAttributes {
 interface DmThirdPartyPaymentsCreationAttributes extends Optional<DmThirdPartyPaymentsAttributes, never> {}
 
 class DmThirdPartyPayments extends Model<DmThirdPartyPaymentsAttributes, DmThirdPartyPaymentsCreationAttributes> implements DmThirdPartyPaymentsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public payment!: number;
-  public payment_proof!: string;
-  public tax!: number;
-  public balance!: number;
-  public approved!: number;
-  public approved_by!: number;
-  public approved_date!: Date;
-  public created_by!: number;
-  public created!: Date;
-  public reject_remarks!: string;
+  declare id: number;
+  declare leadId: number;
+  declare payment: number;
+  declare payment_proof: string;
+  declare tax: number;
+  declare balance: number;
+  declare approved: number;
+  declare approved_by: number;
+  declare approved_date: Date;
+  declare created_by: number;
+  declare created: Date;
+  declare reject_remarks: string;
 
   public static associate(models: any) {
   }

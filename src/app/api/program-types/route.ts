@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DmCountriesTypeProgram } from '@/models/DmCountriesTypeProgram';
 import { DmProgramType } from '@/models/DmProgramType';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireAuth(request);
+    if (isAuthError(auth)) return auth;
+
     const { searchParams } = new URL(request.url);
     const countryId = searchParams.get('countryId');
     const programId = searchParams.get('programId');

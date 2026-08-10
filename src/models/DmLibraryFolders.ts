@@ -10,10 +10,10 @@ interface DmLibraryFoldersAttributes {
 interface DmLibraryFoldersCreationAttributes extends Optional<DmLibraryFoldersAttributes, never> {}
 
 class DmLibraryFolders extends Model<DmLibraryFoldersAttributes, DmLibraryFoldersCreationAttributes> implements DmLibraryFoldersAttributes {
-  public id!: number;
-  public folder_name!: string;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare folder_name: string;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

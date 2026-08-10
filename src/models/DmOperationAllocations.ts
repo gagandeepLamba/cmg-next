@@ -16,16 +16,16 @@ interface DmOperationAllocationsAttributes {
 interface DmOperationAllocationsCreationAttributes extends Optional<DmOperationAllocationsAttributes, never> {}
 
 class DmOperationAllocations extends Model<DmOperationAllocationsAttributes, DmOperationAllocationsCreationAttributes> implements DmOperationAllocationsAttributes {
-  public id!: number;
-  public case_officer!: number;
-  public branch!: number;
-  public type!: string;
-  public start_date!: Date;
-  public end_date!: Date;
-  public created!: Date;
-  public created_by!: number;
-  public status!: number;
-  public is_deleted!: number;
+  declare id: number;
+  declare case_officer: number;
+  declare branch: number;
+  declare type: string;
+  declare start_date: Date;
+  declare end_date: Date;
+  declare created: Date;
+  declare created_by: number;
+  declare status: number;
+  declare is_deleted: number;
 
   public static associate(models: any) {
     DmOperationAllocations.belongsTo(models.DmEmployee, { foreignKey: 'case_officer', targetKey: 'id', as: 'caseOfficer' });

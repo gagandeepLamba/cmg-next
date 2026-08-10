@@ -15,19 +15,19 @@ const baseConfig = {
   multipleStatements: false,
 };
 
-// Ids match the scheme already referenced by dm_countries_type_program.type
-// and scripts/seed-fees.js's classifyProgramType (2, 4, 5, 6 are already in use).
-const programTypeSeeds = {
-  1: 'Business Immigration',
-  2: 'Skilled Immigration',
-  3: 'Study Abroad',
-  4: 'Visit Visa/ Tourist Visa',
-  5: 'Work Permit',
-  6: 'Citizenship By Investment',
-};
+// Ids match the dm_program_type scheme assumed by classifyProgramType() in seed-fees.js
+// (1=Business, 2=Skill, 3=Student, 4=Visit, 5=Work, 6=Business CBI).
+const PROGRAM_TYPE_SEEDS = [
+  { id: 1, type: 'Business Immigration' },
+  { id: 2, type: 'Skilled Immigration' },
+  { id: 3, type: 'Study Abroad' },
+  { id: 4, type: 'Visit Visa/ Tourist Visa' },
+  { id: 5, type: 'Work Permit' },
+  { id: 6, type: 'Citizenship By Investment' },
+];
 
 async function seedProgramTypes(connection) {
-  for (const [id, type] of Object.entries(programTypeSeeds)) {
+  for (const { id, type } of PROGRAM_TYPE_SEEDS) {
     await connection.query(
       `INSERT INTO dm_program_type (id, type, status, created, created_by)
        VALUES (?, ?, 1, NOW(), 1)
@@ -36,7 +36,7 @@ async function seedProgramTypes(connection) {
     );
   }
 
-  return { programTypes: Object.keys(programTypeSeeds).length };
+  return { programTypes: PROGRAM_TYPE_SEEDS.length };
 }
 
 async function run() {
@@ -54,4 +54,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { programTypeSeeds, seedProgramTypes };
+module.exports = { PROGRAM_TYPE_SEEDS, seedProgramTypes };

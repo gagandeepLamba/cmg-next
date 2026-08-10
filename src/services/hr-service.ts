@@ -3,6 +3,10 @@ import { sequelize } from '@/lib/sequelize';
 import crypto from 'crypto';
 import { ModuleNotificationService } from '@/services/module-notification-service';
 import { DocumentService } from '@/services/document-service';
+import { resolveBranchCurrency } from '@/lib/branchCurrency';
+import { resolveEmployeeTimezone, formatInTimezone } from '@/lib/branchTimezone';
+import { hashPassword } from '@/lib/auth';
+import { sendEmail } from '@/lib/mailer';
 
 type WorkforceRow = {
   totalEmployees: number;
@@ -41,7 +45,7 @@ type PayrollRow = {
   attendanceRecords: number;
   employeesWithAttendance: number;
   totalHours: number | null;
-  shortfallHours: number | null;
+  shortfallRecords: number | null;
   overtimeHours: number | null;
 };
 type ExitRow = {
@@ -57,7 +61,7 @@ type HiringRow = {
   joinedThisYear: number;
 };
 type CountRow = { total: number };
-type HRLeaveType =
+export type HRLeaveType =
   | 'Annual Leave'
   | 'Sick Leave'
   | 'Maternity Leave'
@@ -65,7 +69,8 @@ type HRLeaveType =
   | 'Hajj Leave'
   | 'Bereavement Leave'
   | 'Unpaid Leave'
-  | 'Compensatory Leave';
+  | 'Compensatory Leave'
+  | 'Emergency Leave';
 type HRLeaveStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
 type HRManagerLeaveStatus = 'Pending' | 'Approved' | 'Rejected';
 type HRLeaveWorkflowStatus = 'Manager Review' | 'HR Confirmation' | 'Completed' | 'Cancelled';
@@ -123,6 +128,7 @@ type EmployeeCoreInput = {
   work_city?: string | null;
   work_site?: string | null;
   employment_type?: string | null;
+  must_change_password?: number | null;
 };
 type HRLeaveInput = {
   leave_id?: string;
@@ -176,6 +182,7 @@ type PayslipInput = {
   designation?: string | null;
   department?: string | null;
   basic_salary: number;
+  currency_code?: string;
   allowances?: PayslipLineItem[];
   overtime_hours?: number;
   overtime_amount?: number;
@@ -190,6 +197,7 @@ type ExitChecklistInput = {
   separation_reason?: string | null;
   last_working_day?: string | null;
   assigned_by?: string | null;
+  exit_request_id?: string | null;
 };
 type ExitChecklistItemUpdate = {
   item_id: string;
@@ -256,6 +264,7 @@ type EmployeePayslipRow = {
   name: string;
   EID?: string | null;
   department?: number | null;
+  branch?: number | null;
 };
 
 const numberValue = (value: unknown) => Number(value || 0);
@@ -297,6 +306,7 @@ const leaveEntitlements: Array<{
   { type: 'Bereavement Leave', entitlementDays: 5, category: 'Paid', notes: '3 to 5 days based on relationship and company policy.' },
   { type: 'Unpaid Leave', entitlementDays: 0, category: 'Unpaid', notes: 'Manager discretion; salary deducted pro-rata.' },
   { type: 'Compensatory Leave', entitlementDays: 0, category: 'Earned', notes: 'Earned against overtime worked and linked to attendance OT records.' },
+  { type: 'Emergency Leave', entitlementDays: 5, category: 'Paid', notes: 'Short-notice emergency leave, manager discretion; capped at 5 days per year.' },
 ];
 const leaveTypeNames = leaveEntitlements.map((item) => item.type);
 
@@ -452,6 +462,7 @@ export class HRService {
 
   static async listAttendanceRecords(options: {
     employeeId?: string;
+    branch?: string;
     dateFrom?: string;
     dateTo?: string;
     status?: string;
@@ -465,6 +476,11 @@ export class HRService {
     if (options.employeeId) {
       conditions.push('a.employee_id = :employeeId');
       replacements.employeeId = options.employeeId;
+    }
+
+    if (options.branch) {
+      conditions.push('e.branch = :branch');
+      replacements.branch = options.branch;
     }
 
     if (options.dateFrom) {
@@ -507,8 +523,8 @@ export class HRService {
           a.created_at,
           a.updated_at
         FROM dm_hr_attendance_records a
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = a.employee_id
-        LEFT JOIN dm_employee approver ON CAST(approver.id AS CHAR) = a.approved_by
+        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = a.employee_id
+        LEFT JOIN dm_employee approver ON CAST(approver.id AS CHAR) COLLATE utf8mb4_general_ci = a.approved_by
         ${where}
         ORDER BY a.date DESC, a.created_at DESC
         LIMIT :limit
@@ -519,6 +535,21 @@ export class HRService {
 
   static async createAttendanceRecord(input: HRAttendanceInput) {
     await this.ensureAttendanceRecordTable();
+
+    // Duplicate-submission guard: an employee should only ever have one
+    // attendance record per day. There's only a plain INDEX (not UNIQUE) on
+    // (employee_id, date), so nothing at the schema level stops a resubmit
+    // from creating a second, conflicting record for the same day.
+    if (!input.attendance_id) {
+      const [existing] = await sequelize.query<{ attendance_id: string }>(
+        `SELECT attendance_id FROM dm_hr_attendance_records WHERE employee_id = :employeeId AND date = :date LIMIT 1`,
+        { replacements: { employeeId: input.employee_id, date: input.date }, type: QueryTypes.SELECT }
+      );
+      if (existing) {
+        throw new Error('An attendance record for this employee on this date already exists.');
+      }
+    }
+
     const attendanceId = input.attendance_id || crypto.randomUUID();
 
     await sequelize.query(
@@ -586,6 +617,42 @@ export class HRService {
     return { attendance_id: input.attendance_id };
   }
 
+  static async deleteAttendanceRecord(attendanceId: string) {
+    await sequelize.query('DELETE FROM dm_hr_attendance_records WHERE attendance_id = :attendanceId', { replacements: { attendanceId } });
+    return { attendance_id: attendanceId };
+  }
+
+  static async deleteLeaveRequest(leaveId: string) {
+    await sequelize.query('DELETE FROM dm_hr_leave_requests WHERE leave_id = :leaveId', { replacements: { leaveId } });
+    return { leave_id: leaveId };
+  }
+
+  static async deleteEosbSettlement(eosbId: string) {
+    await sequelize.query('DELETE FROM dm_hr_eosb_settlements WHERE eosb_id = :eosbId', { replacements: { eosbId } });
+    return { eosb_id: eosbId };
+  }
+
+  static async deleteExitChecklist(checklistId: string) {
+    await sequelize.query('DELETE FROM dm_hr_exit_checklist_items WHERE checklist_id = :checklistId', { replacements: { checklistId } });
+    await sequelize.query('DELETE FROM dm_hr_exit_checklists WHERE checklist_id = :checklistId', { replacements: { checklistId } });
+    return { checklist_id: checklistId };
+  }
+
+  static async deletePayslip(payslipId: string) {
+    await sequelize.query('DELETE FROM dm_hr_payslips WHERE payslip_id = :payslipId', { replacements: { payslipId } });
+    return { payslip_id: payslipId };
+  }
+
+  static async deleteEmployeeLetter(letterId: string) {
+    await sequelize.query('DELETE FROM dm_hr_employee_letters WHERE letter_id = :letterId', { replacements: { letterId } });
+    return { letter_id: letterId };
+  }
+
+  static async deleteExitInterview(exitId: string) {
+    await sequelize.query('DELETE FROM dm_hr_exit_interviews WHERE exit_id = :exitId', { replacements: { exitId } });
+    return { exit_id: exitId };
+  }
+
   static async importBiometricAttendance(records: HRAttendanceInput[]) {
     const imported = [];
     for (const record of records) {
@@ -594,13 +661,349 @@ export class HRService {
     return imported;
   }
 
+  // --- Employee self-service: clock in/out, breaks ---------------------------------
+
+  static async ensureAttendanceBreaksTable() {
+    await sequelize.query(`
+      CREATE TABLE IF NOT EXISTS dm_hr_attendance_breaks (
+        break_id CHAR(36) PRIMARY KEY,
+        attendance_id CHAR(36) NOT NULL,
+        employee_id CHAR(36) NOT NULL,
+        break_type ENUM('Lunch Break', 'Prayer Break', 'Short Break') NOT NULL,
+        start_time DATETIME NOT NULL,
+        end_time DATETIME NULL,
+        duration_minutes INT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_hr_attendance_breaks_attendance (attendance_id),
+        INDEX idx_hr_attendance_breaks_employee (employee_id)
+      )
+    `);
+  }
+
+  private static async getTodayAttendanceRow(employeeId: string) {
+    const timeZone = await resolveEmployeeTimezone(employeeId);
+    const { date } = formatInTimezone(new Date(), timeZone);
+    const [row] = await sequelize.query<{
+      attendance_id: string;
+      date: string;
+      check_in: string | null;
+      check_out: string | null;
+      status: string;
+    }>(
+      `SELECT attendance_id, date, check_in, check_out, status FROM dm_hr_attendance_records
+       WHERE employee_id = :employeeId AND date = :date LIMIT 1`,
+      { replacements: { employeeId, date }, type: QueryTypes.SELECT }
+    );
+    return row || null;
+  }
+
+  static async getMyTodayAttendance(employeeId: string) {
+    await this.ensureAttendanceRecordTable();
+    await this.ensureAttendanceBreaksTable();
+    const attendance = await this.getTodayAttendanceRow(employeeId);
+
+    const breaks = attendance
+      ? await sequelize.query(
+          `SELECT break_id, break_type, start_time, end_time, duration_minutes
+           FROM dm_hr_attendance_breaks
+           WHERE attendance_id = :attendanceId
+           ORDER BY start_time ASC`,
+          { replacements: { attendanceId: attendance.attendance_id }, type: QueryTypes.SELECT }
+        )
+      : [];
+
+    return { attendance, breaks };
+  }
+
+  static async clockIn(employeeId: string) {
+    await this.ensureAttendanceRecordTable();
+    const existing = await this.getTodayAttendanceRow(employeeId);
+    if (existing?.check_in) throw new Error('You are already clocked in today');
+
+    const attendanceId = existing?.attendance_id || crypto.randomUUID();
+    // Capture the employee's branch-local wall-clock time, not the app
+    // server's own timezone (which is UTC on most cloud hosts and was
+    // silently shifting every clock-in by the branch's UTC offset).
+    const timeZone = await resolveEmployeeTimezone(employeeId);
+    const { date, time: checkInTime } = formatInTimezone(new Date(), timeZone);
+
+    if (existing) {
+      await sequelize.query(
+        `UPDATE dm_hr_attendance_records SET check_in = :checkIn, status = 'Present', source = 'Manual'
+         WHERE attendance_id = :attendanceId`,
+        { replacements: { attendanceId, checkIn: checkInTime } }
+      );
+    } else {
+      await sequelize.query(
+        `INSERT INTO dm_hr_attendance_records (attendance_id, employee_id, date, check_in, status, source)
+         VALUES (:attendanceId, :employeeId, :date, :checkIn, 'Present', 'Manual')`,
+        { replacements: { attendanceId, employeeId, date, checkIn: checkInTime } }
+      );
+    }
+
+    return this.getMyTodayAttendance(employeeId);
+  }
+
+  static async clockOut(employeeId: string) {
+    const existing = await this.getTodayAttendanceRow(employeeId);
+    if (!existing?.check_in) throw new Error('You have not clocked in today');
+    if (existing.check_out) throw new Error('You are already clocked out today');
+
+    await this.ensureAttendanceBreaksTable();
+    const [openBreak] = await sequelize.query<{ break_id: string }>(
+      `SELECT break_id FROM dm_hr_attendance_breaks
+       WHERE attendance_id = :attendanceId AND end_time IS NULL LIMIT 1`,
+      { replacements: { attendanceId: existing.attendance_id }, type: QueryTypes.SELECT }
+    );
+    if (openBreak) throw new Error('End your current break before clocking out');
+
+    const timeZone = await resolveEmployeeTimezone(employeeId);
+    const { time: checkOutTime } = formatInTimezone(new Date(), timeZone);
+    await sequelize.query(
+      `UPDATE dm_hr_attendance_records SET check_out = :checkOut WHERE attendance_id = :attendanceId`,
+      { replacements: { attendanceId: existing.attendance_id, checkOut: checkOutTime } }
+    );
+
+    return this.getMyTodayAttendance(employeeId);
+  }
+
+  static async startBreak(employeeId: string, breakType: 'Lunch Break' | 'Prayer Break' | 'Short Break') {
+    await this.ensureAttendanceBreaksTable();
+    const existing = await this.getTodayAttendanceRow(employeeId);
+    if (!existing?.check_in || existing.check_out) throw new Error('Clock in before starting a break');
+
+    const [openBreak] = await sequelize.query<{ break_id: string }>(
+      `SELECT break_id FROM dm_hr_attendance_breaks
+       WHERE attendance_id = :attendanceId AND end_time IS NULL LIMIT 1`,
+      { replacements: { attendanceId: existing.attendance_id }, type: QueryTypes.SELECT }
+    );
+    if (openBreak) throw new Error('A break is already in progress');
+
+    // Same branch-local wall-clock time as clockIn/clockOut (see there) -
+    // NOW() would use the DB server's own timezone instead.
+    const timeZone = await resolveEmployeeTimezone(employeeId);
+    const { date, time } = formatInTimezone(new Date(), timeZone);
+    const startTime = `${date} ${time}`;
+
+    const breakId = crypto.randomUUID();
+    await sequelize.query(
+      `INSERT INTO dm_hr_attendance_breaks (break_id, attendance_id, employee_id, break_type, start_time)
+       VALUES (:breakId, :attendanceId, :employeeId, :breakType, :startTime)`,
+      { replacements: { breakId, attendanceId: existing.attendance_id, employeeId, breakType, startTime } }
+    );
+
+    return this.getMyTodayAttendance(employeeId);
+  }
+
+  static async endBreak(employeeId: string) {
+    await this.ensureAttendanceBreaksTable();
+    const existing = await this.getTodayAttendanceRow(employeeId);
+    if (!existing) throw new Error('No attendance record found for today');
+
+    const [openBreak] = await sequelize.query<{ break_id: string; start_time: string }>(
+      `SELECT break_id, start_time FROM dm_hr_attendance_breaks
+       WHERE attendance_id = :attendanceId AND end_time IS NULL LIMIT 1`,
+      { replacements: { attendanceId: existing.attendance_id }, type: QueryTypes.SELECT }
+    );
+    if (!openBreak) throw new Error('No break is currently in progress');
+
+    const timeZone = await resolveEmployeeTimezone(employeeId);
+    const { date, time } = formatInTimezone(new Date(), timeZone);
+    const endTime = `${date} ${time}`;
+
+    await sequelize.query(
+      `UPDATE dm_hr_attendance_breaks
+       SET end_time = :endTime, duration_minutes = TIMESTAMPDIFF(MINUTE, start_time, :endTime)
+       WHERE break_id = :breakId`,
+      { replacements: { breakId: openBreak.break_id, endTime } }
+    );
+
+    return this.getMyTodayAttendance(employeeId);
+  }
+
+  static async listMyAttendanceHistory(employeeId: string, limit = 14) {
+    await this.ensureAttendanceRecordTable();
+    return sequelize.query(
+      `SELECT attendance_id, date, check_in, check_out, status, overtime_hours
+       FROM dm_hr_attendance_records
+       WHERE employee_id = :employeeId
+       ORDER BY date DESC
+       LIMIT :limit`,
+      { replacements: { employeeId, limit }, type: QueryTypes.SELECT }
+    );
+  }
+
+  // --- Branch/department-wise attendance reporting (BM / CEO / Accounts / HR) ------
+
+  static async getAttendanceReport(options: {
+    branchId?: number | null;
+    departmentId?: number | null;
+    dateFrom: string;
+    dateTo: string;
+  }) {
+    const conditions: string[] = ['e.status = 1'];
+    const replacements: Record<string, string | number> = {
+      dateFrom: options.dateFrom,
+      dateTo: options.dateTo,
+    };
+
+    if (options.branchId) {
+      conditions.push('e.branch = :branchId');
+      replacements.branchId = options.branchId;
+    }
+
+    if (options.departmentId) {
+      conditions.push('e.department = :departmentId');
+      replacements.departmentId = options.departmentId;
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+
+    const summary = await sequelize.query(
+      `
+        SELECT
+          e.branch AS branch_id,
+          b.branch AS branch_name,
+          e.department AS department_id,
+          d.name AS department_name,
+          COUNT(DISTINCT e.id) AS headcount,
+          SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS present_count,
+          SUM(CASE WHEN a.status = 'Absent' THEN 1 ELSE 0 END) AS absent_count,
+          SUM(CASE WHEN a.status = 'Late' THEN 1 ELSE 0 END) AS late_count,
+          SUM(CASE WHEN a.status = 'Half-Day' THEN 1 ELSE 0 END) AS half_day_count,
+          SUM(CASE WHEN a.status = 'Leave' THEN 1 ELSE 0 END) AS leave_count
+        FROM dm_employee e
+        LEFT JOIN dm_branch b ON b.id = e.branch
+        LEFT JOIN dm_department d ON d.id = e.department
+        LEFT JOIN dm_hr_attendance_records a
+          ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = a.employee_id
+          AND a.date BETWEEN :dateFrom AND :dateTo
+        ${where}
+        GROUP BY e.branch, b.branch, e.department, d.name
+        ORDER BY b.branch, d.name
+      `,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    const detail = await sequelize.query(
+      `
+        SELECT
+          e.id AS employee_id,
+          e.name AS employee_name,
+          e.branch AS branch_id,
+          b.branch AS branch_name,
+          e.department AS department_id,
+          d.name AS department_name,
+          a.date,
+          a.check_in,
+          a.check_out,
+          a.status
+        FROM dm_employee e
+        LEFT JOIN dm_branch b ON b.id = e.branch
+        LEFT JOIN dm_department d ON d.id = e.department
+        INNER JOIN dm_hr_attendance_records a
+          ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = a.employee_id
+          AND a.date BETWEEN :dateFrom AND :dateTo
+        ${where}
+        ORDER BY a.date DESC, b.name, e.name
+        LIMIT 500
+      `,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    return { summary, detail };
+  }
+
+  static async ensureHolidaysTable() {
+    await sequelize.query(`
+      CREATE TABLE IF NOT EXISTS dm_hr_holidays (
+        holiday_id CHAR(36) PRIMARY KEY,
+        holiday_date DATE NOT NULL,
+        name VARCHAR(150) NOT NULL,
+        branch_id INT NULL,
+        created_by CHAR(36) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_hr_holiday (holiday_date, branch_id),
+        INDEX idx_hr_holidays_date (holiday_date),
+        INDEX idx_hr_holidays_branch (branch_id)
+      )
+    `);
+  }
+
+  static async listHolidays(branchId?: number | null) {
+    await this.ensureHolidaysTable();
+    if (branchId === undefined) {
+      return sequelize.query(
+        `SELECT h.holiday_id, h.holiday_date, h.name, h.branch_id, b.branch AS branchName
+         FROM dm_hr_holidays h LEFT JOIN dm_branch b ON b.id = h.branch_id
+         ORDER BY h.holiday_date ASC`,
+        { type: QueryTypes.SELECT }
+      );
+    }
+    return sequelize.query(
+      `SELECT h.holiday_id, h.holiday_date, h.name, h.branch_id, b.branch AS branchName
+       FROM dm_hr_holidays h LEFT JOIN dm_branch b ON b.id = h.branch_id
+       WHERE h.branch_id IS NULL OR h.branch_id = :branchId
+       ORDER BY h.holiday_date ASC`,
+      { replacements: { branchId }, type: QueryTypes.SELECT }
+    );
+  }
+
+  static async createHoliday(input: { holiday_date: string; name: string; branch_id?: number | null; created_by?: string | null }) {
+    await this.ensureHolidaysTable();
+    const holidayId = crypto.randomUUID();
+    await sequelize.query(
+      `INSERT INTO dm_hr_holidays (holiday_id, holiday_date, name, branch_id, created_by)
+       VALUES (:holidayId, :holidayDate, :name, :branchId, :createdBy)`,
+      {
+        replacements: {
+          holidayId,
+          holidayDate: input.holiday_date,
+          name: input.name,
+          branchId: input.branch_id ?? null,
+          createdBy: input.created_by || null,
+        },
+      }
+    );
+    return { holiday_id: holidayId };
+  }
+
+  static async deleteHoliday(holidayId: string) {
+    await this.ensureHolidaysTable();
+    await sequelize.query(`DELETE FROM dm_hr_holidays WHERE holiday_id = :holidayId`, { replacements: { holidayId } });
+  }
+
+  // Leave-day calculation: calendar days in range minus any holiday (company-wide or
+  // scoped to the employee's own branch) that falls inside it. Weekend exclusion is out of
+  // scope - there's no per-branch weekly-off configuration in the data model.
+  static async calculateWorkingDays(startDate: string, endDate: string, employeeId: string): Promise<number> {
+    const calendarDays = calculateCalendarDays(startDate, endDate);
+    if (!calendarDays) return 0;
+    await this.ensureHolidaysTable();
+
+    const [employee] = await sequelize.query<{ branch: number | null }>(
+      `SELECT branch FROM dm_employee WHERE CAST(id AS CHAR) COLLATE utf8mb4_general_ci = :employeeId LIMIT 1`,
+      { replacements: { employeeId }, type: QueryTypes.SELECT }
+    );
+
+    const [holidayCount] = await sequelize.query<{ total: number }>(
+      `SELECT COUNT(*) AS total FROM dm_hr_holidays
+       WHERE holiday_date BETWEEN :startDate AND :endDate
+         AND (branch_id IS NULL OR branch_id = :branchId)`,
+      { replacements: { startDate, endDate, branchId: employee?.branch ?? null }, type: QueryTypes.SELECT }
+    );
+
+    return Math.max(0, calendarDays - Number(holidayCount?.total || 0));
+  }
+
   static async ensureLeaveManagementTables() {
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS dm_hr_leave_requests (
         leave_id CHAR(36) PRIMARY KEY,
         employee_id CHAR(36) NOT NULL,
         manager_id CHAR(36) NULL,
-        leave_type ENUM('Annual Leave', 'Sick Leave', 'Maternity Leave', 'Paternity Leave', 'Hajj Leave', 'Bereavement Leave', 'Unpaid Leave', 'Compensatory Leave') NOT NULL,
+        leave_type ENUM('Annual Leave', 'Sick Leave', 'Maternity Leave', 'Paternity Leave', 'Hajj Leave', 'Bereavement Leave', 'Unpaid Leave', 'Compensatory Leave', 'Emergency Leave') NOT NULL,
         start_date DATE NOT NULL,
         end_date DATE NOT NULL,
         days_requested DECIMAL(6,2) NOT NULL,
@@ -631,6 +1034,12 @@ export class HRService {
     await this.addColumnIfMissing('dm_hr_leave_requests', 'manager_reviewed_at', 'DATETIME NULL AFTER manager_status');
     await this.addColumnIfMissing('dm_hr_leave_requests', 'manager_comment', 'TEXT NULL AFTER manager_reviewed_at');
     await this.addColumnIfMissing('dm_hr_leave_requests', 'hr_status', "ENUM('Pending', 'Confirmed', 'Overridden') NOT NULL DEFAULT 'Pending' AFTER manager_comment");
+    await sequelize.query(`
+      ALTER TABLE dm_hr_leave_requests MODIFY COLUMN leave_type ENUM(
+        'Annual Leave', 'Sick Leave', 'Maternity Leave', 'Paternity Leave', 'Hajj Leave',
+        'Bereavement Leave', 'Unpaid Leave', 'Compensatory Leave', 'Emergency Leave'
+      ) NOT NULL
+    `);
 
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS dm_hr_leave_balances (
@@ -664,7 +1073,7 @@ export class HRService {
       `
         SELECT id, name, department
         FROM dm_employee
-        WHERE CAST(id AS CHAR) = :employeeId
+        WHERE CAST(id AS CHAR) COLLATE utf8mb4_general_ci = :employeeId
         LIMIT 1
       `,
       { replacements: { employeeId }, type: QueryTypes.SELECT }
@@ -677,12 +1086,12 @@ export class HRService {
         LEFT JOIN dm_role r ON r.id = e.role
         WHERE e.status = 1
           AND (
-            (:managerId IS NOT NULL AND CAST(e.id AS CHAR) = :managerId)
+            (:managerId IS NOT NULL AND CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = :managerId)
             OR (:managerId IS NULL AND e.department <=> :department AND LOWER(COALESCE(r.name, '')) LIKE '%manager%')
             OR (:managerId IS NULL AND LOWER(COALESCE(r.name, '')) LIKE '%manager%')
           )
         ORDER BY
-          CASE WHEN :managerId IS NOT NULL AND CAST(e.id AS CHAR) = :managerId THEN 0 ELSE 1 END,
+          CASE WHEN :managerId IS NOT NULL AND CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = :managerId THEN 0 ELSE 1 END,
           CASE WHEN e.department <=> :department THEN 0 ELSE 1 END,
           e.id ASC
         LIMIT 1
@@ -793,14 +1202,82 @@ export class HRService {
         INDEX idx_hr_payslip_period (pay_year, pay_month)
       )
     `);
+    await this.addColumnIfMissing('dm_hr_payslips', 'currency_code', "VARCHAR(10) NOT NULL DEFAULT 'AED' AFTER net_salary");
+  }
+
+  static async ensureCompensationTable() {
+    await sequelize.query(`
+      CREATE TABLE IF NOT EXISTS dm_hr_employee_compensation (
+        employee_id CHAR(36) PRIMARY KEY,
+        basic_salary DECIMAL(12,2) NOT NULL DEFAULT 0,
+        currency_code VARCHAR(10) NOT NULL DEFAULT 'AED',
+        standard_allowances_json TEXT NULL,
+        bank_name VARCHAR(255) NULL,
+        iban VARCHAR(80) NULL,
+        updated_by CHAR(36) NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+  }
+
+  static async getCompensation(employeeId: string) {
+    await this.ensureCompensationTable();
+    const [row] = await sequelize.query<{
+      employee_id: string; basic_salary: number; currency_code: string;
+      standard_allowances_json: string | null; bank_name: string | null; iban: string | null;
+    }>(
+      `SELECT employee_id, basic_salary, currency_code, standard_allowances_json, bank_name, iban
+       FROM dm_hr_employee_compensation WHERE employee_id = :employeeId LIMIT 1`,
+      { replacements: { employeeId }, type: QueryTypes.SELECT }
+    );
+    if (!row) return null;
+    let allowances: PayslipLineItem[] = [];
+    try { allowances = row.standard_allowances_json ? JSON.parse(row.standard_allowances_json) : []; } catch { allowances = []; }
+    return { ...row, allowances };
+  }
+
+  // Default currency is resolved from the employee's branch (resolveBranchCurrency) unless the
+  // compensation record explicitly overrides it - covers employees who transferred branches
+  // without anyone remembering to update their compensation record.
+  static async resolveDefaultCurrency(employeeBranchId: number | null): Promise<string> {
+    if (!employeeBranchId) return 'AED';
+    const branchCurrency = await resolveBranchCurrency(employeeBranchId);
+    return branchCurrency?.currencyCode || 'AED';
+  }
+
+  static async upsertCompensation(input: {
+    employee_id: string; basic_salary: number; currency_code: string;
+    allowances?: PayslipLineItem[]; bank_name?: string | null; iban?: string | null; updated_by?: string | null;
+  }) {
+    await this.ensureCompensationTable();
+    await sequelize.query(
+      `INSERT INTO dm_hr_employee_compensation (employee_id, basic_salary, currency_code, standard_allowances_json, bank_name, iban, updated_by)
+       VALUES (:employeeId, :basicSalary, :currencyCode, :allowances, :bankName, :iban, :updatedBy)
+       ON DUPLICATE KEY UPDATE
+         basic_salary = VALUES(basic_salary), currency_code = VALUES(currency_code),
+         standard_allowances_json = VALUES(standard_allowances_json), bank_name = VALUES(bank_name),
+         iban = VALUES(iban), updated_by = VALUES(updated_by)`,
+      {
+        replacements: {
+          employeeId: input.employee_id,
+          basicSalary: input.basic_salary,
+          currencyCode: input.currency_code,
+          allowances: jsonString(input.allowances || []),
+          bankName: input.bank_name || null,
+          iban: input.iban || null,
+          updatedBy: input.updated_by || null,
+        },
+      }
+    );
+    return this.getCompensation(input.employee_id);
   }
 
   private static async getEmployeeForPayslip(employeeId: string) {
     const [employee] = await sequelize.query<EmployeePayslipRow>(
       `
-        SELECT id, name, EID, department
+        SELECT id, name, EID, department, branch
         FROM dm_employee
-        WHERE CAST(id AS CHAR) = :employeeId
+        WHERE CAST(id AS CHAR) COLLATE utf8mb4_general_ci = :employeeId
         LIMIT 1
       `,
       { replacements: { employeeId }, type: QueryTypes.SELECT }
@@ -824,6 +1301,11 @@ export class HRService {
     const netSalary = Number((grossSalary - deductionTotal).toFixed(2));
     const payPeriod = `${input.pay_year}-${String(input.pay_month).padStart(2, '0')}`;
     const fileName = `payslip_${input.employee_id}_${input.pay_year}_${String(input.pay_month).padStart(2, '0')}.pdf`;
+    // Priority: explicit per-run override > the employee's saved compensation record > their
+    // branch's currency > AED. Skipping the compensation record here was a real bug caught in
+    // testing - it made a saved non-AED compensation currency silently get ignored.
+    const compensation = await this.getCompensation(input.employee_id);
+    const currencyCode = input.currency_code || compensation?.currency_code || await this.resolveDefaultCurrency(employee.branch ?? null);
 
     const document = await DocumentService.generatePayslip({
       companyName: process.env.COMPANY_NAME || 'DM CONSULTANTS',
@@ -833,6 +1315,7 @@ export class HRService {
       designation: input.designation || 'Employee',
       department: input.department || departmentLabel(employee.department),
       payPeriod,
+      currencyCode,
       basicSalary: input.basic_salary,
       allowances,
       overtimeHours,
@@ -853,12 +1336,12 @@ export class HRService {
         INSERT INTO dm_hr_payslips (
           payslip_id, employee_id, pay_year, pay_month, pay_period, basic_salary,
           allowances_json, overtime_hours, overtime_amount, deductions_json,
-          gross_salary, net_salary, bank_name, masked_iban, ytd_earnings,
+          gross_salary, net_salary, currency_code, bank_name, masked_iban, ytd_earnings,
           storage_key, signed_url, signed_url_expires_at, generated_by
         ) VALUES (
           :payslipId, :employeeId, :payYear, :payMonth, :payPeriod, :basicSalary,
           :allowances, :overtimeHours, :overtimeAmount, :deductions,
-          :grossSalary, :netSalary, :bankName, :maskedIban, :ytdEarnings,
+          :grossSalary, :netSalary, :currencyCode, :bankName, :maskedIban, :ytdEarnings,
           :storageKey, :signedUrl, :signedUrlExpiresAt, :generatedBy
         )
         ON DUPLICATE KEY UPDATE
@@ -869,6 +1352,7 @@ export class HRService {
           deductions_json = VALUES(deductions_json),
           gross_salary = VALUES(gross_salary),
           net_salary = VALUES(net_salary),
+          currency_code = VALUES(currency_code),
           bank_name = VALUES(bank_name),
           masked_iban = VALUES(masked_iban),
           ytd_earnings = VALUES(ytd_earnings),
@@ -892,6 +1376,7 @@ export class HRService {
           deductions: jsonString(deductions),
           grossSalary,
           netSalary,
+          currencyCode,
           bankName: input.bank_name || null,
           maskedIban: maskIban(input.iban) || null,
           ytdEarnings: input.ytd_earnings || netSalary,
@@ -910,6 +1395,7 @@ export class HRService {
       pay_period: payPeriod,
       gross_salary: grossSalary,
       net_salary: netSalary,
+      currency_code: currencyCode,
       storage_key: document.storageKey,
       signed_url: document.signedUrl,
       signed_url_expires_at: document.expiresAt,
@@ -947,6 +1433,7 @@ export class HRService {
           p.overtime_amount,
           p.gross_salary,
           p.net_salary,
+          p.currency_code,
           p.bank_name,
           p.masked_iban,
           p.ytd_earnings,
@@ -956,7 +1443,7 @@ export class HRService {
           p.generated_by,
           p.generated_at
         FROM dm_hr_payslips p
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = p.employee_id
+        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = p.employee_id
         ${where}
         ORDER BY p.pay_year DESC, p.pay_month DESC, p.generated_at DESC
         LIMIT :limit
@@ -980,6 +1467,7 @@ export class HRService {
         INDEX idx_hr_exit_checklist_status (status)
       )
     `);
+    await this.addColumnIfMissing('dm_hr_exit_checklists', 'exit_request_id', 'CHAR(36) NULL AFTER employee_id');
 
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS dm_hr_exit_checklist_items (
@@ -1013,20 +1501,39 @@ export class HRService {
 
   static async assignExitChecklist(input: ExitChecklistInput) {
     await this.ensureExitChecklistTables();
+
+    if (input.exit_request_id) {
+      const [existing] = await sequelize.query<{ checklist_id: string }>(
+        `SELECT checklist_id FROM dm_hr_exit_checklists WHERE exit_request_id = :exitRequestId LIMIT 1`,
+        { replacements: { exitRequestId: input.exit_request_id }, type: QueryTypes.SELECT }
+      );
+      if (existing) return existing;
+    } else {
+      // The manual HR-UI assignment path never sends exit_request_id, so the
+      // check above never fires for it - fall back to "one checklist per
+      // employee" so a resubmit doesn't create a second, competing checklist.
+      const [existing] = await sequelize.query<{ checklist_id: string }>(
+        `SELECT checklist_id FROM dm_hr_exit_checklists WHERE employee_id = :employeeId LIMIT 1`,
+        { replacements: { employeeId: input.employee_id }, type: QueryTypes.SELECT }
+      );
+      if (existing) return existing;
+    }
+
     const checklistId = crypto.randomUUID();
 
     await sequelize.query(
       `
         INSERT INTO dm_hr_exit_checklists (
-          checklist_id, employee_id, separation_reason, last_working_day, assigned_by
+          checklist_id, employee_id, exit_request_id, separation_reason, last_working_day, assigned_by
         ) VALUES (
-          :checklistId, :employeeId, :separationReason, :lastWorkingDay, :assignedBy
+          :checklistId, :employeeId, :exitRequestId, :separationReason, :lastWorkingDay, :assignedBy
         )
       `,
       {
         replacements: {
           checklistId,
           employeeId: input.employee_id,
+          exitRequestId: input.exit_request_id || null,
           separationReason: input.separation_reason || null,
           lastWorkingDay: input.last_working_day || null,
           assignedBy: input.assigned_by || null,
@@ -1094,8 +1601,8 @@ export class HRService {
           SUM(CASE WHEN i.status = 'Waived' THEN 1 ELSE 0 END) AS waived_items,
           SUM(CASE WHEN i.status = 'Pending' THEN 1 ELSE 0 END) AS pending_items
         FROM dm_hr_exit_checklists c
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = c.employee_id
-        LEFT JOIN dm_employee assigner ON CAST(assigner.id AS CHAR) = c.assigned_by
+        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = c.employee_id
+        LEFT JOIN dm_employee assigner ON CAST(assigner.id AS CHAR) COLLATE utf8mb4_general_ci = c.assigned_by
         LEFT JOIN dm_hr_exit_checklist_items i ON i.checklist_id = c.checklist_id
         ${where}
         GROUP BY c.checklist_id, c.employee_id, e.name, c.separation_reason, c.last_working_day, c.status, c.assigned_by, assigner.name, c.assigned_at, c.completed_at
@@ -1121,7 +1628,7 @@ export class HRService {
           i.notes,
           i.sort_order
         FROM dm_hr_exit_checklist_items i
-        LEFT JOIN dm_employee completer ON CAST(completer.id AS CHAR) = i.completed_by
+        LEFT JOIN dm_employee completer ON CAST(completer.id AS CHAR) COLLATE utf8mb4_general_ci = i.completed_by
         ${options.employeeId ? 'WHERE i.employee_id = :employeeId' : options.checklistId ? 'WHERE i.checklist_id = :checklistId' : ''}
         ORDER BY i.sort_order ASC
       `,
@@ -1301,8 +1808,8 @@ export class HRService {
           l.generated_at
         FROM dm_hr_employee_letters l
         LEFT JOIN dm_hr_letter_templates t ON t.template_id = l.template_id
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = l.employee_id
-        LEFT JOIN dm_employee generator ON CAST(generator.id AS CHAR) = l.generated_by
+        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = l.employee_id
+        LEFT JOIN dm_employee generator ON CAST(generator.id AS CHAR) COLLATE utf8mb4_general_ci = l.generated_by
         ${where}
         ORDER BY l.generated_at DESC
         LIMIT :limit
@@ -1316,7 +1823,7 @@ export class HRService {
       `
         SELECT id, name, EID, doj, department
         FROM dm_employee
-        WHERE CAST(id AS CHAR) = :employeeId
+        WHERE CAST(id AS CHAR) COLLATE utf8mb4_general_ci = :employeeId
         LIMIT 1
       `,
       { replacements: { employeeId }, type: QueryTypes.SELECT }
@@ -1342,6 +1849,21 @@ export class HRService {
       { replacements: { letterType: input.letter_type }, type: QueryTypes.SELECT }
     );
     if (!template) throw new Error('Letter template not found');
+
+    // Duplicate-submission guard: ref_number is unique but minted fresh
+    // (Date.now()-based) every call, so that constraint alone can never
+    // catch a resubmit - block an identical (employee, letter type) request
+    // generated in the last minute instead.
+    const [recentLetter] = await sequelize.query<{ letter_id: string }>(
+      `SELECT letter_id FROM dm_hr_employee_letters
+       WHERE employee_id = :employeeId AND letter_type = :letterType
+         AND generated_at >= (NOW() - INTERVAL 60 SECOND)
+       LIMIT 1`,
+      { replacements: { employeeId: input.employee_id, letterType: input.letter_type }, type: QueryTypes.SELECT }
+    );
+    if (recentLetter) {
+      throw new Error('This letter was already generated a moment ago - check the letter log before resubmitting.');
+    }
 
     const issueDate = input.issue_date || new Date().toISOString().slice(0, 10);
     const refNumber = referenceNumber(input.letter_type, input.employee_id);
@@ -1451,6 +1973,16 @@ export class HRService {
 
   static async createExitInterview(input: ExitInterviewInput) {
     await this.ensureExitInterviewTable();
+
+    // Duplicate-submission guard: one exit interview per employee.
+    const [existing] = await sequelize.query<{ exit_id: string }>(
+      `SELECT exit_id FROM dm_hr_exit_interviews WHERE employee_id = :employeeId LIMIT 1`,
+      { replacements: { employeeId: input.employee_id }, type: QueryTypes.SELECT }
+    );
+    if (existing) {
+      throw new Error('An exit interview for this employee has already been recorded.');
+    }
+
     const exitId = crypto.randomUUID();
     const ratings = {
       jobSatisfaction: ratingValue(input.job_satisfaction),
@@ -1538,8 +2070,8 @@ export class HRService {
           x.confidential,
           x.created_at
         FROM dm_hr_exit_interviews x
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = x.employee_id
-        LEFT JOIN dm_employee conductor ON CAST(conductor.id AS CHAR) = x.conducted_by
+        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = x.employee_id
+        LEFT JOIN dm_employee conductor ON CAST(conductor.id AS CHAR) COLLATE utf8mb4_general_ci = x.conducted_by
         ${where}
         ORDER BY x.interview_date DESC, x.created_at DESC
         LIMIT :limit
@@ -1635,7 +2167,7 @@ export class HRService {
       `
         SELECT id, name, doj
         FROM dm_employee
-        WHERE CAST(id AS CHAR) = :employeeId
+        WHERE CAST(id AS CHAR) COLLATE utf8mb4_general_ci = :employeeId
         LIMIT 1
       `,
       { replacements: { employeeId }, type: QueryTypes.SELECT }
@@ -1702,6 +2234,18 @@ export class HRService {
   static async createEOSBSettlement(input: EOSBInput) {
     if (!input.approved_by) throw new Error('approved_by is required');
     const preview = await this.previewEOSBSettlement(input);
+
+    // Duplicate-submission guard: an employee is settled once at exit, so a
+    // resubmit would otherwise create a second, competing settlement record
+    // for the same person rather than being a harmless no-op.
+    const [existing] = await sequelize.query<{ eosb_id: string }>(
+      `SELECT eosb_id FROM dm_hr_eosb_settlements WHERE employee_id = :employeeId LIMIT 1`,
+      { replacements: { employeeId: preview.employee_id }, type: QueryTypes.SELECT }
+    );
+    if (existing) {
+      throw new Error('An EOSB settlement for this employee already exists.');
+    }
+
     const eosbId = crypto.randomUUID();
 
     await sequelize.query(
@@ -1775,8 +2319,8 @@ export class HRService {
           s.notes,
           s.created_at
         FROM dm_hr_eosb_settlements s
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = s.employee_id
-        LEFT JOIN dm_employee approver ON CAST(approver.id AS CHAR) = s.approved_by
+        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = s.employee_id
+        LEFT JOIN dm_employee approver ON CAST(approver.id AS CHAR) COLLATE utf8mb4_general_ci = s.approved_by
         ${where}
         ORDER BY s.created_at DESC
         LIMIT :limit
@@ -1838,9 +2382,9 @@ export class HRService {
           l.reviewed_at,
           l.review_notes
         FROM dm_hr_leave_requests l
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = l.employee_id
-        LEFT JOIN dm_employee manager ON CAST(manager.id AS CHAR) = l.manager_id
-        LEFT JOIN dm_employee reviewer ON CAST(reviewer.id AS CHAR) = l.reviewed_by
+        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = l.employee_id
+        LEFT JOIN dm_employee manager ON CAST(manager.id AS CHAR) COLLATE utf8mb4_general_ci = l.manager_id
+        LEFT JOIN dm_employee reviewer ON CAST(reviewer.id AS CHAR) COLLATE utf8mb4_general_ci = l.reviewed_by
         ${where}
         ORDER BY l.applied_at DESC
         LIMIT :limit
@@ -1882,7 +2426,7 @@ export class HRService {
           remaining_days
         FROM dm_hr_leave_balances
         WHERE employee_id = :employeeId AND year = :year
-        ORDER BY FIELD(leave_type, 'Annual Leave', 'Sick Leave', 'Maternity Leave', 'Paternity Leave', 'Hajj Leave', 'Bereavement Leave', 'Unpaid Leave', 'Compensatory Leave')
+        ORDER BY FIELD(leave_type, 'Annual Leave', 'Sick Leave', 'Emergency Leave', 'Maternity Leave', 'Paternity Leave', 'Hajj Leave', 'Bereavement Leave', 'Unpaid Leave', 'Compensatory Leave')
       `,
       { replacements: { employeeId, year }, type: QueryTypes.SELECT }
     );
@@ -1891,7 +2435,20 @@ export class HRService {
   static async syncLeaveBalance(employeeId: string, leaveType: HRLeaveType, year = currentYear()) {
     await this.ensureLeaveManagementTables();
     const entitlement = leaveEntitlements.find((item) => item.type === leaveType);
-    const entitlementDays = entitlement?.entitlementDays || 0;
+    let entitlementDays = entitlement?.entitlementDays || 0;
+
+    // Compensatory Leave has no fixed yearly entitlement in leaveEntitlements
+    // (it's earned, not granted) - it only has whatever HR has explicitly
+    // credited via creditCompensatoryLeave(), so preserve that instead of
+    // resetting it to the 0 default on every sync (every balance read).
+    if (leaveType === 'Compensatory Leave') {
+      const [existing] = await sequelize.query<{ entitlement_days: number | string | null }>(
+        `SELECT entitlement_days FROM dm_hr_leave_balances WHERE employee_id = :employeeId AND leave_type = :leaveType AND year = :year LIMIT 1`,
+        { replacements: { employeeId, leaveType, year }, type: QueryTypes.SELECT }
+      );
+      entitlementDays = Number(existing?.entitlement_days || 0);
+    }
+
     const [summary] = await sequelize.query<{ used_days: number | string | null; pending_days: number | string | null }>(
       `
         SELECT
@@ -1906,7 +2463,7 @@ export class HRService {
     );
     const usedDays = Number(summary?.used_days || 0);
     const pendingDays = Number(summary?.pending_days || 0);
-    const remainingDays = leaveType === 'Unpaid Leave' || leaveType === 'Compensatory Leave'
+    const remainingDays = leaveType === 'Unpaid Leave'
       ? 0
       : Math.max(entitlementDays - usedDays - pendingDays, 0);
 
@@ -1940,13 +2497,67 @@ export class HRService {
     );
   }
 
+  // Manually credit Comp Off days to an employee (e.g. for overtime worked).
+  // Compensatory Leave has no automatic accrual, so this is currently the
+  // only way its balance becomes non-zero - see syncLeaveBalance above.
+  static async creditCompensatoryLeave(employeeId: string, days: number, year = currentYear()) {
+    await this.ensureLeaveManagementTables();
+    if (!Number.isFinite(days) || days <= 0) {
+      throw new Error('Days to credit must be a positive number');
+    }
+
+    await sequelize.query(
+      `
+        INSERT INTO dm_hr_leave_balances (
+          balance_id, employee_id, leave_type, year, entitlement_days,
+          used_days, pending_days, remaining_days
+        ) VALUES (
+          :balanceId, :employeeId, 'Compensatory Leave', :year, :days,
+          0, 0, :days
+        )
+        ON DUPLICATE KEY UPDATE
+          entitlement_days = entitlement_days + VALUES(entitlement_days)
+      `,
+      {
+        replacements: { balanceId: crypto.randomUUID(), employeeId, year, days },
+      }
+    );
+
+    // Recompute remaining_days against actual used/pending requests now that
+    // the entitlement has changed.
+    await this.syncLeaveBalance(employeeId, 'Compensatory Leave', year);
+    return this.getLeaveBalances(employeeId, year);
+  }
+
   static async applyLeave(input: HRLeaveInput) {
     await this.ensureLeaveManagementTables();
     if (!leaveTypeNames.includes(input.leave_type)) {
       throw new Error('Invalid leave type');
     }
 
-    const daysRequested = calculateCalendarDays(input.start_date, input.end_date);
+    // Duplicate-submission guard: the client already disables the submit
+    // button while a request is in flight, but that's per-tab/per-page-load
+    // state - it doesn't stop a resubmit from a page reload, a second tab, or
+    // a slow network response that looks "stuck" and gets retried. Block an
+    // identical (employee, type, dates) request filed within the last minute
+    // instead of silently creating a second row.
+    const [recentDuplicate] = await sequelize.query<{ leave_id: string }>(
+      `
+        SELECT leave_id FROM dm_hr_leave_requests
+        WHERE employee_id = :employeeId
+          AND leave_type = :leaveType
+          AND start_date = :startDate
+          AND end_date = :endDate
+          AND applied_at >= (NOW() - INTERVAL 60 SECOND)
+        LIMIT 1
+      `,
+      { replacements: { employeeId: input.employee_id, leaveType: input.leave_type, startDate: input.start_date, endDate: input.end_date }, type: QueryTypes.SELECT }
+    );
+    if (recentDuplicate) {
+      throw new Error('This leave request was already submitted a moment ago - check My Leave Applications before resubmitting.');
+    }
+
+    const daysRequested = await this.calculateWorkingDays(input.start_date, input.end_date, input.employee_id);
     if (!daysRequested) {
       throw new Error('end_date must be on or after start_date');
     }
@@ -2012,6 +2623,92 @@ export class HRService {
     });
 
     return { leave_id: leaveId, days_requested: daysRequested, medical_certificate_required: medicalCertificateRequired };
+  }
+
+  // Edits are only allowed while a request is still Pending - once a manager
+  // or HR has acted on it, correcting details means cancelling and reapplying
+  // so the approval trail stays honest about what was actually approved.
+  static async editLeaveRequest(input: {
+    leave_id: string;
+    employee_id: string;
+    leave_type?: HRLeaveType;
+    start_date?: string;
+    end_date?: string;
+    reason?: string | null;
+    document_url?: string | null;
+  }) {
+    await this.ensureLeaveManagementTables();
+    const [existing] = await sequelize.query<{
+      employee_id: string;
+      leave_type: HRLeaveType;
+      start_date: string;
+      end_date: string;
+      status: HRLeaveStatus;
+    }>(
+      `SELECT employee_id, leave_type, start_date, end_date, status FROM dm_hr_leave_requests WHERE leave_id = :leaveId LIMIT 1`,
+      { replacements: { leaveId: input.leave_id }, type: QueryTypes.SELECT }
+    );
+
+    if (!existing) throw new Error('Leave request not found');
+    if (String(existing.employee_id) !== String(input.employee_id)) {
+      throw new Error('You do not have permission to edit this leave request');
+    }
+    if (existing.status !== 'Pending') {
+      throw new Error('Only a Pending leave request can be edited');
+    }
+
+    const leaveType = input.leave_type || existing.leave_type;
+    const startDate = input.start_date || existing.start_date;
+    const endDate = input.end_date || existing.end_date;
+
+    if (!leaveTypeNames.includes(leaveType)) {
+      throw new Error('Invalid leave type');
+    }
+
+    const daysRequested = await this.calculateWorkingDays(startDate, endDate, input.employee_id);
+    if (!daysRequested) {
+      throw new Error('end_date must be on or after start_date');
+    }
+
+    const medicalCertificateRequired = leaveType === 'Sick Leave' && daysRequested > 3;
+    if (medicalCertificateRequired && !input.document_url) {
+      throw new Error('Medical certificate is required for sick leave longer than 3 days');
+    }
+
+    await sequelize.query(
+      `
+        UPDATE dm_hr_leave_requests
+        SET
+          leave_type = :leaveType,
+          start_date = :startDate,
+          end_date = :endDate,
+          days_requested = :daysRequested,
+          reason = COALESCE(:reason, reason),
+          medical_certificate_required = :medicalCertificateRequired,
+          document_url = COALESCE(:documentUrl, document_url)
+        WHERE leave_id = :leaveId
+      `,
+      {
+        replacements: {
+          leaveId: input.leave_id,
+          leaveType,
+          startDate,
+          endDate,
+          daysRequested,
+          // undefined (field omitted) -> null -> COALESCE keeps the existing
+          // value; an explicit "" clears it, same as a real edit would intend.
+          reason: input.reason === undefined ? null : input.reason,
+          medicalCertificateRequired,
+          documentUrl: input.document_url || null,
+        },
+      }
+    );
+
+    // Refresh balances for both the old and new leave type/year, in case either changed.
+    await this.syncLeaveBalance(input.employee_id, existing.leave_type, new Date(existing.start_date).getFullYear());
+    await this.syncLeaveBalance(input.employee_id, leaveType, new Date(startDate).getFullYear());
+
+    return { leave_id: input.leave_id, days_requested: daysRequested, medical_certificate_required: medicalCertificateRequired };
   }
 
   static async reviewLeaveByManager(input: HRLeaveManagerReviewInput) {
@@ -2204,16 +2901,24 @@ export class HRService {
     await this.ensureWorkforceDashboardTables();
   }
 
-  private static employeePayload(input: EmployeeCoreInput, fallbackStatus = 1) {
-    const workLocation = employeeWorkLocations.includes(input.work_location as typeof employeeWorkLocations[number])
-      ? input.work_location
-      : 'Onshore';
-    const employmentType = employeeEmploymentTypes.includes(input.employment_type as typeof employeeEmploymentTypes[number])
-      ? input.employment_type
-      : 'Full-time';
+  // `isUpdate` matters because every column here is COALESCE'd against the
+  // existing row in updateEmployee's SQL: a field must resolve to actual NULL
+  // (not a "helpful" default like today's date or 'Onshore') whenever the
+  // caller omits it during an update, otherwise a partial save (e.g. just
+  // flipping status to deactivate) silently overwrites unrelated columns.
+  // Create keeps the old defaulting behavior since a brand-new row should
+  // never be left with nulls that break downstream display logic.
+  private static employeePayload(input: EmployeeCoreInput, fallbackStatus = 1, isUpdate = false) {
+    const providedWorkLocation = employeeWorkLocations.includes(input.work_location as typeof employeeWorkLocations[number])
+      ? (input.work_location as typeof employeeWorkLocations[number])
+      : undefined;
+    const providedEmploymentType = employeeEmploymentTypes.includes(input.employment_type as typeof employeeEmploymentTypes[number])
+      ? (input.employment_type as typeof employeeEmploymentTypes[number])
+      : undefined;
+    const effectiveWorkLocation = providedWorkLocation || 'Onshore';
 
     return {
-      name: String(input.name || '').trim(),
+      name: isUpdate ? (input.name ? String(input.name).trim() : null) : String(input.name || '').trim(),
       email: input.email || null,
       cemail: input.cemail || null,
       mobile: input.mobile || null,
@@ -2223,7 +2928,7 @@ export class HRService {
       photo: input.photo || null,
       dob: dateOrNull(input.dob),
       role: nullableNumber(input.role),
-      vendor_id: nullableNumber(input.vendor_id) || 0,
+      vendor_id: isUpdate ? nullableNumber(input.vendor_id) : (nullableNumber(input.vendor_id) || 0),
       branch: nullableNumber(input.branch),
       region: nullableNumber(input.region),
       username: input.username || null,
@@ -2233,7 +2938,7 @@ export class HRService {
       visaExp: dateOrNull(input.visaExp),
       department: nullableNumber(input.department),
       EID: input.EID || null,
-      doj: dateOrNull(input.doj) || new Date().toISOString().slice(0, 10),
+      doj: isUpdate ? dateOrNull(input.doj) : (dateOrNull(input.doj) || new Date().toISOString().slice(0, 10)),
       nationality: input.nationality || null,
       dol: dateOrNull(input.dol),
       remark: input.remark || null,
@@ -2243,15 +2948,18 @@ export class HRService {
       em_home_name: input.em_home_name || null,
       em_local_number: input.em_local_number || null,
       em_home_number: input.em_home_number || null,
-      religion: input.religion || '',
-      gender: input.gender || '',
-      crea: nullableNumber(input.crea) || 1,
-      wfh: input.wfh ?? (workLocation === 'Onshore' ? 0 : 1),
-      work_location: workLocation,
-      work_country: input.work_country || (workLocation === 'Onshore' ? 'UAE' : null),
+      religion: isUpdate ? (input.religion || null) : (input.religion || ''),
+      gender: isUpdate ? (input.gender || null) : (input.gender || ''),
+      crea: isUpdate ? nullableNumber(input.crea) : (nullableNumber(input.crea) || 1),
+      wfh: isUpdate ? (input.wfh ?? null) : (input.wfh ?? (effectiveWorkLocation === 'Onshore' ? 0 : 1)),
+      work_location: isUpdate ? (providedWorkLocation || null) : effectiveWorkLocation,
+      work_country: isUpdate
+        ? (input.work_country || null)
+        : (input.work_country || (effectiveWorkLocation === 'Onshore' ? 'UAE' : null)),
       work_city: input.work_city || null,
       work_site: input.work_site || null,
-      employment_type: employmentType,
+      employment_type: isUpdate ? (providedEmploymentType || null) : (providedEmploymentType || 'Full-time'),
+      must_change_password: input.must_change_password ?? (isUpdate ? null : 0),
     };
   }
 
@@ -2260,12 +2968,12 @@ export class HRService {
     await sequelize.query(
       `
         UPDATE dm_employee e
-        JOIN dm_pro_employee_immigration p ON CAST(p.employee_id AS CHAR) = CAST(e.id AS CHAR)
+        JOIN dm_pro_employee_immigration p ON CAST(p.employee_id AS CHAR) COLLATE utf8mb4_general_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci
         SET
           e.visaExp = COALESCE(p.visa_expiry_date, e.visaExp),
-          e.labexp = COALESCE(CAST(p.labour_card_expiry AS CHAR), e.labexp),
+          e.labexp = COALESCE(CAST(p.labour_card_expiry AS CHAR) COLLATE utf8mb4_general_ci, e.labexp),
           e.remark = TRIM(CONCAT(COALESCE(e.remark, ''), CASE WHEN COALESCE(e.remark, '') = '' THEN '' ELSE '\n' END, 'PRO sync: ', p.visa_status, ' visa / labour records updated ', DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i')))
-        WHERE CAST(e.id AS CHAR) = :employeeId
+        WHERE CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = :employeeId
       `,
       { replacements: { employeeId: String(employeeId) } }
     ).catch((error) => {
@@ -2353,7 +3061,7 @@ export class HRService {
           p.labour_card_expiry AS labourCardExpiry, p.insurance_expiry AS insuranceExpiry
         FROM dm_employee e
         LEFT JOIN dm_department d ON d.id = e.department
-        LEFT JOIN dm_pro_employee_immigration p ON CAST(p.employee_id AS CHAR) = CAST(e.id AS CHAR)
+        LEFT JOIN dm_pro_employee_immigration p ON CAST(p.employee_id AS CHAR) COLLATE utf8mb4_general_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci
         ${where}
         ORDER BY e.id DESC
         LIMIT :limit OFFSET :offset`;
@@ -2397,8 +3105,30 @@ export class HRService {
 
   static async createEmployee(input: EmployeeCoreInput) {
     await this.ensureEmployeeCoreColumns();
-    const payload = this.employeePayload(input, 1);
+    // A password typed into the HR form arrives as plaintext - hash it here (the
+    // one place both create and update funnel through) so it's never written to
+    // the DB unhashed, and mark the account as needing a change on first login.
+    const hashedInput: EmployeeCoreInput = input.password
+      ? { ...input, password: await hashPassword(input.password), must_change_password: input.must_change_password ?? 1 }
+      : input;
+    const payload = this.employeePayload(hashedInput, 1);
     if (!payload.name) throw new Error('Employee name is required');
+
+    // Duplicate-submission guard: dm_employee has no creation-timestamp
+    // column to check a "just now" window against, and no unique constraint
+    // on email/username - block an exact repeat (same name + email, or same
+    // name + username when no email is given) instead.
+    if (payload.email || payload.username) {
+      const [existing] = await sequelize.query<{ id: number }>(
+        `SELECT id FROM dm_employee WHERE name = :name AND (
+           (:email <> '' AND email = :email) OR (:username <> '' AND username = :username)
+         ) LIMIT 1`,
+        { replacements: { name: payload.name, email: payload.email || '', username: payload.username || '' }, type: QueryTypes.SELECT }
+      );
+      if (existing) {
+        throw new Error('An employee with this name and email/username already exists.');
+      }
+    }
 
     const [, metadata] = await sequelize.query(
       `
@@ -2408,14 +3138,14 @@ export class HRService {
           visaExp, department, EID, doj, nationality, dol, remark, labexp,
           bounce, em_local_name, em_home_name, em_local_number, em_home_number,
           religion, gender, crea, wfh, work_location, work_country, work_city,
-          work_site, employment_type
+          work_site, employment_type, must_change_password
         ) VALUES (
           :name, :email, :cemail, :mobile, :cmobile, :paddress, :address, :photo, :dob,
           :role, :vendor_id, :branch, :region, :username, :password, :status, :ppNo,
           :visaExp, :department, :EID, :doj, :nationality, :dol, :remark, :labexp,
           :bounce, :em_local_name, :em_home_name, :em_local_number, :em_home_number,
           :religion, :gender, :crea, :wfh, :work_location, :work_country, :work_city,
-          :work_site, :employment_type
+          :work_site, :employment_type, :must_change_password
         )
       `,
       { replacements: payload }
@@ -2427,51 +3157,55 @@ export class HRService {
 
   static async updateEmployee(input: EmployeeCoreInput & { id: number }) {
     await this.ensureEmployeeCoreColumns();
-    const payload = this.employeePayload(input, employeeStatus(input.status, 1));
+    const hashedInput: EmployeeCoreInput & { id: number } = input.password
+      ? { ...input, password: await hashPassword(input.password), must_change_password: input.must_change_password ?? 1 }
+      : input;
+    const payload = this.employeePayload(hashedInput, employeeStatus(input.status, 1), true);
 
     await sequelize.query(
       `
         UPDATE dm_employee
         SET
           name = COALESCE(:name, name),
-          email = :email,
-          cemail = :cemail,
-          mobile = :mobile,
-          cmobile = :cmobile,
-          paddress = :paddress,
-          address = :address,
-          photo = :photo,
-          dob = :dob,
-          role = :role,
-          vendor_id = :vendor_id,
-          branch = :branch,
-          region = :region,
-          username = :username,
+          email = COALESCE(:email, email),
+          cemail = COALESCE(:cemail, cemail),
+          mobile = COALESCE(:mobile, mobile),
+          cmobile = COALESCE(:cmobile, cmobile),
+          paddress = COALESCE(:paddress, paddress),
+          address = COALESCE(:address, address),
+          photo = COALESCE(:photo, photo),
+          dob = COALESCE(:dob, dob),
+          role = COALESCE(:role, role),
+          vendor_id = COALESCE(:vendor_id, vendor_id),
+          branch = COALESCE(:branch, branch),
+          region = COALESCE(:region, region),
+          username = COALESCE(:username, username),
           password = COALESCE(:password, password),
           status = :status,
-          ppNo = :ppNo,
-          visaExp = :visaExp,
-          department = :department,
-          EID = :EID,
-          doj = :doj,
-          nationality = :nationality,
-          dol = :dol,
-          remark = :remark,
-          labexp = :labexp,
-          bounce = :bounce,
-          em_local_name = :em_local_name,
-          em_home_name = :em_home_name,
-          em_local_number = :em_local_number,
-          em_home_number = :em_home_number,
-          religion = :religion,
-          gender = :gender,
-          crea = :crea,
-          wfh = :wfh,
-          work_location = :work_location,
-          work_country = :work_country,
-          work_city = :work_city,
-          work_site = :work_site,
-          employment_type = :employment_type
+          ppNo = COALESCE(:ppNo, ppNo),
+          visaExp = COALESCE(:visaExp, visaExp),
+          department = COALESCE(:department, department),
+          EID = COALESCE(:EID, EID),
+          doj = COALESCE(:doj, doj),
+          nationality = COALESCE(:nationality, nationality),
+          dol = COALESCE(:dol, dol),
+          remark = COALESCE(:remark, remark),
+          labexp = COALESCE(:labexp, labexp),
+          bounce = COALESCE(:bounce, bounce),
+          em_local_name = COALESCE(:em_local_name, em_local_name),
+          em_home_name = COALESCE(:em_home_name, em_home_name),
+          em_local_number = COALESCE(:em_local_number, em_local_number),
+          em_home_number = COALESCE(:em_home_number, em_home_number),
+          religion = COALESCE(NULLIF(:religion, ''), religion),
+          gender = COALESCE(NULLIF(:gender, ''), gender),
+          crea = COALESCE(:crea, crea),
+          wfh = COALESCE(:wfh, wfh),
+          work_location = COALESCE(:work_location, work_location),
+          work_country = COALESCE(:work_country, work_country),
+          work_city = COALESCE(:work_city, work_city),
+          work_site = COALESCE(:work_site, work_site),
+          employment_type = COALESCE(:employment_type, employment_type),
+          must_change_password = COALESCE(:must_change_password, must_change_password)
         WHERE id = :id
       `,
       { replacements: { ...payload, id: input.id } }
@@ -2479,6 +3213,48 @@ export class HRService {
 
     await this.syncEmployeeGovernmentSummary(input.id);
     return this.getEmployeeById(input.id);
+  }
+
+  // Generates a new random password for an employee who forgot theirs (HR-triggered),
+  // hashes and stores it, flags the account to force a change on next login, and
+  // best-effort emails the plaintext password to their company inbox. Returns the
+  // plaintext password too so HR sees it immediately in case the email fails to send
+  // (e.g. mailer not configured) - only for this one response, never persisted.
+  static async resetEmployeePassword(id: number) {
+    await this.ensureEmployeeCoreColumns();
+    const employee = await this.getEmployeeById(id) as { name?: string; email?: string; cemail?: string; username?: string } | null;
+    if (!employee) throw new Error('Employee not found');
+
+    const newPassword = crypto.randomBytes(9).toString('base64').replace(/[+/=]/g, '').slice(0, 10) + '!1';
+    const hashed = await hashPassword(newPassword);
+
+    await sequelize.query(
+      `UPDATE dm_employee SET password = :hashed, must_change_password = 1 WHERE id = :id`,
+      { replacements: { hashed, id } }
+    );
+
+    const recipient = employee.cemail || employee.email || null;
+    let emailSent = false;
+    if (recipient) {
+      try {
+        await sendEmail({
+          to: recipient,
+          subject: 'Your DM Consultants CRM password has been reset',
+          html: `
+            <p>Hi ${employee.name || ''},</p>
+            <p>Your CRM password was reset by HR.</p>
+            <p><strong>Username:</strong> ${employee.username || ''}<br/>
+            <strong>New password:</strong> ${newPassword}</p>
+            <p>You will be asked to set a new password the next time you log in.</p>
+          `,
+        });
+        emailSent = true;
+      } catch (error) {
+        console.warn('Password reset email failed:', error instanceof Error ? error.message : error);
+      }
+    }
+
+    return { id, newPassword, emailSent, recipient };
   }
 
   static async softDeleteEmployee(id: number) {
@@ -2500,17 +3276,17 @@ export class HRService {
     const [employee] = await sequelize.query(
       `
         SELECT
-          e.id, e.name, e.email, e.mobile, e.cemail, e.cmobile, e.department,
+          e.id, e.name, e.email, e.mobile, e.cemail, e.cmobile, e.username, e.department,
           d.name AS departmentName, e.role, e.branch, e.region, e.status,
           e.EID, e.doj, e.dol, e.nationality, e.gender, e.ppNo, e.visaExp,
           e.labexp, e.address, e.paddress, e.wfh, e.work_location, e.work_country,
-          e.work_city, e.work_site, e.employment_type,
+          e.work_city, e.work_site, e.employment_type, e.must_change_password,
           p.pro_emp_id AS proEmpId, p.visa_uid AS visaUid, p.visa_type AS visaType,
           p.visa_status AS visaStatus, p.labour_card_no AS labourCardNo,
           p.labour_card_expiry AS labourCardExpiry, p.insurance_expiry AS insuranceExpiry
         FROM dm_employee e
         LEFT JOIN dm_department d ON d.id = e.department
-        LEFT JOIN dm_pro_employee_immigration p ON CAST(p.employee_id AS CHAR) = CAST(e.id AS CHAR)
+        LEFT JOIN dm_pro_employee_immigration p ON CAST(p.employee_id AS CHAR) COLLATE utf8mb4_general_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci
         WHERE e.id = :id
         LIMIT 1
       `,
@@ -2526,8 +3302,9 @@ export class HRService {
         SELECT
           COUNT(*) AS attendanceRecords,
           COUNT(DISTINCT employee_id) AS employeesWithAttendance,
-          0 AS totalHours,
-          SUM(CASE WHEN status IN ('Absent', 'Half-Day') THEN 1 ELSE 0 END) AS shortfallHours,
+          SUM(CASE WHEN check_in IS NOT NULL AND check_out IS NOT NULL
+                   THEN TIMESTAMPDIFF(MINUTE, check_in, check_out) / 60.0 ELSE 0 END) AS totalHours,
+          SUM(CASE WHEN status IN ('Absent', 'Half-Day') THEN 1 ELSE 0 END) AS shortfallRecords,
           SUM(COALESCE(overtime_hours, 0)) AS overtimeHours
         FROM dm_hr_attendance_records
         WHERE date >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
@@ -2575,6 +3352,7 @@ export class HRService {
     await this.addColumnIfMissing('dm_employee', 'work_city', 'VARCHAR(255) NULL');
     await this.addColumnIfMissing('dm_employee', 'work_site', 'VARCHAR(255) NULL');
     await this.addColumnIfMissing('dm_employee', 'employment_type', "ENUM('Full-time', 'Contract', 'Freelance', 'Part-time') NOT NULL DEFAULT 'Full-time'");
+    await this.addColumnIfMissing('dm_employee', 'must_change_password', 'TINYINT(1) NOT NULL DEFAULT 0');
 
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS dm_hr_headcount_snapshots (
@@ -2614,7 +3392,7 @@ export class HRService {
           WHERE status = 'Approved'
             AND CURRENT_DATE() BETWEEN start_date AND end_date
           GROUP BY employee_id
-        ) active_leave ON CAST(active_leave.employee_id AS CHAR) = CAST(dm_employee.id AS CHAR)
+        ) active_leave ON CAST(active_leave.employee_id AS CHAR) COLLATE utf8mb4_general_ci = CAST(dm_employee.id AS CHAR) COLLATE utf8mb4_general_ci
       `,
       { type: QueryTypes.SELECT }
     );
@@ -2701,8 +3479,9 @@ export class HRService {
         SELECT
           COUNT(*) AS attendanceRecords,
           COUNT(DISTINCT employee_id) AS employeesWithAttendance,
-          0 AS totalHours,
-          SUM(CASE WHEN status IN ('Absent', 'Half-Day') THEN 1 ELSE 0 END) AS shortfallHours,
+          SUM(CASE WHEN check_in IS NOT NULL AND check_out IS NOT NULL
+                   THEN TIMESTAMPDIFF(MINUTE, check_in, check_out) / 60.0 ELSE 0 END) AS totalHours,
+          SUM(CASE WHEN status IN ('Absent', 'Half-Day') THEN 1 ELSE 0 END) AS shortfallRecords,
           SUM(COALESCE(overtime_hours, 0)) AS overtimeHours
         FROM dm_hr_attendance_records
         WHERE date >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
@@ -2716,16 +3495,28 @@ export class HRService {
           SUM(CASE WHEN dol IS NOT NULL AND dol <> '' THEN 1 ELSE 0 END) AS exitCount,
           SUM(CASE WHEN status <> 1 THEN 1 ELSE 0 END) AS activeExitPipeline,
           (
-            SELECT COUNT(*)
-            FROM dm_hr_eosb_settlements
-            WHERE last_working_day >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
-              AND last_working_day < DATE_ADD(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+            SELECT COUNT(*) FROM (
+              SELECT employee_id, last_working_day AS lwd FROM dm_hr_eosb_settlements
+              WHERE last_working_day >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
+                AND last_working_day < DATE_ADD(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+              UNION
+              SELECT employee_id, COALESCE(approved_lwd, requested_lwd) AS lwd FROM dm_hr_exit_requests
+              WHERE status IN ('Approved', 'Completed')
+                AND COALESCE(approved_lwd, requested_lwd) >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
+                AND COALESCE(approved_lwd, requested_lwd) < DATE_ADD(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+            ) thisMonthExits
           ) AS exitsThisMonth,
           (
-            SELECT COUNT(*)
-            FROM dm_hr_eosb_settlements
-            WHERE last_working_day >= DATE_FORMAT(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), '%Y-%m-01')
-              AND last_working_day < DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
+            SELECT COUNT(*) FROM (
+              SELECT employee_id, last_working_day AS lwd FROM dm_hr_eosb_settlements
+              WHERE last_working_day >= DATE_FORMAT(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), '%Y-%m-01')
+                AND last_working_day < DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
+              UNION
+              SELECT employee_id, COALESCE(approved_lwd, requested_lwd) AS lwd FROM dm_hr_exit_requests
+              WHERE status IN ('Approved', 'Completed')
+                AND COALESCE(approved_lwd, requested_lwd) >= DATE_FORMAT(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), '%Y-%m-01')
+                AND COALESCE(approved_lwd, requested_lwd) < DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
+            ) lastMonthExits
           ) AS exitsLastMonth
         FROM dm_employee
       `,
@@ -2858,7 +3649,7 @@ export class HRService {
         attendanceRecords: numberValue(payroll?.attendanceRecords),
         employeesWithAttendance,
         totalHours: numberValue(payroll?.totalHours),
-        shortfallHours: numberValue(payroll?.shortfallHours),
+        shortfallRecords: numberValue(payroll?.shortfallRecords),
         overtimeHours: numberValue(payroll?.overtimeHours),
       },
       exitPipelineAttrition: {

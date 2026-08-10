@@ -10,10 +10,10 @@ interface MasterSheetsXPSAttributes {
 interface MasterSheetsXPSCreationAttributes extends Optional<MasterSheetsXPSAttributes, 'userid' | 'file' | 'date'> {}
 
 class MasterSheetsXPS extends Model<MasterSheetsXPSAttributes, MasterSheetsXPSCreationAttributes> implements MasterSheetsXPSAttributes {
-  public id!: number;
-  public userid!: number | null;
-  public file!: string | null;
-  public date!: string | null;
+  declare id: number;
+  declare userid: number | null;
+  declare file: string | null;
+  declare date: string | null;
 
   public static associate(models: any) {
   }

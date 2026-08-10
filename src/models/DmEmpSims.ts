@@ -14,14 +14,14 @@ interface DmEmpSimsAttributes {
 interface DmEmpSimsCreationAttributes extends Optional<DmEmpSimsAttributes, never> {}
 
 class DmEmpSims extends Model<DmEmpSimsAttributes, DmEmpSimsCreationAttributes> implements DmEmpSimsAttributes {
-  public id!: number;
-  public branch!: number;
-  public msisdn!: number;
-  public sim_number!: string;
-  public company!: string;
-  public status!: number;
-  public created_by!: number;
-  public created!: Date;
+  declare id: number;
+  declare branch: number;
+  declare msisdn: number;
+  declare sim_number: string;
+  declare company: string;
+  declare status: number;
+  declare created_by: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

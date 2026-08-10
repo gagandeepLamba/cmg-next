@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PROService } from '@/services/pro-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const statuses = ['Draft', 'Generated', 'Submitted', 'Confirmed', 'Rejected'] as const;
 type WpsStatus = typeof statuses[number];
@@ -27,6 +28,8 @@ const readSalaryRecords = (value: unknown) => {
 };
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.wps.view', 'pro.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const records = await PROService.listWpsRecords({
@@ -42,6 +45,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.wps.view', 'pro.create']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const payrollMonth = readString(body, 'payroll_month');
@@ -76,6 +81,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.wps.view', 'pro.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const wpsId = readString(body, 'wps_id');

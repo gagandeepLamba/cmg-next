@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { DmClients, DmClientsAttributes, DmcForumLeadsContracts, DmcForumLeadsContractsAttributes } from '@/models';
 
@@ -73,7 +74,7 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
       }
     } catch (error) {
       console.error('Error generating contract:', error);
-      alert('Failed to generate contract. Please try again.');
+      window.toast.error('Failed to generate contract. Please try again.');
     }
   };
 
@@ -87,7 +88,7 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Contract Type</label>
-                  <select
+                  <SearchableSelect
                     value={contractData.contractType}
                     onChange={(e) => handleInputChange('contractType', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -97,11 +98,11 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
                     <option value="family">Family</option>
                     <option value="student">Student</option>
                     <option value="business">Business</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
-                  <select
+                  <SearchableSelect
                     value={contractData.serviceType}
                     onChange={(e) => handleInputChange('serviceType', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -111,13 +112,13 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
                     <option value="education">Education</option>
                     <option value="business">Business Setup</option>
                     <option value="training">Training</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Program Type</label>
-                  <select
+                  <SearchableSelect
                     value={contractData.programType}
                     onChange={(e) => handleInputChange('programType', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -128,7 +129,7 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
                     <option value="provincial">Provincial Nomination</option>
                     <option value="federal">Federal Skilled Worker</option>
                     <option value="study">Study Permit</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Duration (months)</label>
@@ -173,7 +174,7 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Payment Terms</label>
-                  <select
+                  <SearchableSelect
                     value={contractData.paymentTerms}
                     onChange={(e) => handleInputChange('paymentTerms', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -181,7 +182,7 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
                     <option value="full">Full Payment</option>
                     <option value="installment">Installment</option>
                     <option value="milestone">Milestone</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -242,7 +243,7 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Counselor</label>
-                  <select
+                  <SearchableSelect
                     value={contractData.counselorId}
                     onChange={(e) => handleInputChange('counselorId', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -251,11 +252,11 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
                     <option value="1">Counselor 1</option>
                     <option value="2">Counselor 2</option>
                     <option value="3">Counselor 3</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Branch</label>
-                  <select
+                  <SearchableSelect
                     value={contractData.branchId}
                     onChange={(e) => handleInputChange('branchId', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -264,7 +265,7 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
                     <option value="1">Dubai Main</option>
                     <option value="2">Abu Dhabi</option>
                     <option value="3">Sharjah</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
             </div>
@@ -399,7 +400,7 @@ export default function ClientContractWizard({ clientId, onContractGenerated }: 
           {contracts.length > 0 && (
             <div className="mt-8">
               <h3 className="text-xl font-bold text-gray-900 mb-4">Existing Contracts</h3>
-              <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="bg-white rounded-lg shadow overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>

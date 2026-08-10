@@ -11,11 +11,11 @@ interface DmcNewAddLeadsAttributes {
 interface DmcNewAddLeadsCreationAttributes extends Optional<DmcNewAddLeadsAttributes, never> {}
 
 class DmcNewAddLeads extends Model<DmcNewAddLeadsAttributes, DmcNewAddLeadsCreationAttributes> implements DmcNewAddLeadsAttributes {
-  public id!: number;
-  public email!: string;
-  public sent!: number;
-  public date!: Date;
-  public fname!: string;
+  declare id: number;
+  declare email: string;
+  declare sent: number;
+  declare date: Date;
+  declare fname: string;
 
   public static associate(models: any) {
   }

@@ -34,9 +34,11 @@ export async function POST(request: NextRequest) {
         branch: authUser.branch,
         region: authUser.region,
         type: authUser.type,
+        roleName: authUser.roleName,
         photo: authUser.photo,
         wfh: authUser.wfh,
-        permissions: authUser.permissions
+        permissions: authUser.permissions,
+        mustChangePassword: authUser.mustChangePassword,
       },
     });
 

@@ -17,17 +17,17 @@ interface DmEuropeVendorsPaymentsAttributes {
 interface DmEuropeVendorsPaymentsCreationAttributes extends Optional<DmEuropeVendorsPaymentsAttributes, never> {}
 
 class DmEuropeVendorsPayments extends Model<DmEuropeVendorsPaymentsAttributes, DmEuropeVendorsPaymentsCreationAttributes> implements DmEuropeVendorsPaymentsAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public vendor_id!: number;
-  public batch_id!: number;
-  public pay_amount!: number;
-  public pay_status!: number;
-  public pay_date!: Date;
-  public invoice_number!: string;
-  public created_by!: number;
-  public created!: Date;
-  public sent_email!: number;
+  declare id: number;
+  declare lead_id: number;
+  declare vendor_id: number;
+  declare batch_id: number;
+  declare pay_amount: number;
+  declare pay_status: number;
+  declare pay_date: Date;
+  declare invoice_number: string;
+  declare created_by: number;
+  declare created: Date;
+  declare sent_email: number;
 
   public static associate(models: any) {
   }

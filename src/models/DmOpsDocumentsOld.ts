@@ -13,13 +13,13 @@ interface DmOpsDocumentsOldAttributes {
 interface DmOpsDocumentsOldCreationAttributes extends Optional<DmOpsDocumentsOldAttributes, never> {}
 
 class DmOpsDocumentsOld extends Model<DmOpsDocumentsOldAttributes, DmOpsDocumentsOldCreationAttributes> implements DmOpsDocumentsOldAttributes {
-  public id!: number;
-  public opsId!: number;
-  public agreeNo!: string;
-  public tab!: number;
-  public name!: string;
-  public file!: string;
-  public created!: Date;
+  declare id: number;
+  declare opsId: number;
+  declare agreeNo: string;
+  declare tab: number;
+  declare name: string;
+  declare file: string;
+  declare created: Date;
 
   public static associate(models: any) {
   }

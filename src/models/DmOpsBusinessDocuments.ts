@@ -18,18 +18,18 @@ interface DmOpsBusinessDocumentsAttributes {
 interface DmOpsBusinessDocumentsCreationAttributes extends Optional<DmOpsBusinessDocumentsAttributes, 'opsId' | 'doc_type' | 'doc_uploaded_for' | 'leadId' | 'tab' | 'name' | 'file' | 'created' | 'status' | 'remarks'> {}
 
 class DmOpsBusinessDocuments extends Model<DmOpsBusinessDocumentsAttributes, DmOpsBusinessDocumentsCreationAttributes> implements DmOpsBusinessDocumentsAttributes {
-  public id!: number;
-  public opsId!: number | null;
-  public doc_type!: string | null;
-  public doc_uploaded_for!: string | null;
-  public leadId!: number | null;
-  public tab!: number | null;
-  public name!: string | null;
-  public file!: string | null;
-  public created!: Date | null;
-  public status!: number;
-  public remarks!: string | null;
-  public download_file!: number;
+  declare id: number;
+  declare opsId: number | null;
+  declare doc_type: string | null;
+  declare doc_uploaded_for: string | null;
+  declare leadId: number | null;
+  declare tab: number | null;
+  declare name: string | null;
+  declare file: string | null;
+  declare created: Date | null;
+  declare status: number;
+  declare remarks: string | null;
+  declare download_file: number;
 
   public static associate(models: any) {
   }

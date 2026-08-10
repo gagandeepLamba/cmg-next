@@ -1,9 +1,11 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState } from 'react'
 import Layout from '@/components/Layout'
 import { useRouter } from 'next/navigation'
 import DocumentUpload from '@/components/DocumentUpload'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface OpportunityPaymentFormData {
   opportunityId: string
@@ -37,13 +39,14 @@ interface FormErrors {
 
 export default function CreateOpportunityPayment() {
   const router = useRouter()
+  const { currencyCode } = useAuth()
   const [formData, setFormData] = useState<OpportunityPaymentFormData>({
     opportunityId: '',
     opportunityName: '',
     clientId: '',
     clientName: '',
     totalAmount: '',
-    currency: 'AED',
+    currency: currencyCode,
     paymentStructure: 'full',
     numberOfInstallments: '1',
     installmentAmount: '',
@@ -251,7 +254,7 @@ export default function CreateOpportunityPayment() {
                     <label htmlFor="opportunityId" className="block text-sm font-medium text-gray-700">
                       Opportunity *
                     </label>
-                    <select
+                    <SearchableSelect
                       id="opportunityId"
                       name="opportunityId"
                       value={formData.opportunityId}
@@ -266,7 +269,7 @@ export default function CreateOpportunityPayment() {
                           {opportunity.name}
                         </option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                     {errors.opportunityId && <p className="mt-1 text-sm text-red-600">{errors.opportunityId}</p>}
                   </div>
 
@@ -274,7 +277,7 @@ export default function CreateOpportunityPayment() {
                     <label htmlFor="clientId" className="block text-sm font-medium text-gray-700">
                       Client *
                     </label>
-                    <select
+                    <SearchableSelect
                       id="clientId"
                       name="clientId"
                       value={formData.clientId}
@@ -289,7 +292,7 @@ export default function CreateOpportunityPayment() {
                           {client.name}
                         </option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                     {errors.clientId && <p className="mt-1 text-sm text-red-600">{errors.clientId}</p>}
                   </div>
 
@@ -315,7 +318,7 @@ export default function CreateOpportunityPayment() {
                     <label htmlFor="currency" className="block text-sm font-medium text-gray-700">
                       Currency
                     </label>
-                    <select
+                    <SearchableSelect
                       id="currency"
                       name="currency"
                       value={formData.currency}
@@ -325,14 +328,14 @@ export default function CreateOpportunityPayment() {
                       {currencies.map(currency => (
                         <option key={currency} value={currency}>{currency}</option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
 
                   <div>
                     <label htmlFor="assignedTo" className="block text-sm font-medium text-gray-700">
                       Assigned To
                     </label>
-                    <select
+                    <SearchableSelect
                       id="assignedTo"
                       name="assignedTo"
                       value={formData.assignedTo}
@@ -343,14 +346,14 @@ export default function CreateOpportunityPayment() {
                       <option value="1">Alice Johnson</option>
                       <option value="2">Bob Smith</option>
                       <option value="3">Carol Davis</option>
-                    </select>
+                    </SearchableSelect>
                   </div>
 
                   <div>
                     <label htmlFor="branch" className="block text-sm font-medium text-gray-700">
                       Branch
                     </label>
-                    <select
+                    <SearchableSelect
                       id="branch"
                       name="branch"
                       value={formData.branch}
@@ -361,7 +364,7 @@ export default function CreateOpportunityPayment() {
                       <option value="1">Dubai</option>
                       <option value="2">Abu Dhabi</option>
                       <option value="3">Sharjah</option>
-                    </select>
+                    </SearchableSelect>
                   </div>
                 </div>
               </div>
@@ -451,7 +454,7 @@ export default function CreateOpportunityPayment() {
                       <label htmlFor="paymentFrequency" className="block text-sm font-medium text-gray-700">
                         Payment Frequency *
                       </label>
-                      <select
+                      <SearchableSelect
                         id="paymentFrequency"
                         name="paymentFrequency"
                         value={formData.paymentFrequency}
@@ -465,7 +468,7 @@ export default function CreateOpportunityPayment() {
                             {frequency.label}
                           </option>
                         ))}
-                      </select>
+                      </SearchableSelect>
                       {errors.paymentFrequency && <p className="mt-1 text-sm text-red-600">{errors.paymentFrequency}</p>}
                     </div>
                   </div>

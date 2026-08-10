@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 
 type LeadRow = { id: number; fname?: string; lname?: string; created?: string; regdate?: string; status?: string; assigned_to_name?: string };
 
@@ -40,6 +41,16 @@ export default function LeadAgingReportPage() {
     load();
   }, []);
 
+  const { sorted: sortedOldLeads, sortKey: oldLeadSortKey, sortDirection: oldLeadSortDirection, toggleSort: toggleOldLeadSort } = useSortableData(
+    oldLeads,
+    {
+      lead: (lead) => `${lead.fname || ''} ${lead.lname || ''}`,
+      status: (lead) => lead.status,
+      assigned: (lead) => lead.assigned_to_name,
+      age: (lead) => lead.age,
+    },
+  );
+
   if (loading) return <div className="p-6 text-gray-600">Loading lead aging...</div>;
 
   return (
@@ -56,17 +67,18 @@ export default function LeadAgingReportPage() {
           </div>
         ))}
       </div>
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="overflow-x-auto rounded-lg bg-white shadow">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {['Lead', 'Status', 'Assigned', 'Age'].map((header) => (
-                <th key={header} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">{header}</th>
-              ))}
+              <SortableTh label="Lead" sortKey="lead" activeKey={oldLeadSortKey} direction={oldLeadSortDirection} onSort={toggleOldLeadSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Status" sortKey="status" activeKey={oldLeadSortKey} direction={oldLeadSortDirection} onSort={toggleOldLeadSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Assigned" sortKey="assigned" activeKey={oldLeadSortKey} direction={oldLeadSortDirection} onSort={toggleOldLeadSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Age" sortKey="age" activeKey={oldLeadSortKey} direction={oldLeadSortDirection} onSort={toggleOldLeadSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
-            {oldLeads.map((lead) => (
+            {sortedOldLeads.map((lead) => (
               <tr key={lead.id}>
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">{lead.fname} {lead.lname}</td>
                 <td className="px-6 py-4 text-sm text-gray-700">{lead.status || 'N/A'}</td>

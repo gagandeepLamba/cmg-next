@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 
 type PerformanceRow = {
   counselorId: number;
@@ -13,9 +15,16 @@ type PerformanceRow = {
 };
 
 const emptySummary = { totalActivities: 0, totalCounselors: 0, totalRevenue: 0, avgConversionRate: 0 };
-const formatCurrency = (value: number) => new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED', maximumFractionDigits: 0 }).format(value || 0);
 
 export default function LeadPerformanceReportPage() {
+  const { currencyCode } = useAuth();
+  const formatCurrency = (value: number) => {
+    try {
+      return new Intl.NumberFormat('en-AE', { style: 'currency', currency: currencyCode, maximumFractionDigits: 0 }).format(value || 0);
+    } catch {
+      return `${currencyCode} ${Number(value || 0).toLocaleString()}`;
+    }
+  };
   const [rows, setRows] = useState<PerformanceRow[]>([]);
   const [summary, setSummary] = useState(emptySummary);
   const [loading, setLoading] = useState(true);
@@ -55,6 +64,18 @@ export default function LeadPerformanceReportPage() {
     load();
   }, []);
 
+  const { sorted: sortedRows, sortKey: rowSortKey, sortDirection: rowSortDirection, toggleSort: toggleRowSort } = useSortableData(
+    rows,
+    {
+      rank: (row) => row.rank,
+      counselor: (row) => row.name,
+      leads: (row) => row.totalLeads,
+      converted: (row) => row.convertedLeads,
+      conversion: (row) => row.conversionRate,
+      revenue: (row) => row.totalRevenue,
+    },
+  );
+
   if (loading) return <div className="p-6 text-gray-600">Loading lead performance...</div>;
 
   return (
@@ -69,17 +90,20 @@ export default function LeadPerformanceReportPage() {
         <Stat label="Revenue" value={formatCurrency(summary.totalRevenue)} />
         <Stat label="Avg conversion" value={`${Number(summary.avgConversionRate || 0).toFixed(1)}%`} />
       </div>
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="overflow-x-auto rounded-lg bg-white shadow">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {['Rank', 'Counselor', 'Leads', 'Converted', 'Conversion', 'Revenue'].map((header) => (
-                <th key={header} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">{header}</th>
-              ))}
+              <SortableTh label="Rank" sortKey="rank" activeKey={rowSortKey} direction={rowSortDirection} onSort={toggleRowSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Counselor" sortKey="counselor" activeKey={rowSortKey} direction={rowSortDirection} onSort={toggleRowSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Leads" sortKey="leads" activeKey={rowSortKey} direction={rowSortDirection} onSort={toggleRowSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Converted" sortKey="converted" activeKey={rowSortKey} direction={rowSortDirection} onSort={toggleRowSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Conversion" sortKey="conversion" activeKey={rowSortKey} direction={rowSortDirection} onSort={toggleRowSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Revenue" sortKey="revenue" activeKey={rowSortKey} direction={rowSortDirection} onSort={toggleRowSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.counselorId}>
                 <td className="px-6 py-4 text-sm text-gray-700">{row.rank}</td>
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">{row.name}</td>

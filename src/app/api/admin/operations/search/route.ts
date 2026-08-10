@@ -1,27 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
-import { sequelize } from '@/lib/sequelize';
+import { sequelize, connectDB } from '@/lib/sequelize';
 import { findProductAgreementTemplate } from '@/lib/productAgreementTemplates';
 import { verifyToken } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
+
+let dbReady = false;
+const ensureDB = async () => {
+  if (!dbReady) {
+    await connectDB();
+    dbReady = true;
+  }
+};
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureDB();
     const { searchParams } = new URL(request.url);
 
-    // Process Coordinators only see cases assigned to them (case_officer);
-    // every other role keeps the existing unrestricted view of this endpoint.
     const authorization = request.headers.get('authorization');
     const token = request.cookies.get('auth-token')?.value || authorization?.replace(/^Bearer\s+/i, '');
     const currentUser = token ? verifyToken(token) : null;
-    const currentUserRole = String(currentUser?.type || '').toLowerCase().replace(/[\s-]+/g, '_');
-    const isProcessCoordinator = currentUserRole === 'process_coordinator';
+    if (!currentUser) {
+      return NextResponse.json({ success: false, error: 'Authentication is required' }, { status: 401 });
+    }
+    const currentUserRole = String(currentUser.type || '').toLowerCase().replace(/[\s-]+/g, '_');
+    // Case Officer reuses the same case_officer-scoped visibility as Process Coordinator.
+    const isProcessCoordinator = ['process_coordinator', 'case_officer'].includes(currentUserRole);
+    // CEO/director/founder/super admin/DOS/Director of Operations/Operation
+    // Manager see every branch's retained clients; branch manager/FOE are
+    // scoped to their own branch; everyone else (counselor, sales agent,
+    // etc.) only sees cases they own.
+    const canViewAll =
+      currentUser.role === 1 ||
+      isCeo(currentUser) ||
+      ['admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos', 'founder', 'director_of_operations', 'operation_manager'].includes(currentUserRole);
+    const isBranchScoped = !canViewAll && !isProcessCoordinator && ['branch_manager', 'bm', 'foe'].includes(currentUserRole);
     const search = searchParams.get('search') || '';
     const leadId = searchParams.get('leadId') || '';
     const agreementNumber = searchParams.get('agreementNumber') || '';
     const operationsModule = searchParams.get('module') || '';
     const product = searchParams.get('product') || operationsModule;
     const status = searchParams.get('status') || '';
-    const limit = Math.min(Number.parseInt(searchParams.get('limit') || '50', 10), 100);
+    const parsedLimit = Number.parseInt(searchParams.get('limit') || '50', 10);
+    const limit = Math.min(Number.isNaN(parsedLimit) ? 50 : parsedLimit, 1000);
 
     const productTemplate = findProductAgreementTemplate(product);
     const productTerms = productTemplate
@@ -31,7 +53,7 @@ export async function GET(request: NextRequest) {
         : [];
 
     const where: string[] = [
-      "(o.status = 'won' OR o.retentionStatus = 'approved' OR l.status IN ('retained', 'client', 'Converted'))",
+      "(LOWER(COALESCE(o.status, '')) = 'won' OR LOWER(COALESCE(o.retentionStatus, '')) = 'approved' OR LOWER(COALESCE(l.status, '')) IN ('retained', 'client', 'converted'))",
     ];
     const replacements: Record<string, unknown> = { limit };
 
@@ -64,9 +86,15 @@ export async function GET(request: NextRequest) {
       replacements.status = status;
     }
 
-    if (isProcessCoordinator && currentUser) {
+    if (isProcessCoordinator) {
       where.push('l.case_officer = :caseOfficerId');
       replacements.caseOfficerId = currentUser.id;
+    } else if (isBranchScoped) {
+      where.push('l.branch = :userBranch');
+      replacements.userBranch = currentUser.branch;
+    } else if (!canViewAll) {
+      where.push('(l.Counsilor = :userId OR l.case_officer = :userId OR o.assignedTo = :userId OR o.createdBy = :userId)');
+      replacements.userId = currentUser.id;
     }
 
     if (productTerms.length > 0) {
@@ -76,7 +104,7 @@ export async function GET(request: NextRequest) {
           o.serviceType LIKE :product${index}
           OR o.serviceRequired LIKE :product${index}
           OR o.opportunityName LIKE :product${index}
-          OR l.service_interest LIKE :product${index}
+          OR svc.name LIKE :product${index}
           OR a.agreementType LIKE :product${index}
           OR a.title LIKE :product${index}
         )`;
@@ -114,14 +142,26 @@ export async function GET(request: NextRequest) {
         l.email,
         l.mobile,
         l.phone,
+        l.dob,
+        l.gender,
         l.nationality,
         l.country_interest,
         l.service_interest,
+        l.market_source,
         l.type AS leadType,
         l.status AS leadStatus,
         l.branch,
         l.Counsilor,
         l.case_officer,
+        counselor.name AS counselorName,
+        counselor.cemail AS counselorEmail,
+        caseOfficer.name AS caseOfficerName,
+        caseOfficer.cemail AS caseOfficerEmail,
+        b.branch AS branchName,
+        b.abbrv AS branchAbbrv,
+        b.address AS branchAddress,
+        b.email AS branchEmail,
+        b.mobile AS branchMobile,
         a.id AS agreementId,
         a.agreementNumber,
         a.agreementType,
@@ -136,14 +176,20 @@ export async function GET(request: NextRequest) {
         p.status AS paymentStatus
       FROM dmc_opportunities o
       INNER JOIN dmc_forum_leads l ON l.id = o.leadId
-      LEFT JOIN dm_opportunity_agreements a ON a.id = o.agreementId
-        OR a.id = (
+      LEFT JOIN dm_service svc ON svc.id = l.service_interest
+      LEFT JOIN dm_employee counselor ON counselor.id = l.Counsilor
+      LEFT JOIN dm_employee caseOfficer ON caseOfficer.id = l.case_officer
+      LEFT JOIN dm_branch b ON b.id = l.branch
+      LEFT JOIN dm_opportunity_agreements a ON a.id = COALESCE(
+        o.agreementId,
+        (
           SELECT a2.id
           FROM dm_opportunity_agreements a2
           WHERE a2.opportunityId = o.id
           ORDER BY a2.createdAt DESC
           LIMIT 1
         )
+      )
       LEFT JOIN dm_opportunity_payments p ON p.id = (
         SELECT p2.id
         FROM dm_opportunity_payments p2

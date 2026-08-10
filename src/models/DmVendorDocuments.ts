@@ -19,19 +19,19 @@ interface DmVendorDocumentsAttributes {
 interface DmVendorDocumentsCreationAttributes extends Optional<DmVendorDocumentsAttributes, 'batch_id' | 'doc_type' | 'doc_uploaded_for' | 'leadId' | 'tab' | 'name' | 'file' | 'created' | 'status' | 'remarks'> {}
 
 class DmVendorDocuments extends Model<DmVendorDocumentsAttributes, DmVendorDocumentsCreationAttributes> implements DmVendorDocumentsAttributes {
-  public id!: number;
-  public batch_id!: number | null;
-  public doc_type!: string | null;
-  public doc_uploaded_for!: string | null;
-  public leadId!: number | null;
-  public tab!: number | null;
-  public name!: string | null;
-  public file!: string | null;
-  public created!: Date | null;
-  public created_by!: number;
-  public status!: number;
-  public remarks!: string | null;
-  public download_file!: number;
+  declare id: number;
+  declare batch_id: number | null;
+  declare doc_type: string | null;
+  declare doc_uploaded_for: string | null;
+  declare leadId: number | null;
+  declare tab: number | null;
+  declare name: string | null;
+  declare file: string | null;
+  declare created: Date | null;
+  declare created_by: number;
+  declare status: number;
+  declare remarks: string | null;
+  declare download_file: number;
 
   public static associate(models: any) {
   }

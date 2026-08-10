@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DmcForumLeadsContracts, DmcForumLeads, DmPayHistory, Dm3partyPayment, DmEmployee, DmBranch, DmVendors } from '@/models';
 import { Op, QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const toPlain = (row: any) => row?.get ? row.get({ plain: true }) : row;
 const toPlainArray = (rows: any[]) => rows.map(toPlain);
@@ -13,6 +14,9 @@ const labelFor = (map: Map<string, string>, value: unknown) => {
 };
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['reports.view', 'finance.view']);
+  if (isAuthError(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const dateRange = searchParams.get('dateRange') || 'month';

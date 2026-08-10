@@ -3,6 +3,7 @@ import { sequelize } from '../lib/sequelize';
 interface DmClientConversationsAttributes {
   id: number;
   leadId: number;
+  opportunityId: number | null;
   case_manager: number;
   chat_from_client: number;
   client_id: number;
@@ -13,19 +14,20 @@ interface DmClientConversationsAttributes {
   created: Date;
 }
 
-interface DmClientConversationsCreationAttributes extends Optional<DmClientConversationsAttributes, 'created'> {}
+interface DmClientConversationsCreationAttributes extends Optional<DmClientConversationsAttributes, 'id' | 'created' | 'opportunityId'> {}
 
 class DmClientConversations extends Model<DmClientConversationsAttributes, DmClientConversationsCreationAttributes> implements DmClientConversationsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public case_manager!: number;
-  public chat_from_client!: number;
-  public client_id!: number;
-  public text!: string;
-  public file!: string;
-  public status!: number;
-  public read_msg!: number;
-  public created!: Date;
+  declare id: number;
+  declare leadId: number;
+  declare opportunityId: number | null;
+  declare case_manager: number;
+  declare chat_from_client: number;
+  declare client_id: number;
+  declare text: string;
+  declare file: string;
+  declare status: number;
+  declare read_msg: number;
+  declare created: Date;
 
   public static associate(models: any) {
     DmClientConversations.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLeads' });
@@ -43,6 +45,11 @@ DmClientConversations.init(
     leadId: {
       type: DataTypes.INTEGER,
       allowNull: false
+    },
+    opportunityId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: 'opportunity_id',
     },
     case_manager: {
       type: DataTypes.INTEGER,

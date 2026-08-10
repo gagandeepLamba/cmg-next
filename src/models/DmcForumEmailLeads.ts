@@ -11,11 +11,11 @@ interface DmcForumEmailLeadsAttributes {
 interface DmcForumEmailLeadsCreationAttributes extends Optional<DmcForumEmailLeadsAttributes, 'paidYet'> {}
 
 class DmcForumEmailLeads extends Model<DmcForumEmailLeadsAttributes, DmcForumEmailLeadsCreationAttributes> implements DmcForumEmailLeadsAttributes {
-  public id!: number;
-  public email!: string;
-  public paidYet!: number | null;
-  public email_sent!: number;
-  public created!: Date;
+  declare id: number;
+  declare email: string;
+  declare paidYet: number | null;
+  declare email_sent: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

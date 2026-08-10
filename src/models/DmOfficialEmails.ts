@@ -12,12 +12,12 @@ interface DmOfficialEmailsAttributes {
 interface DmOfficialEmailsCreationAttributes extends Optional<DmOfficialEmailsAttributes, never> {}
 
 class DmOfficialEmails extends Model<DmOfficialEmailsAttributes, DmOfficialEmailsCreationAttributes> implements DmOfficialEmailsAttributes {
-  public id!: number;
-  public branch!: number;
-  public frontend!: string;
-  public backend!: string;
-  public status!: number;
-  public created!: Date;
+  declare id: number;
+  declare branch: number;
+  declare frontend: string;
+  declare backend: string;
+  declare status: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

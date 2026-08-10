@@ -11,10 +11,10 @@ interface DmcAutoReassignmentRunsAttributes {
 interface DmcAutoReassignmentRunsCreationAttributes extends Optional<DmcAutoReassignmentRunsAttributes, 'id' | 'processed' | 'reassigned' | 'created_at'> {}
 
 class DmcAutoReassignmentRuns extends Model<DmcAutoReassignmentRunsAttributes, DmcAutoReassignmentRunsCreationAttributes> implements DmcAutoReassignmentRunsAttributes {
-  public id!: number;
-  public processed!: number;
-  public reassigned!: number;
-  public created_at!: Date;
+  declare id: number;
+  declare processed: number;
+  declare reassigned: number;
+  declare created_at: Date;
 }
 
 DmcAutoReassignmentRuns.init(

@@ -12,12 +12,12 @@ interface DmRoleAttributes {
 interface DmRoleCreationAttributes extends Optional<DmRoleAttributes, 'status'> {}
 
 class DmRole extends Model<DmRoleAttributes, DmRoleCreationAttributes> implements DmRoleAttributes {
-  public id!: number;
-  public name!: string;
-  public hierarchy!: number;
-  public status!: number;
-  public type!: string;
-  public department_id!: number;
+  declare id: number;
+  declare name: string;
+  declare hierarchy: number;
+  declare status: number;
+  declare type: string;
+  declare department_id: number;
 
   public static associate(models: any) {
     DmRole.hasMany(models.DmEmployee, { foreignKey: 'role', sourceKey: 'id', as: 'dmEmployees' });

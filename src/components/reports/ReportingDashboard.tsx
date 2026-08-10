@@ -1,5 +1,6 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,6 +17,7 @@ import {
   Phone,
   Mail
 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface ReportData {
   reportType: string
@@ -28,6 +30,7 @@ interface ReportData {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D']
 
 export default function ReportingDashboard() {
+  const { currencyCode } = useAuth()
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [reportType, setReportType] = useState('leads')
@@ -205,7 +208,7 @@ export default function ReportingDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Total Amount</p>
-                    <p className="text-2xl font-bold text-green-600">${data.totalAmount.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-green-600">{currencyCode} {data.totalAmount.toFixed(2)}</p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-green-600" />
                 </div>
@@ -216,7 +219,7 @@ export default function ReportingDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Average Payment</p>
-                    <p className="text-2xl font-bold text-purple-600">${data.averagePayment.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-purple-600">{currencyCode} {data.averagePayment.toFixed(2)}</p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-purple-600" />
                 </div>
@@ -270,7 +273,7 @@ export default function ReportingDashboard() {
                             <div className="text-sm text-gray-900">{emp.paymentCount}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">${emp.totalRevenue.toFixed(2)}</div>
+                            <div className="text-sm font-medium text-gray-900">{currencyCode} {emp.totalRevenue.toFixed(2)}</div>
                           </td>
                         </tr>
                       ))}
@@ -281,7 +284,7 @@ export default function ReportingDashboard() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Total Revenue: ${data.totalRevenue?.toFixed(2)}</CardTitle>
+                <CardTitle>Total Revenue: {currencyCode} {data.totalRevenue?.toFixed(2)}</CardTitle>
               </CardHeader>
             </Card>
           </div>
@@ -314,7 +317,7 @@ export default function ReportingDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Report Type</label>
-              <select
+              <SearchableSelect
                 value={reportType}
                 onChange={(e) => setReportType(e.target.value)}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -324,7 +327,7 @@ export default function ReportingDashboard() {
                 <option value="payments">Payments Report</option>
                 <option value="employees">Employees Report</option>
                 <option value="performance">Performance Report</option>
-              </select>
+              </SearchableSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Start Date</label>
@@ -346,7 +349,7 @@ export default function ReportingDashboard() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Branch</label>
-              <select
+              <SearchableSelect
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -355,11 +358,11 @@ export default function ReportingDashboard() {
                 <option value="1">Dubai</option>
                 <option value="2">Abu Dhabi</option>
                 <option value="3">Sharjah</option>
-              </select>
+              </SearchableSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Region</label>
-              <select
+              <SearchableSelect
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -368,7 +371,7 @@ export default function ReportingDashboard() {
                 <option value="1">North</option>
                 <option value="2">South</option>
                 <option value="3">East</option>
-              </select>
+              </SearchableSelect>
             </div>
           </div>
         </CardContent>

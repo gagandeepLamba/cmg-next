@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Eye, EyeOff, AlertCircle, ArrowRight, Shield, Globe, User, Lock, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { getDefaultAdminPathForUser } from '@/lib/roleAccess'
 
 interface LoginFormData {
   username: string
@@ -23,9 +24,11 @@ interface LoginResponse {
     branch: number
     region: number
     type: string
+    roleName?: string
     photo: string
     wfh: number
     permissions?: string[]
+    mustChangePassword?: boolean
   }
 }
 
@@ -77,16 +80,19 @@ export default function LoginForm() {
           name: data.user.name,
           email: data.user.email || data.user.cemail,
           role: data.user.role === 1 ? 'admin' : String(data.user.role),
+          type: data.user.type,
+          roleName: data.user.roleName,
           branch: data.user.branch ? String(data.user.branch) : undefined,
           avatar: data.user.photo || undefined,
           permissions: data.user.permissions || (data.user.role === 1 ? ['all'] : []),
+          mustChangePassword: Boolean(data.user.mustChangePassword),
         }
 
         // Keep AuthContext and localStorage in sync before entering protected routes.
         login(user, 'cookie-session')
-        
-        // Redirect to admin dashboard for all users
-        router.replace('/admin')
+
+        // Redirect to the dashboard that matches the user's role
+        router.replace(getDefaultAdminPathForUser(user))
         router.refresh()
       } else {
         setError(data.message || 'Login failed')
@@ -106,12 +112,12 @@ export default function LoginForm() {
           <div>
             <div className="inline-flex bg-white rounded-md p-4 shadow-sm">
               <div className="relative h-20 w-44">
-                <Image src="/logo.jpeg" alt="CMG" fill sizes="176px" className="object-contain" priority />
+                <Image src="/cmg-logo.png" alt="CMG Immigration" fill sizes="176px" className="object-contain" priority />
               </div>
             </div>
 
             <div className="mt-10 max-w-lg">
-              <p className="text-sm font-semibold uppercase text-[#99B8FF]">CMG</p>
+              <p className="text-sm font-semibold uppercase text-[#9DC4FF]">CMG</p>
               <h1 className="mt-3 text-4xl font-bold leading-tight">
                 CMG CRM Portal
               </h1>
@@ -164,7 +170,7 @@ export default function LoginForm() {
           <div className="w-full max-w-md">
             <div className="lg:hidden mb-8 flex justify-center">
               <div className="relative h-20 w-44">
-                <Image src="/logo.jpeg" alt="CMG" fill sizes="176px" className="object-contain" priority />
+                <Image src="/cmg-logo.png" alt="CMG Immigration" fill sizes="176px" className="object-contain" priority />
               </div>
             </div>
 

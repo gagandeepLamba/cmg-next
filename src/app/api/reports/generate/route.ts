@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 interface ReportRequest {
   config: {
@@ -295,6 +296,9 @@ const generatePDFReport = (data: ReportData): string => {
 };
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['reports.view']);
+  if (isAuthError(auth)) return auth;
+
   try {
     const body: ReportRequest = await request.json();
     
@@ -358,6 +362,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['reports.view']);
+  if (isAuthError(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');

@@ -17,20 +17,20 @@ export interface DmcFollowUpRemindersAttributes {
 export interface DmcFollowUpRemindersCreationAttributes extends Optional<DmcFollowUpRemindersAttributes, 'id' | 'status' | 'priority' | 'completed_at' | 'created_at' | 'updated_at'> {}
 
 export class DmcFollowUpReminders extends Model<DmcFollowUpRemindersAttributes, DmcFollowUpRemindersCreationAttributes> implements DmcFollowUpRemindersAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public user_id!: number;
-  public reminder_date!: Date;
-  public message!: string;
-  public status!: string;
-  public priority!: string;
-  public completed_at?: Date;
-  public created_at!: Date;
-  public updated_at!: Date;
+  declare id: number;
+  declare lead_id: number;
+  declare user_id: number;
+  declare reminder_date: Date;
+  declare message: string;
+  declare status: string;
+  declare priority: string;
+  declare completed_at?: Date;
+  declare created_at: Date;
+  declare updated_at: Date;
 
   // Associations
-  public dmcForumLead?: any;
-  public dmEmployee?: any;
+  declare dmcForumLead?: any;
+  declare dmEmployee?: any;
 
   public static associate(models: any) {
     DmcFollowUpReminders.belongsTo(models.DmcForumLeads, {

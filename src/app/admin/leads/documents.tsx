@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DmcForumLeads } from '@/models';
@@ -143,7 +144,7 @@ export default function DocumentWizard({ leadId, onDocumentsUploaded }: Document
       }
     } catch (error) {
       console.error('Error uploading documents:', error);
-      alert('Failed to upload documents. Please try again.');
+      window.toast.error('Failed to upload documents. Please try again.');
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -285,7 +286,7 @@ export default function DocumentWizard({ leadId, onDocumentsUploaded }: Document
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                            <select
+                            <SearchableSelect
                               value={documentData.categories[index]}
                               onChange={(e) => handleDocumentChange(index, 'category', e.target.value)}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -298,7 +299,7 @@ export default function DocumentWizard({ leadId, onDocumentsUploaded }: Document
                               <option value="medical">Medical</option>
                               <option value="pcc">PCC</option>
                               <option value="other">Other</option>
-                            </select>
+                            </SearchableSelect>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
@@ -605,7 +606,7 @@ export default function DocumentWizard({ leadId, onDocumentsUploaded }: Document
               transition={{ delay: 0.5 }}
             >
               <h3 className="text-xl font-bold text-gray-900 mb-4">Uploaded Documents</h3>
-              <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="bg-white rounded-lg shadow overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>

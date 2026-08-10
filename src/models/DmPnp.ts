@@ -19,19 +19,19 @@ interface DmPnpAttributes {
 interface DmPnpCreationAttributes extends Optional<DmPnpAttributes, never> {}
 
 class DmPnp extends Model<DmPnpAttributes, DmPnpCreationAttributes> implements DmPnpAttributes {
-  public id!: number;
-  public opsid!: number;
-  public leadid!: number;
-  public pnp!: string;
-  public pts!: number;
-  public eoisubdate!: string;
-  public eoiexpdate!: string;
-  public noiexpdate!: string;
-  public noisubdate!: string;
-  public noirecdate!: string;
-  public nomawdate!: string;
-  public nomexpdate!: string;
-  public status!: string;
+  declare id: number;
+  declare opsid: number;
+  declare leadid: number;
+  declare pnp: string;
+  declare pts: number;
+  declare eoisubdate: string;
+  declare eoiexpdate: string;
+  declare noiexpdate: string;
+  declare noisubdate: string;
+  declare noirecdate: string;
+  declare nomawdate: string;
+  declare nomexpdate: string;
+  declare status: string;
 
   public static associate(models: any) {
     DmPnp.belongsTo(models.DmcForumLeads, { foreignKey: 'leadid', targetKey: 'id', as: 'dmcForumLeads' });

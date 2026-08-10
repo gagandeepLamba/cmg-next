@@ -8,9 +8,11 @@ interface User {
   email: string;
   role: string | number;
   type?: string;
+  roleName?: string;
   permissions: string[];
   branch?: string;
   avatar?: string;
+  mustChangePassword?: boolean;
 }
 
 interface AuthContextType {
@@ -21,6 +23,9 @@ interface AuthContextType {
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
   isLoading: boolean;
+  // Currency code (e.g. "AED", "QAR") for the logged-in user's own branch -
+  // not a hardcoded symbol, since branches span multiple countries/currencies.
+  currencyCode: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +34,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [currencyCode, setCurrencyCode] = useState('AED');
+
+  useEffect(() => {
+    const originalFetch = window.fetch.bind(window);
+
+    const shouldRedirectForAuthFailure = (input: RequestInfo | URL) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+
+      const apiUrl = new URL(url, window.location.origin);
+      const isSameOriginApi = apiUrl.origin === window.location.origin && apiUrl.pathname.startsWith('/api/');
+      const isStaffAuthApi = !apiUrl.pathname.startsWith('/api/clientportal') && !apiUrl.pathname.startsWith('/api/client-portal-auth');
+      const isAuthPage = window.location.pathname === '/login' || window.location.pathname.startsWith('/clientportal');
+
+      return isSameOriginApi && isStaffAuthApi && !isAuthPage;
+    };
+
+    const redirectToLogin = () => {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      setUser(null);
+      setToken(null);
+      window.location.href = '/login';
+    };
+
+    const authAwareFetch: typeof window.fetch = async (input, init) => {
+      const response = await originalFetch(input, init);
+      if (response.status === 401 && shouldRedirectForAuthFailure(input)) {
+        redirectToLogin();
+      }
+      return response;
+    };
+
+    window.fetch = authAwareFetch;
+
+    return () => {
+      if (window.fetch === authAwareFetch) {
+        window.fetch = originalFetch;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Check for existing session on mount
@@ -48,6 +97,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch('/api/branch-currency', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data?.currencyCode) setCurrencyCode(data.currencyCode); })
+      .catch((error) => console.error('Error fetching branch currency:', error));
+  }, [user, token]);
 
   const login = (userData: User, userToken: string) => {
     setUser(userData);
@@ -94,7 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       hasPermission,
       hasRole,
-      isLoading
+      isLoading,
+      currencyCode
     }}>
       {children}
     </AuthContext.Provider>

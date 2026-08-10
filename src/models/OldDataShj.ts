@@ -16,16 +16,16 @@ interface OldDataShjAttributes {
 interface OldDataShjCreationAttributes extends Optional<OldDataShjAttributes, 'id' | 'agreeNo' | 'sign_up_date' | 'client_name' | 'mobile' | 'email' | 'country' | 'counselor'> {}
 
 class OldDataShj extends Model<OldDataShjAttributes, OldDataShjCreationAttributes> implements OldDataShjAttributes {
-  public temp_id!: number;
-  public id!: number | null;
-  public agreeNo!: string | null;
-  public sign_up_date!: string | null;
-  public client_name!: string | null;
-  public mobile!: number | null;
-  public email!: string | null;
-  public country!: string | null;
-  public counselor!: string | null;
-  public status!: string;
+  declare temp_id: number;
+  declare id: number | null;
+  declare agreeNo: string | null;
+  declare sign_up_date: string | null;
+  declare client_name: string | null;
+  declare mobile: number | null;
+  declare email: string | null;
+  declare country: string | null;
+  declare counselor: string | null;
+  declare status: string;
 
   public static associate(models: any) {
   }

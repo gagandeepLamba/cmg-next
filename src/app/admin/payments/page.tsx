@@ -1,7 +1,10 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ThirdPartyPayment {
   id: number;
@@ -55,6 +58,7 @@ interface OpportunityPayment {
   consultantName: string | null;
   taxAmount: number;
   discountAmount: number;
+  accountantStatus: string | null;
   dmcOpportunity?: {
     id: number;
     opportunityName: string;
@@ -72,6 +76,7 @@ interface FilterOption {
 
 export default function PaymentsManagement() {
   const router = useRouter();
+  const { currencyCode } = useAuth();
   const [opportunityPayments, setOpportunityPayments] = useState<OpportunityPayment[]>([]);
   const [payments, setPayments] = useState<ThirdPartyPayment[]>([]);
   const [leadFees, setLeadFees] = useState<LeadFee[]>([]);
@@ -206,6 +211,45 @@ export default function PaymentsManagement() {
     String(fee.lead || '').includes(searchTerm)
   );
 
+  const { sorted: sortedOpportunityPayments, sortKey: oppPaymentSortKey, sortDirection: oppPaymentSortDirection, toggleSort: toggleOppPaymentSort } = useSortableData(
+    filteredOpportunityPayments,
+    {
+      payment: (p) => p.paymentNumber,
+      client: (p) => p.clientName,
+      service: (p) => getServiceLabel(p.serviceName) || p.dmcOpportunity?.opportunityName,
+      amount: (p) => p.paidAmount,
+      balance: (p) => p.remainingBalance,
+      method: (p) => p.paymentMethod,
+      status: (p) => p.status,
+      verification: (p) => p.accountantStatus,
+    },
+  );
+
+  const { sorted: sortedThirdPartyPayments, sortKey: thirdPartyPaymentSortKey, sortDirection: thirdPartyPaymentSortDirection, toggleSort: toggleThirdPartyPaymentSort } = useSortableData(
+    filteredPayments,
+    {
+      receipt: (p) => p.receipt,
+      leadId: (p) => p.leadId,
+      amount: (p) => p.amount,
+      tax: (p) => p.Tax,
+      method: (p) => p.payMethod,
+      date: (p) => p.date,
+    },
+  );
+
+  const { sorted: sortedFees, sortKey: feeSortKey, sortDirection: feeSortDirection, toggleSort: toggleFeeSort } = useSortableData(
+    filteredFees,
+    {
+      leadId: (f) => f.lead,
+      totalAmount: (f) => f.amount,
+      taxAmount: (f) => f.taxAmt,
+      paidAmount: (f) => f.paidAmt,
+      professionalAmount: (f) => f.profAmt,
+      status: (f) => f.status,
+      paymentDate: (f) => f.payDate,
+    },
+  );
+
   const handleViewPayment = (payment: ThirdPartyPayment) => {
     setSelectedPayment(payment);
     setShowModal(true);
@@ -314,13 +358,13 @@ export default function PaymentsManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select value={methodFilter} onChange={e => setMethodFilter(e.target.value)}
+          <SearchableSelect value={methodFilter} onChange={e => setMethodFilter(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All Payment Methods</option>
             <option value="Credit Card">Credit Card</option>
             <option value="Bank Transfer">Bank Transfer</option>
             <option value="Cash">Cash</option>
-          </select>
+          </SearchableSelect>
           <input
             type="date"
             value={dateFilter}
@@ -332,36 +376,23 @@ export default function PaymentsManagement() {
 
       {/* Opportunity Payments Table */}
       {activeTab === 'opportunity' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payment
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Client
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Service
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Balance
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Method
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
+                  <SortableTh label="Payment" sortKey="payment" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                  <SortableTh label="Client" sortKey="client" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                  <SortableTh label="Service" sortKey="service" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                  <SortableTh label="Amount" sortKey="amount" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                  <SortableTh label="Balance" sortKey="balance" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                  <SortableTh label="Method" sortKey="method" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                  <SortableTh label="Status" sortKey="status" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                  <SortableTh label="Verification" sortKey="verification" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredOpportunityPayments.map((payment) => (
+                {sortedOpportunityPayments.map((payment) => (
                   <tr key={payment.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">{payment.paymentNumber}</div>
@@ -399,6 +430,15 @@ export default function PaymentsManagement() {
                         {payment.paymentDate?.toLocaleDateString() || 'No date'}
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${
+                        payment.accountantStatus === 'verified' ? 'bg-green-100 text-green-800' :
+                        payment.accountantStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {payment.accountantStatus === 'verified' ? 'Approved' : payment.accountantStatus === 'rejected' ? 'Rejected' : 'Pending'}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -414,36 +454,24 @@ export default function PaymentsManagement() {
 
       {/* Third Party Payments Table */}
       {activeTab === 'thirdparty' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Receipt
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Lead ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tax
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payment Method
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
+                  <SortableTh label="Receipt" sortKey="receipt" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
+                  <SortableTh label="Lead ID" sortKey="leadId" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
+                  <SortableTh label="Amount" sortKey="amount" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
+                  <SortableTh label="Tax" sortKey="tax" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
+                  <SortableTh label="Payment Method" sortKey="method" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
+                  <SortableTh label="Date" sortKey="date" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPayments.map((payment) => (
+                {sortedThirdPartyPayments.map((payment) => (
                   <tr key={payment.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">{payment.receipt}</div>
@@ -452,10 +480,10 @@ export default function PaymentsManagement() {
                       <div className="text-sm text-gray-900">{payment.leadId}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">${payment.amount.toFixed(2)}</div>
+                      <div className="text-sm text-gray-900">{currencyCode} {payment.amount.toFixed(2)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">${payment.Tax.toFixed(2)}</div>
+                      <div className="text-sm text-gray-900">{currencyCode} {payment.Tax.toFixed(2)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPaymentMethodColor(payment.payMethod)}`}>
@@ -494,51 +522,37 @@ export default function PaymentsManagement() {
 
       {/* Lead Fees Table */}
       {activeTab === 'fees' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Lead ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tax Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Paid Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Professional Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payment Date
-                  </th>
+                  <SortableTh label="Lead ID" sortKey="leadId" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                  <SortableTh label="Total Amount" sortKey="totalAmount" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                  <SortableTh label="Tax Amount" sortKey="taxAmount" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                  <SortableTh label="Paid Amount" sortKey="paidAmount" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                  <SortableTh label="Professional Amount" sortKey="professionalAmount" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                  <SortableTh label="Status" sortKey="status" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                  <SortableTh label="Payment Date" sortKey="paymentDate" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredFees.map((fee) => (
+                {sortedFees.map((fee) => (
                   <tr key={fee.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">{fee.lead}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">${fee.amount.toFixed(2)}</div>
+                      <div className="text-sm text-gray-900">{currencyCode} {fee.amount.toFixed(2)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">${fee.taxAmt.toFixed(2)}</div>
+                      <div className="text-sm text-gray-900">{currencyCode} {fee.taxAmt.toFixed(2)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">${fee.paidAmt.toFixed(2)}</div>
+                      <div className="text-sm text-gray-900">{currencyCode} {fee.paidAmt.toFixed(2)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">${fee.profAmt.toFixed(2)}</div>
+                      <div className="text-sm text-gray-900">{currencyCode} {fee.profAmt.toFixed(2)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(fee.status)}`}>

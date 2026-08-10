@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PROService } from '@/services/pro-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const docTypes = [
   'Trade License',
@@ -13,7 +14,7 @@ const docTypes = [
   'Bank Account',
   'Other',
 ] as const;
-const statuses = ['Valid', 'Expiring Soon', 'Expired', 'Renewal In Progress', 'Cancelled'] as const;
+const statuses = ['Valid', 'Critical', 'Expiring Soon', 'Expired', 'Renewal In Progress', 'Cancelled'] as const;
 
 type DocType = typeof docTypes[number];
 type DocumentStatus = typeof statuses[number];
@@ -48,6 +49,8 @@ const isStatus = (value: unknown): value is DocumentStatus => (
 );
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const documents = await PROService.listCompanyDocuments(Number.parseInt(searchParams.get('limit') || '100', 10));
@@ -60,6 +63,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.create']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
 
@@ -97,6 +102,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const documentId = readString(body, 'document_id');

@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { Transaction } from 'sequelize';
+import { Op, QueryTypes, ValidationError, type Transaction } from 'sequelize';
 import { models, sequelize } from '@/models';
 import { verifyToken } from '@/lib/auth';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 import { branchCurrencyError, resolveBranchCurrency } from '@/lib/branchCurrency';
-import { renderBilingualAgreementWithPdfFirstPage } from '@/lib/bilingualAgreementTemplate';
+import { getBranchTaxInfo } from '@/lib/branchTax';
+import { renderAgreementForBranch } from '@/lib/renderAgreementForBranch';
+import { formatDocumentNumber } from '@/lib/documentNumbering';
+import { notifyRole } from '@/lib/notify';
+import { deriveProductTypeFromLabel } from '@/lib/clientPortalProducts';
 import crypto from 'crypto';
 
 const LEAD_FLOW_ATTRIBUTES = [
@@ -38,6 +43,134 @@ const LEAD_FLOW_ATTRIBUTES = [
   'lead_remark',
   'next_followup_date',
   'opportunity_notes'
+];
+
+const OPPORTUNITY_FLOW_ATTRIBUTES = [
+  'id',
+  'leadId',
+  'opportunityNumber',
+  'opportunityName',
+  'opportunityType',
+  'serviceType',
+  'productType',
+  'estimatedValue',
+  'actualValue',
+  'currency',
+  'priority',
+  'status',
+  'stage',
+  'probability',
+  'expectedCloseDate',
+  'actualCloseDate',
+  'description',
+  'serviceRequired',
+  'source',
+  'campaign',
+  'leadSource',
+  'branchId',
+  'assignedTo',
+  'createdBy',
+  'createdAt',
+  'updatedAt',
+  'lostReason',
+  'competitor',
+  'nextAction',
+  'nextActionDate',
+  'tags',
+  'notes',
+  'conversionDate',
+  'retentionAmount',
+  'retentionStatus',
+  'retentionDate',
+  'agreementGenerated',
+  'agreementId',
+  'agreementSent',
+  'agreementSigned',
+  'paymentReceived',
+  'documentsVerified'
+];
+
+const PAYMENT_FLOW_ATTRIBUTES = [
+  'id',
+  'opportunityId',
+  'paymentNumber',
+  'receiptNumber',
+  'paymentStructure',
+  'paymentType',
+  'totalAmount',
+  'amount',
+  'paidAmount',
+  'remainingBalance',
+  'balanceAmount',
+  'currency',
+  'paymentMethod',
+  'transactionId',
+  'paymentDate',
+  'status',
+  'dueDate',
+  'installmentNumber',
+  'totalInstallments',
+  'milestoneName',
+  'gateway',
+  'gatewayTransactionId',
+  'receiptUrl',
+  'description',
+  'receiptType',
+  'clientName',
+  'clientEmail',
+  'clientPhone',
+  'clientAddress',
+  'serviceName',
+  'branchName',
+  'consultantName',
+  'taxAmount',
+  'discountAmount',
+  'notes',
+  'createdBy',
+  'createdAt',
+  'updatedAt',
+  'accountantStatus',
+  'accountantRemarks',
+  'accountantId',
+  'accountantVerifiedAt'
+];
+
+const AGREEMENT_FLOW_ATTRIBUTES = [
+  'id',
+  'opportunityId',
+  'agreementNumber',
+  'agreementType',
+  'templateId',
+  'agreementTitle',
+  'title',
+  'description',
+  'duration',
+  'startDate',
+  'endDate',
+  'amount',
+  'totalAmount',
+  'currency',
+  'terms',
+  'termsAndConditions',
+  'specialConditions',
+  'content',
+  'status',
+  'generatedDate',
+  'sentDate',
+  'signedDate',
+  'clientSignature',
+  'signatureDate',
+  'documentUrl',
+  'clientName',
+  'clientEmail',
+  'clientPhone',
+  'companyName',
+  'companyAddress',
+  'uploadedToCrm',
+  'uploadedBy',
+  'createdBy',
+  'createdAt',
+  'updatedAt'
 ];
 
 export async function POST(request: NextRequest) {
@@ -118,6 +251,27 @@ export async function POST(request: NextRequest) {
     }
     Object.assign(lead, lead.get({ plain: true }));
 
+    // Duplicate-submission guard: the only existing protection was a
+    // client-side GET-then-POST check (opportunity-flow-wizard.tsx
+    // ensureOpportunityForClient) which is race-prone - two near-simultaneous
+    // submits (slow network + an impatient re-click) can both pass that check
+    // before either has actually created a row. Block a second conversion of
+    // the same lead within the last minute at the source of truth instead.
+    const recentOpportunity = await models.DmcOpportunities.findOne({
+      where: {
+        leadId,
+        createdAt: { [Op.gte]: new Date(Date.now() - 60_000) },
+      },
+      transaction,
+    });
+    if (recentOpportunity) {
+      await transaction.rollback();
+      return NextResponse.json(
+        { error: 'This lead was already converted to an opportunity a moment ago.', opportunityId: recentOpportunity.id },
+        { status: 409 }
+      );
+    }
+
     // The counselor's login determines the operating branch. This keeps the
     // opportunity, agreement, and receipts within that counselor's branch.
     const branchId = Number(loggedInUser?.branch || lead.branch || 0) || null;
@@ -154,11 +308,68 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
     const createdBy = Number(loggedInUser?.id || opportunityData.createdBy || paymentData.createdBy || agreementData.createdBy || lead.assignTo || 1);
-    const serviceName = opportunityData.serviceRequired || opportunityData.serviceType || lead.service_interest || 'Consulting Service';
+    const [programRows] = await sequelize.query(
+      'SELECT id, name, validity FROM dm_service WHERE id = ? OR LOWER(name) = LOWER(?) LIMIT 1',
+      {
+        replacements: [Number(lead.service_interest) || 0, String(lead.service_interest || '')],
+        transaction,
+      }
+    );
+    const selectedProgram = (programRows as Array<{ id: number; name: string; validity: string | null }>)[0] || null;
+    const serviceName = opportunityData.serviceRequired || opportunityData.serviceType || selectedProgram?.name || lead.service_interest || 'Consulting Service';
+    const programCode = selectedProgram?.id ? String(selectedProgram.id) : String(lead.service_interest || '');
+    const programValidity = selectedProgram?.validity || '';
+    const programValidityMonths = parseInt(programValidity, 10) || 12;
+    const productType = deriveProductTypeFromLabel(serviceName);
     const clientName = `${lead.fname || ''} ${lead.lname || ''}`.trim() || 'Client';
-    const totalAmount = Number(paymentData.totalAmount || agreementData.totalAmount || opportunityData.estimatedValue || lead.payTotal || 0);
+    let totalAmount = Number(paymentData.totalAmount || agreementData.totalAmount || opportunityData.estimatedValue || lead.payTotal || 0);
+
+    // Package amount must be sourced from dm_fee for the lead's program, not an
+    // arbitrary number — validate (and correct) it against the fee packages on
+    // file for this service/country/branch, when one exists.
+    const feePackages = await resolveFeePackageTotals(
+      Number(lead.service_interest) || null,
+      Number(lead.country_interest) || null,
+      branchId,
+      transaction
+    );
+    if (feePackages) {
+      // totalAmount is the quotation's tax-inclusive, post-discount total
+      // (the wizard sends (subtotal - discount) * (1 + vatRate)), while
+      // feePackages holds the raw undiscounted, tax-exclusive list prices —
+      // so both the VAT/GST and the discount must be reversed out before
+      // comparing, or every discounted and/or taxed submission fails this
+      // check. VAT/GST is resolved the same way the wizard resolves it:
+      // the branch's own vat_gst_percent when set, else a name-based guess.
+      const vatRate = branchCurrency.vatGstPercent !== null && branchCurrency.vatGstPercent !== undefined
+        ? Number(branchCurrency.vatGstPercent) / 100
+        : getBranchTaxInfo(`${branchCurrency.branchName} ${branchCurrency.branchAddress}`).rate;
+      const preTaxAmount = totalAmount / (1 + vatRate);
+      const preDiscountAmount = preTaxAmount + requestedDiscount;
+      const validTotals = Object.values(feePackages);
+      const matchesAPackage = validTotals.some((value) => Math.abs(value - preDiscountAmount) < 1);
+      if (!matchesAPackage) {
+        await transaction.rollback();
+        return NextResponse.json(
+          {
+            error: 'The submitted package amount does not match any fee package on file for this program. Select one of the available fee packages.',
+            availablePackages: feePackages,
+            submittedAmount: totalAmount,
+            _debug: { branchId, vatRate, requestedDiscount, preTaxAmount, preDiscountAmount },
+          },
+          { status: 422 }
+        );
+      }
+    }
     const paidAmount = Number(paymentData.paidAmount ?? paymentData.amount ?? lead.paidYet ?? 0);
     const paymentProofUrl = String(paymentData.proofOfPaymentUrl || paymentData.paymentProofUrl || '').trim();
+    if (paidAmount > 0 && !paymentProofUrl) {
+      await transaction.rollback();
+      return NextResponse.json(
+        { error: 'Proof of payment is required before submitting a payment.' },
+        { status: 422 }
+      );
+    }
     const remainingBalance = Math.max(totalAmount - paidAmount, 0);
     const paymentStatus = normalizePaymentStatus(paymentData.status, paidAmount, totalAmount);
     const isClient = remainingBalance <= 0 && paidAmount > 0;
@@ -173,10 +384,14 @@ export async function POST(request: NextRequest) {
     );
 
     // Step 2: Create opportunity from lead
+    // id is intentionally NOT set here - dmc_opportunities.id is a real
+    // AUTO_INCREMENT column. Pre-computing it via findNextId (MAX(id)+1) let
+    // a rolled-back attempt (e.g. the workflow-review insert below failing)
+    // "reuse" an id number that a still-present orphaned child row already
+    // held a unique constraint on, permanently blocking every subsequent
+    // conversion attempt with the same collision (#lead-to-opportunity-500).
     const opportunityNumber = `OPP-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    const opportunityId = await findNextId('dmc_opportunities', transaction);
     const opportunity = await models.DmcOpportunities.create({
-      id: opportunityId,
       leadId: lead.id,
       opportunityNumber,
       opportunityName: opportunityData.opportunityName || `${clientName} - ${serviceName}`,
@@ -184,6 +399,7 @@ export async function POST(request: NextRequest) {
       description: opportunityData.description || `Opportunity created for lead: ${clientName}`,
       serviceType: serviceName,
       serviceRequired: serviceName,
+      productType,
       estimatedValue: totalAmount,
       actualValue: paidAmount,
       currency: branchCurrency.currencyCode,
@@ -210,8 +426,21 @@ export async function POST(request: NextRequest) {
       updatedAt: now
     }, { transaction });
     Object.assign(opportunity, opportunity.get({ plain: true }));
+    let opportunityId = Number(opportunity.id);
+    if (!opportunityId) {
+      // Sequelize's mysql2 dialect can come back with an unpopulated `id` on the
+      // returned instance for this model (the row itself is inserted correctly
+      // with a real AUTO_INCREMENT value - confirmed by reading it straight back
+      // here). Fall back to looking the row up by its unique opportunityNumber
+      // rather than trusting `opportunity.id`.
+      const [idRows] = await sequelize.query<{ id: number }>(
+        'SELECT id FROM dmc_opportunities WHERE opportunityNumber = ? ORDER BY id DESC LIMIT 1',
+        { replacements: [opportunityNumber], transaction, type: QueryTypes.SELECT }
+      );
+      opportunityId = Number((idRows as any)?.id ?? idRows);
+    }
 
-    const receiptNumber = paymentData.receiptNumber || `RCP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    let receiptNumber = paymentData.receiptNumber || `RCP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
     if (conversationSummary) {
       await sequelize.query(
@@ -263,10 +492,9 @@ export async function POST(request: NextRequest) {
     );
 
     // Step 3: Create initial receipt/payment record
+    // id omitted - see the opportunity creation above for why (dm_opportunity_payments.id is AUTO_INCREMENT).
     const paymentNumber = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-    const paymentId = await findNextId('dm_opportunity_payments', transaction);
     const payment = await models.DmcOpportunityPayments.create({
-      id: paymentId,
       opportunityId,
       paymentNumber,
       receiptNumber,
@@ -295,10 +523,74 @@ export async function POST(request: NextRequest) {
       consultantName: lead.dmEmployeeByASSIGNTo?.name || '',
       taxAmount: Number(paymentData.taxAmount || invoiceData.taxAmt || 0),
       discountAmount: Number(paymentData.discountAmount || lead.discount || 0),
+      receiptUrl: paymentProofUrl || null,
       createdAt: now,
       updatedAt: now
     }, { transaction });
     Object.assign(payment, payment.get({ plain: true }));
+    let paymentId = Number(payment.id);
+    if (!paymentId) {
+      // See the opportunity-id read-back above - Sequelize can return an instance
+      // with an unpopulated id for this connection/model even though the row was
+      // inserted with a real AUTO_INCREMENT value.
+      const [idRows] = await sequelize.query<{ id: number }>(
+        'SELECT id FROM dm_opportunity_payments WHERE paymentNumber = ? ORDER BY id DESC LIMIT 1',
+        { replacements: [paymentNumber], transaction, type: QueryTypes.SELECT }
+      );
+      paymentId = Number((idRows as any)?.id ?? idRows);
+    }
+
+    // Reformat the receipt number now that the row's own auto-increment id is
+    // known — RC/{branch}/{product}/{DDMMYYYY}/{seq}, e.g. RC/QTR/CAN/15072026/001.
+    receiptNumber = formatDocumentNumber({
+      prefix: 'RC',
+      branchName: branchCurrency.branchName,
+      branchAddress: branchCurrency.branchAddress,
+      product: serviceName,
+      sequenceId: paymentId,
+    });
+    await sequelize.query(
+      'UPDATE dm_opportunity_payments SET receiptNumber = ? WHERE id = ?',
+      { replacements: [receiptNumber, paymentId], transaction }
+    );
+
+    // Every payment must leave an audit row in the legacy dm_pay_history ledger
+    // (recovery-report, finance, and analytics all read from this table), carrying
+    // the proof-of-payment URL alongside it.
+    if (paidAmount > 0) {
+      await sequelize.query(
+        `INSERT INTO dm_pay_history
+           (leadId, amount, counselor_receipt, tabby, date, payMethod, payoption, paycardoption,
+            payNextDate, payBalance, tax, payCategory, payment_remarks, remark, status, proof_url,
+            thirdPartyAmt, dmAmt, dmTax, dmRefundAmt, curValue, refNumber,
+            created_by, stage, totaltillnow)
+         VALUES
+           (:leadId, :amount, :receiptNumber, 0, :payDate, :payMethod, :payoption, '',
+            :payNextDate, :payBalance, :tax, 'payment', :remarks, :remark, 1, :proofUrl,
+            0, :amount, 0, 0, 0, :refNumber,
+            :createdBy, 'opportunity_conversion', :totalPaidSoFar)`,
+        {
+          replacements: {
+            leadId: lead.id,
+            amount: paidAmount,
+            receiptNumber,
+            payDate: paymentData.paymentDate || now,
+            payMethod: paymentData.paymentMethod || 'cash',
+            payoption: paymentData.paymentStructure || 'full',
+            payNextDate: paymentData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            payBalance: remainingBalance,
+            tax: Number(paymentData.taxAmount || invoiceData.taxAmt || 0),
+            remarks: paymentData.notes || `Initial payment recorded during opportunity conversion (${paymentNumber})`,
+            remark: paymentData.remark || null,
+            proofUrl: paymentProofUrl || null,
+            refNumber: paymentData.transactionId || paymentNumber,
+            createdBy,
+            totalPaidSoFar: paidAmount,
+          },
+          transaction,
+        }
+      );
+    }
 
     // Step 4: Create invoice record
     const invoiceReceipt = invoiceData.receipt || `INV-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
@@ -335,32 +627,34 @@ export async function POST(request: NextRequest) {
     const invoiceId = nextInvoiceId;
 
     // Step 5: Create agreement record
-    const agreementNumber = `AGR-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    let agreementNumber = `AGR-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     const clientPortalId = `CMG-${String(lead.id).padStart(6, '0')}-${String(opportunityId).padStart(6, '0')}`;
     const clientPortalToken = crypto.randomBytes(32).toString('hex');
-    const agreementId = await findNextId('dm_opportunity_agreements', transaction);
-    const agreementContent = agreementData.content || renderBilingualAgreementWithPdfFirstPage({
+    // id omitted below - see the opportunity creation above for why (dm_opportunity_agreements.id is AUTO_INCREMENT).
+    const agreementContent = agreementData.content || renderAgreementForBranch(branchCurrency.branchAbbrv, {
       agreementNumber,
       agreementDate: now.toLocaleDateString(),
+      agreementExpiry: agreementData.endDate ? new Date(agreementData.endDate).toLocaleDateString() : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString(),
       clientName,
       clientEmail: lead.email || '',
       clientPhone: lead.mobile || lead.phone || '',
       clientAddress: agreementData.companyAddress || lead.address || '',
       nationality: lead.nationality || '',
       passportNumber: lead.id_number || '',
-      emiratesId: agreementData.emiratesId || lead.id_number || '',
-      occupation: agreementData.occupation || lead.profession || '',
+      idNumber: agreementData.emiratesId || lead.id_number || '',
       clientId: clientPortalId,
       serviceProgram: serviceName || 'Professional Consultancy Services',
+      programCode: agreementData.programCode || programCode,
+      programTermSchedule: agreementData.programTermSchedule || programValidity || (agreementData.duration ? `${agreementData.duration} months` : ''),
       destinationCountry: String(opportunityData.country || lead.country_interest || ''),
-      totalAmount: `${branchCurrency.currencyCode} ${totalAmount.toLocaleString()}`,
-      initialPayment: `${branchCurrency.currencyCode} ${paidAmount.toLocaleString()}`,
-      secondPayment: `${branchCurrency.currencyCode} ${Math.max(totalAmount - paidAmount, 0).toLocaleString()}`,
-      branchName: branchCurrency.branchName || 'DM Immigration Consultants DMCC',
-      branchAddress: branchCurrency.branchAddress || 'Office 3703B, Latifa Tower, Sheikh Zayed Road, Dubai, UAE',
+      totalAmount: totalAmount.toLocaleString(),
+      initialPayment: paidAmount.toLocaleString(),
+      secondPayment: Math.max(totalAmount - paidAmount, 0).toLocaleString(),
+      includedDeliverables: agreementData.includedDeliverables || agreementData.agreementTitle || agreementData.title || '',
+      expressExclusions: agreementData.expressExclusions || '',
+      specialTerms: agreementData.specialTerms || agreementData.specialConditions || agreementData.terms || agreementData.termsAndConditions || '',
     });
     const agreement = await models.DmcOpportunityAgreements.create({
-      id: agreementId,
       opportunityId,
       agreementNumber,
       agreementType: agreementData.agreementType || 'service_agreement',
@@ -369,7 +663,7 @@ export async function POST(request: NextRequest) {
       agreementTitle: agreementData.agreementTitle || agreementData.title || `Service Agreement - ${clientName}`,
       title: agreementData.title || agreementData.agreementTitle || `Service Agreement - ${clientName}`,
       description: agreementData.description || `Service agreement for ${serviceName}`,
-      duration: agreementData.duration || '12',
+      duration: agreementData.duration || String(programValidityMonths),
       amount: Number(agreementData.amount || totalAmount),
       terms: agreementData.terms || agreementData.termsAndConditions || '',
       termsAndConditions: agreementData.termsAndConditions || agreementData.terms || '',
@@ -378,7 +672,7 @@ export async function POST(request: NextRequest) {
       totalAmount,
       currency: branchCurrency.currencyCode,
       startDate: agreementData.startDate || now,
-      endDate: agreementData.endDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
+      endDate: agreementData.endDate || new Date(now.getFullYear(), now.getMonth() + programValidityMonths, now.getDate()), // program validity from now
       signedDate: agreementData.status === 'uploaded' ? normalizeOptionalDate(agreementData.signatureDate) : null,
       clientSignature: agreementData.clientSignature || null,
       signatureDate: normalizeOptionalDate(agreementData.signatureDate),
@@ -396,6 +690,68 @@ export async function POST(request: NextRequest) {
       updatedAt: now
     }, { transaction });
     Object.assign(agreement, agreement.get({ plain: true }));
+    let agreementId = Number(agreement.id);
+    if (!agreementId) {
+      // See the opportunity-id read-back above for why this fallback is needed.
+      const [idRows] = await sequelize.query<{ id: number }>(
+        'SELECT id FROM dm_opportunity_agreements WHERE agreementNumber = ? ORDER BY id DESC LIMIT 1',
+        { replacements: [agreementNumber], transaction, type: QueryTypes.SELECT }
+      );
+      agreementId = Number((idRows as any)?.id ?? idRows);
+    }
+
+    // Reformat the agreement number now that the row's own auto-increment id
+    // is known — AG/{branch}/{product}/{DDMMYYYY}/{seq}, e.g. AG/QTR/CAN/15072026/001.
+    // The agreement's stored `content` blob still carries the temporary
+    // pre-insert number, but nothing reads that blob for display — every live
+    // view (compliance-approvals, agreements/lookup, the agreement page)
+    // re-renders from this row's own agreementNumber column instead.
+    agreementNumber = formatDocumentNumber({
+      prefix: 'AG',
+      branchName: branchCurrency.branchName,
+      branchAddress: branchCurrency.branchAddress,
+      product: serviceName,
+      sequenceId: agreementId,
+    });
+    await sequelize.query(
+      'UPDATE dm_opportunity_agreements SET agreementNumber = ? WHERE id = ?',
+      { replacements: [agreementNumber, agreementId], transaction }
+    );
+
+    // Legacy contract register: every finalized agreement gets a matching row here so the
+    // lead has a contract number (CNT-#####, derived from this row's own id) even though
+    // agreement content itself lives in the newer dm_opportunity_agreements table.
+    // id omitted below and read back post-insert instead - see the opportunity
+    // creation earlier in this file for why (dmc_forum_leads_contracts.id is AUTO_INCREMENT).
+    const contractFile = agreementData.documentUrl || `${agreementNumber}.pdf`;
+    const contract = await models.DmcForumLeadsContracts.create({
+      leadId: lead.id,
+      contract: contractFile,
+      unsigned_contract: `unsigned_${agreementNumber}.pdf`,
+      ar_contract: `ar_${agreementNumber}.pdf`,
+      new_contract: agreementData.documentUrl || null,
+      garys: null,
+      remarks: `Auto-created from opportunity conversion. Agreement number: ${agreementNumber}`,
+      verify: agreementData.status === 'uploaded' ? 1 : 0,
+      verify_by: 0,
+      verify_date: agreementData.status === 'uploaded' ? now : null,
+      batch_id: 0,
+      wp_batch_id: 0,
+      vendor_id: 0,
+      employer_id: 0,
+      old_crm_ag_id: 0,
+      payment_status: paidAmount > 0 ? 1 : 0,
+    } as any, { transaction });
+    let contractId = Number((contract as any).id);
+    if (!contractId) {
+      // See the opportunity-id read-back above for why this fallback is needed.
+      const [idRows] = await sequelize.query<{ id: number }>(
+        'SELECT id FROM dmc_forum_leads_contracts WHERE leadId = ? AND contract = ? ORDER BY id DESC LIMIT 1',
+        { replacements: [lead.id, contractFile], transaction, type: QueryTypes.SELECT }
+      );
+      contractId = Number((idRows as any)?.id ?? idRows);
+    }
+    const contractNumber = `CNT-${String(contractId).padStart(5, '0')}`;
 
     await sequelize.query(
       `INSERT INTO dm_client_upload_portals (client_id, lead_id, opportunity_id, agreement_number, access_token, status, expires_at, created_at)
@@ -582,7 +938,13 @@ export async function POST(request: NextRequest) {
       folowuptime: followUpDate || lead.folowuptime,
       followupstat: followUpDate ? 1 : lead.followupstat,
       appointment: appointmentDate || lead.appointment,
-      status_date: now
+      status_date: now,
+      // demandAmt tracks the outstanding balance; dueDate/demdRemark only
+      // overwrite when the Payment stage actually sent a balance-due-date or
+      // remark, otherwise leave whatever was already on the lead untouched.
+      demandAmt: remainingBalance,
+      dueDate: paymentData.dueDate ? new Date(paymentData.dueDate) : lead.dueDate,
+      demdRemark: paymentData.remark || lead.demdRemark,
     };
 
     if (leadColumns.has('next_followup_date')) {
@@ -621,6 +983,22 @@ export async function POST(request: NextRequest) {
     }, { transaction });
 
     await transaction.commit();
+
+    // Let Accounts know a new payment is waiting on their queue (mirrors the
+    // notification in /api/receipts — this is the other path that can create
+    // a dm_opportunity_payments row, taken when a counselor hits "Continue to
+    // Accounts" before explicitly saving the payment).
+    await notifyRole({
+      roleType: 'accountant',
+      branchId,
+      type: 'payment_submission',
+      title: 'Payment submitted for verification',
+      message: `Payment ${paymentNumber} for ${clientName} is awaiting accounts verification.`,
+      priority: 'medium',
+      link: `/admin/leads/${leadId}/edit`,
+      relatedId: leadId,
+      relatedType: 'lead',
+    });
 
     // Step 10: Return complete flow data
     return NextResponse.json({
@@ -665,6 +1043,10 @@ export async function POST(request: NextRequest) {
           status: agreementData.status || 'generated',
           totalAmount
         },
+        contract: {
+          id: contractId,
+          contractNumber,
+        },
         followUp: followUpSummary,
         appointment: appointmentSummary,
         leadRemark: leadRemarkSummary
@@ -702,12 +1084,17 @@ function validateOpportunitySubmission(
   const discountAmount = Number(paymentData.discountAmount ?? 0);
   const opportunityName = String(opportunityData.opportunityName ?? '').trim();
   const service = String(opportunityData.serviceRequired ?? opportunityData.serviceType ?? '').trim();
+  const paymentProofUrl = String(paymentData.proofOfPaymentUrl ?? paymentData.paymentProofUrl ?? '').trim();
 
   if (!opportunityName) errors.push('Opportunity name is required.');
   if (!service) errors.push('Service required is required.');
   if (!Number.isFinite(totalAmount) || totalAmount <= 0) errors.push('Total amount must be greater than zero.');
   if (!Number.isFinite(paidAmount) || paidAmount < 0 || paidAmount > totalAmount) errors.push('Paid amount must be between zero and the total amount.');
-  if (!Number.isFinite(discountAmount) || discountAmount < 0 || discountAmount > totalAmount) errors.push('Discount amount must be between zero and the total amount.');
+  if (Number.isFinite(paidAmount) && paidAmount > 0 && !paymentProofUrl) errors.push('Proof of payment is required.');
+  // Note: totalAmount here is already net of the discount (subtotal - discount + tax,
+  // computed client-side), so it can't be used as the discount's upper bound — the
+  // client already validates discountAmount against the pre-discount subtotal.
+  if (!Number.isFinite(discountAmount) || discountAmount < 0) errors.push('Discount amount must be zero or greater.');
 
   const paymentDate = paymentData.paymentDate;
   if (paymentDate && Number.isNaN(new Date(String(paymentDate)).getTime())) errors.push('Payment date is invalid.');
@@ -759,6 +1146,12 @@ function formatTime(date: Date): string {
 }
 
 function getErrorMessage(error: unknown): string {
+  if (error instanceof ValidationError) {
+    // Sequelize's own .message is the generic "Validation error" - the
+    // actionable detail (which field, why) is only in .errors[].
+    const fieldErrors = error.errors.map((e) => `${e.path || 'field'}: ${e.message}${e.value !== undefined ? ` (got: ${JSON.stringify(e.value)})` : ''}`);
+    return fieldErrors.length > 0 ? fieldErrors.join('; ') : error.message;
+  }
   return error instanceof Error ? error.message : 'Unknown error';
 }
 
@@ -862,12 +1255,12 @@ async function createLeadRemark(
   }
 
   await sequelize.query(
-    `INSERT INTO dmc_forum_leads_remarks (${insertColumns.join(', ')}) VALUES (${placeholders.join(', ')})`,
+    `INSERT INTO dmc_forum_leads_remarks (${insertColumns.map((column) => `\`${column}\``).join(', ')}) VALUES (${placeholders.join(', ')})`,
     { replacements, transaction }
   );
 
   const [rows] = await sequelize.query(
-    'SELECT id FROM dmc_forum_leads_remarks WHERE lead = ? AND remark = ? AND emp = ? ORDER BY id DESC LIMIT 1',
+    'SELECT id FROM dmc_forum_leads_remarks WHERE `lead` = ? AND remark = ? AND emp = ? ORDER BY id DESC LIMIT 1',
     { replacements: [leadId, remark, employeeId], transaction }
   );
   const record = Array.isArray(rows) ? rows[0] as { id?: number | string } | undefined : undefined;
@@ -883,7 +1276,51 @@ async function findNextId(table: string, transaction: Transaction): Promise<numb
   return Number(record?.nextId || 1);
 }
 
+// Package amounts must come from dm_fee for the lead's selected program, not an
+// arbitrary client-submitted number. dm_fee stores three payable structures per
+// service/country(/branch) row — upfront-only, staged, or monthly — the wizard
+// lets the counsellor pick one, so this returns all three totals for validation.
+async function resolveFeePackageTotals(
+  serviceId: number | null,
+  countryId: number | null,
+  branchId: number | null,
+  transaction: Transaction
+): Promise<{ upfront: number; stage: number; monthly: number } | null> {
+  if (!serviceId) return null;
+
+  const runLookup = async (withBranch: boolean) => {
+    const conditions = ['f.status = 1', 'f.service = :serviceId'];
+    const replacements: Record<string, unknown> = { serviceId };
+    if (countryId) { conditions.push('f.country = :countryId'); replacements.countryId = countryId; }
+    if (withBranch && branchId) { conditions.push('f.branch = :branchId'); replacements.branchId = branchId; }
+
+    const rows = await sequelize.query<any>(
+      `SELECT f.upfront, f.prof_fee, f.firstMonth, f.secondMonth, f.thirdMonth, f.prof_fee_month,
+              f.firstStage, f.secondStage, f.thirdStage, f.forthStage, f.fifthStage, f.prof_fee_stage
+       FROM dm_fee f
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY f.id DESC
+       LIMIT 1`,
+      { replacements, transaction, type: QueryTypes.SELECT }
+    );
+    return rows[0] || null;
+  };
+
+  const fee = (await runLookup(true)) || (await runLookup(false));
+  if (!fee) return null;
+
+  const n = (v: unknown) => Number(v || 0);
+  const base = n(fee.upfront);
+  return {
+    upfront: base,
+    stage: n(fee.firstStage) + n(fee.secondStage) + n(fee.thirdStage) + n(fee.forthStage) + n(fee.fifthStage),
+    monthly: n(fee.firstMonth) + n(fee.secondMonth) + n(fee.thirdMonth),
+  };
+}
+
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['leads.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const leadId = normalizeLeadId(searchParams.get('leadId') ?? searchParams.get('lead_id') ?? searchParams.get('id'));
@@ -901,6 +1338,16 @@ export async function GET(request: NextRequest) {
       raw: true
     })).map((opp: { id: number | string }) => Number(opp.id)).filter(Boolean);
 
+    const [
+      opportunityAttributes,
+      paymentAttributes,
+      agreementAttributes
+    ] = await Promise.all([
+      getExistingAttributes('dmc_opportunities', OPPORTUNITY_FLOW_ATTRIBUTES),
+      getExistingAttributes('dm_opportunity_payments', PAYMENT_FLOW_ATTRIBUTES),
+      getExistingAttributes('dm_opportunity_agreements', AGREEMENT_FLOW_ATTRIBUTES),
+    ]);
+
     // Get complete flow data for a lead
     const [lead, opportunities, payments, agreements, clients] = await Promise.all([
       models.DmcForumLeads.findByPk(leadId, {
@@ -912,6 +1359,7 @@ export async function GET(request: NextRequest) {
       }),
       models.DmcOpportunities.findAll({
         where: { leadId },
+        attributes: opportunityAttributes,
         include: [
           { association: 'assignedEmployee', attributes: ['id', 'name'] }
         ],
@@ -919,6 +1367,7 @@ export async function GET(request: NextRequest) {
       }),
       models.DmcOpportunityPayments.findAll({
         where: { opportunityId: opportunityIds },
+        attributes: paymentAttributes,
         include: [
           { association: 'dmcOpportunity', attributes: ['id', 'opportunityName'] }
         ],
@@ -926,6 +1375,7 @@ export async function GET(request: NextRequest) {
       }),
       models.DmcOpportunityAgreements.findAll({
         where: { opportunityId: opportunityIds },
+        attributes: agreementAttributes,
         include: [
           { association: 'dmcOpportunity', attributes: ['id', 'opportunityName'] }
         ],

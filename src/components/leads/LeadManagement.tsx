@@ -1,17 +1,24 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Search, Plus, Edit, Trash2, Download, Upload, Users,
-  Filter, Calendar, Phone, Mail, MapPin, DollarSign,
+  Filter, Calendar, Phone, Mail, MapPin, DollarSign, MessageCircle,
   Eye, CheckCircle, XCircle, Clock,
   Target, X, Save, LayoutList, LayoutGrid, Briefcase, MessageSquare, Settings,
-  Receipt, AlertCircle, Printer, Loader2
+  Receipt, AlertCircle, Printer, Loader2, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import LeadKanbanSimple from './LeadKanbanSimple';
+import ConversationHistoryModal from '@/components/shared/ConversationHistoryModal';
 import { Lead } from '@/types/lead';
 import { useAuth } from '@/contexts/AuthContext';
+import { isBranchManagerOrCeo, isCeo, isFoe, isFoeOrBranchManagerOrCeo, isCounsellor } from '@/lib/roleChecks';
+import { BANK_PAYMENT_OPTIONS, CARD_PAYMENT_OPTIONS } from '@/lib/paymentOptions';
+import { getLeadBranchDetails, printReceipt as printReceiptDocument } from '@/lib/receiptTemplate';
 
 interface LeadManagementProps {
   onLeadSelect?: (lead: Lead) => void;
@@ -43,7 +50,8 @@ interface LeadFilterOptions {
   leadQualities: FilterOption[];
 }
 
-type LeadActionType = 'appointment' | 'followup' | 'remark';
+type LeadActionType = 'appointment' | 'followup' | 'remark' | 'status';
+type LeadTab = 'leads' | 'my-leads' | 'opportunities' | 'clients' | 'duplicates';
 
 interface QuickPayLeadState {
   lead: Lead;
@@ -65,6 +73,7 @@ interface LeadActionForm {
   notes: string;
   meetingType: string;
   priority: string;
+  status: string;
 }
 
 interface LeadActivity {
@@ -94,6 +103,16 @@ interface LeadActivity {
     remark?: string | null;
     employeeName?: string | null;
   }>;
+  activityLog: Array<{
+    id: number;
+    action?: string | null;
+    remark?: string | null;
+    previous_value?: string | null;
+    new_value?: string | null;
+    actorName?: string | null;
+    actor_role?: string | null;
+    created_at?: string | null;
+  }>;
   summary: {
     appointments: number;
     fixedAppointments: number;
@@ -101,6 +120,7 @@ interface LeadActivity {
     followUps: number;
     pendingFollowUps: number;
     remarks: number;
+    activityLog: number;
   };
 }
 
@@ -109,9 +129,37 @@ function getSelectableLeadId(lead: Pick<Lead, 'id'>): number | null {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+// Builds a windowed list of page numbers around the current page (with '...'
+// gaps) so pagination stays usable when there are hundreds of pages.
+function getPageWindow(current: number, total: number): Array<number | '...'> {
+  if (total <= 1) return total === 1 ? [1] : [];
+  const delta = 1;
+  const range: Array<number | '...'> = [];
+  const left = Math.max(2, current - delta);
+  const right = Math.min(total - 1, current + delta);
+
+  range.push(1);
+  if (left > 2) range.push('...');
+  for (let i = left; i <= right; i++) range.push(i);
+  if (right < total - 1) range.push('...');
+  if (total > 1) range.push(total);
+
+  return range;
+}
+
 export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, showActions = true }: LeadManagementProps) {
   const router = useRouter();
-  const { token, isLoading: authLoading } = useAuth();
+  const { token, isLoading: authLoading, currencyCode } = useAuth();
+  // Wide table + the browser's native horizontal scrollbar sitting at the very
+  // bottom means reaching the Actions column requires scrolling all the way
+  // down first. This mirrors a slim scrollbar above the table (synced both
+  // ways) so the table can be scrolled sideways without leaving the top.
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
+  const syncingScrollRef = useRef<'top' | 'table' | null>(null);
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const [tabBarHeight, setTabBarHeight] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -128,7 +176,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     marketSource: '',
     leadQuality: '',
     dateFrom: '',
-    dateTo: ''
+    dateTo: '',
+    assignTo: ''
   });
   const [filterOptions, setFilterOptions] = useState<LeadFilterOptions>({
     statuses: [],
@@ -153,8 +202,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   const [formData, setFormData] = useState<Partial<Lead>>({});
   const [importing, setImporting] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
-  const [activeTab, setActiveTab] = useState<'leads' | 'opportunities' | 'clients'>('leads');
+  const [activeTab, setActiveTab] = useState<LeadTab>('leads');
   const [showLeadActionModal, setShowLeadActionModal] = useState(false);
+  const [returnToViewModalOnClose, setReturnToViewModalOnClose] = useState(false);
   const [leadActionType, setLeadActionType] = useState<LeadActionType>('appointment');
   const [leadActionForm, setLeadActionForm] = useState<LeadActionForm>({
     date: new Date().toISOString().split('T')[0],
@@ -163,14 +213,23 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     title: '',
     notes: '',
     meetingType: 'consultation',
-    priority: 'medium'
+    priority: 'medium',
+    status: ''
   });
   const [leadActionSaving, setLeadActionSaving] = useState(false);
+  // Cross-branch appointment handoff: assign this appointment to a
+  // counselor/branch manager in a different branch than the lead's own.
+  const [crossBranchEnabled, setCrossBranchEnabled] = useState(false);
+  const [crossBranchTargetBranch, setCrossBranchTargetBranch] = useState('');
+  const [appointmentEmployees, setAppointmentEmployees] = useState<Array<{ id: number; name: string }>>([]);
+  const [appointmentEmployeesLoading, setAppointmentEmployeesLoading] = useState(false);
   const [leadActivity, setLeadActivity] = useState<LeadActivity | null>(null);
+  const [conversationHistoryLeadId, setConversationHistoryLeadId] = useState<number | null>(null);
   const [leadActivityLoading, setLeadActivityLoading] = useState(false);
   const [leadActivityError, setLeadActivityError] = useState('');
 
   const [quickPayLead, setQuickPayLead] = useState<QuickPayLeadState | null>(null);
+  const [whatsappTemplate, setWhatsappTemplate] = useState('');
 
   // ── Assignment modal state ──
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -180,11 +239,79 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignSaving, setAssignSaving] = useState(false);
 
+  // ── Counselor filter dropdown (BM sees their own branch, CEO sees everyone) ──
+  const [counselorFilterOptions, setCounselorFilterOptions] = useState<Array<{ id: number; name: string }>>([]);
+
+  // ── Bulk transfer/delete state (CEO-only) ──
+  const [bulkCeoCounselors, setBulkCeoCounselors] = useState<Array<{ id: number; name: string }>>([]);
+  const [bulkTransferCounselorId, setBulkTransferCounselorId] = useState('');
+  const [bulkActionSaving, setBulkActionSaving] = useState(false);
+  const [showBulkTransferModal, setShowBulkTransferModal] = useState(false);
+  const [bulkTransferSearch, setBulkTransferSearch] = useState('');
+
   const { user } = useAuth();
   const isDSorBM = useMemo(() => {
     const t = String(user?.type || '').toLowerCase().replace(/[\s-]+/g, '_');
     return ['director_of_sales', 'director', 'dos', 'branch_manager', 'bm', 'admin', 'administrator', 'super_admin'].includes(t) || user?.role === 1;
   }, [user]);
+  const canBulkUpload = useMemo(() => isFoeOrBranchManagerOrCeo(user) || isCounsellor(user), [user]);
+  // FOE and CEO can assign/reassign leads too, in addition to DS/BM/Admin (isDSorBM).
+  const canAssignLeads = isDSorBM || isFoeOrBranchManagerOrCeo(user);
+  const showMyLeadsTab = isBranchManagerOrCeo(user);
+
+  useEffect(() => {
+    if (!isCeo(user)) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/employees?status=1&limit=200');
+        if (!res.ok) return;
+        const data = await res.json();
+        const employees: Array<{ id: number; name: string }> = data.employees || [];
+        setBulkCeoCounselors(employees.map((e) => ({ id: e.id, name: e.name })));
+      } catch (err) {
+        console.error('Error loading counselors for bulk transfer:', err);
+      }
+    })();
+  }, [user]);
+
+  useEffect(() => {
+    if (!isBranchManagerOrCeo(user)) return;
+    (async () => {
+      try {
+        // BM only sees counselors in their own branch; CEO sees everyone -
+        // same branch-scoping convention used for lead reassignment (loadCounselors, below).
+        const params = new URLSearchParams({ status: '1', limit: '200' });
+        if (!isCeo(user) && user?.branch) params.set('branch', String(user.branch));
+        const res = await fetch(`/api/employees?${params.toString()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const employees: Array<{ id: number; name: string }> = data.employees || [];
+        setCounselorFilterOptions(employees.map((e) => ({ id: e.id, name: e.name })));
+      } catch (err) {
+        console.error('Error loading counselor filter options:', err);
+      }
+    })();
+  }, [user]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/settings', token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
+        if (!res.ok) return;
+        const data = await res.json();
+        setWhatsappTemplate(data.preferences?.whatsappTemplate || '');
+      } catch (err) {
+        console.error('Error loading WhatsApp message template:', err);
+      }
+    })();
+  }, [token]);
+
+  const getWhatsAppLink = (number?: string | null) => {
+    const digits = (number || '').replace(/\D/g, '');
+    if (!digits) return null;
+    const query = whatsappTemplate ? `?text=${encodeURIComponent(whatsappTemplate)}` : '';
+    return `https://wa.me/${digits}${query}`;
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const filteredBranchOptions = useMemo(() => {
     if (!filters.region) return filterOptions.branches;
@@ -248,6 +375,22 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     return { label: 'New Lead', color: 'bg-gray-100 text-gray-800 border-gray-200', stepIndex: 0 };
   };
 
+  const { sorted: sortedLeadRows, sortKey: leadSortKey, sortDirection: leadSortDirection, toggleSort: toggleLeadSort } = useSortableData(
+    leads,
+    {
+      name: (lead: Lead) => `${lead.fname || ''} ${lead.mname || ''} ${lead.lname || ''}`,
+      contact: (lead: Lead) => lead.email || lead.phone,
+      interest: (lead: Lead) => (lead as any).country_interest_label || lead.country_interest,
+      remark: (lead: Lead) => lead.latest_remark,
+      stage: (lead: Lead) => getPipelineStage(lead).stepIndex,
+      status: (lead: Lead) => lead.status,
+      balanceDue: (lead: Lead) => Number(lead.payBalance || 0),
+      registered: (lead: Lead) => lead.regdate,
+      branch: (lead: Lead) => lead.dmBranch?.name,
+      assignedTo: (lead: Lead) => lead.dmEmployeeByASSIGNTo?.name,
+    },
+  );
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (searchTerm.length >= 3 || searchTerm.length === 0) {
@@ -271,7 +414,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         limit: isKanban ? '500' : pagination.limit.toString(),
         search: debouncedSearchTerm,
         opportunityView: activeTab,
-        kanban: isKanban && activeTab === 'leads' ? 'true' : 'false',
+        kanban: isKanban && (activeTab === 'leads' || activeTab === 'my-leads') ? 'true' : 'false',
 
         ...Object.entries(filters).reduce((acc, [key, value]) => {
           if (value) acc[key] = value;
@@ -350,11 +493,45 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
 
   useEffect(() => {
     fetchLeads();
-  }, [pagination.page, debouncedSearchTerm, filters, activeTab, viewMode, token, authLoading]);
+  }, [pagination.page, pagination.limit, debouncedSearchTerm, filters, activeTab, viewMode, token, authLoading]);
 
   useEffect(() => {
     setSelectedLeads((current) => current.filter((id) => selectableLeadIds.includes(id)));
   }, [selectableLeadIds]);
+
+  // Re-measure how far the table overflows whenever the rendered rows/columns
+  // change, so the top scrollbar's draggable width always matches the table.
+  useEffect(() => {
+    if (viewMode !== 'list') return;
+    const measure = () => setTableScrollWidth(tableScrollRef.current?.scrollWidth || 0);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [viewMode, leads, activeTab]);
+
+  // Re-measure the sticky tab bar's height so the table header (also sticky)
+  // can be offset below it instead of overlapping it - the tab row wraps
+  // (flex-wrap) on narrow screens, which changes its height at runtime.
+  useEffect(() => {
+    const measure = () => setTabBarHeight(tabBarRef.current?.offsetHeight || 0);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [showMyLeadsTab]);
+
+  const handleTopScroll = () => {
+    if (syncingScrollRef.current === 'table') { syncingScrollRef.current = null; return; }
+    if (!topScrollRef.current || !tableScrollRef.current) return;
+    syncingScrollRef.current = 'top';
+    tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+  };
+
+  const handleTableScroll = () => {
+    if (syncingScrollRef.current === 'top') { syncingScrollRef.current = null; return; }
+    if (!topScrollRef.current || !tableScrollRef.current) return;
+    syncingScrollRef.current = 'table';
+    topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+  };
 
   useEffect(() => {
     const fetchFilterOptions = async () => {
@@ -380,7 +557,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     fetchFilterOptions();
   }, []);
 
-  const handleTabChange = (tab: 'leads' | 'opportunities' | 'clients') => {
+  const handleTabChange = (tab: LeadTab) => {
     setActiveTab(tab);
     setSelectedLeads([]);
     setViewMode('list');
@@ -440,13 +617,14 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     try {
       const error = validateLeadForm(formData);
       if (error) {
-        alert(error);
+        window.toast.error(error);
         return;
       }
 
       const dupError = await checkDuplicateLead(formData.email, formData.mobile || formData.phone);
       if (dupError) {
-        if (!confirm(`${dupError}\n\nDo you want to add this lead anyway?`)) return;
+        window.toast.error(`${dupError}\n\nRequest a transfer instead of creating a duplicate lead.`);
+        return;
       }
 
       const response = await fetch('/api/leads-simple', {
@@ -459,15 +637,16 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         setShowCreateModal(false);
         setFormData({});
         fetchLeads();
-        alert('Lead created successfully!');
+        const addedByLabel = `${user?.name || 'you'}${user?.roleName ? ` (${user.roleName})` : ''}`;
+        window.toast.success(`Lead added by ${addedByLabel}`);
       } else {
         const errorData = await response.json();
         console.error('Error creating lead:', errorData);
-        alert(`Error creating lead: ${errorData.error || 'Unknown error'}`);
+        window.toast.error(`Error creating lead: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error creating lead:', error);
-      alert('Error creating lead. Please try again.');
+      window.toast.error('Error creating lead. Please try again.');
     }
   };
 
@@ -477,7 +656,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     try {
       const error = validateLeadForm(formData);
       if (error) {
-        alert(error);
+        window.toast.error(error);
         return;
       }
 
@@ -494,7 +673,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         fetchLeads();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        alert(`Error updating lead: ${errorData.error || 'Unknown error'}`);
+        window.toast.error(`Error updating lead: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error updating lead:', error);
@@ -513,7 +692,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         fetchLeads();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        alert(`Error deleting lead: ${errorData.error || 'Unknown error'}`);
+        window.toast.error(`Error deleting lead: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error deleting lead:', error);
@@ -574,6 +753,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     const leadName = `${lead.fname || ''} ${lead.lname || ''}`.trim() || `Lead #${lead.id}`;
 
     setCurrentLead(lead);
+    setReturnToViewModalOnClose(showViewModal);
     setShowViewModal(false);
     setLeadActionType(actionType);
     setLeadActionForm({
@@ -587,20 +767,55 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           : '',
       notes: '',
       meetingType: actionType === 'appointment' ? 'consultation' : 'follow_up',
-      priority: String(lead.priority || 'medium').toLowerCase()
+      priority: String(lead.priority || 'medium').toLowerCase(),
+      status: String(lead.status || '')
     });
+    setCrossBranchEnabled(false);
+    setCrossBranchTargetBranch('');
+    setAppointmentEmployees([]);
     setShowLeadActionModal(true);
   };
 
   const closeLeadActionModal = () => {
     setShowLeadActionModal(false);
     setLeadActionSaving(false);
+    setCrossBranchEnabled(false);
+    setCrossBranchTargetBranch('');
+    if (returnToViewModalOnClose) {
+      setShowViewModal(true);
+      setReturnToViewModalOnClose(false);
+    }
   };
+
+  // Populates the "Assigned Employee" dropdown for the appointment form: the
+  // lead's own branch by default, or the chosen cross-branch's staff once
+  // "Cross Branch" is toggled on and a target branch is picked.
+  useEffect(() => {
+    if (!showLeadActionModal || leadActionType !== 'appointment' || !currentLead) return;
+    const branchId = crossBranchEnabled ? crossBranchTargetBranch : String(currentLead.branch || '');
+    if (!branchId) {
+      setAppointmentEmployees([]);
+      return;
+    }
+    let cancelled = false;
+    setAppointmentEmployeesLoading(true);
+    fetch(`/api/employees/active?branch=${branchId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (cancelled) return;
+        setAppointmentEmployees(Array.isArray(data) ? data : []);
+      })
+      .catch(() => { if (!cancelled) setAppointmentEmployees([]); })
+      .finally(() => { if (!cancelled) setAppointmentEmployeesLoading(false); });
+    return () => { cancelled = true; };
+  }, [showLeadActionModal, leadActionType, currentLead, crossBranchEnabled, crossBranchTargetBranch, token]);
 
   const handleLeadActionSubmit = async () => {
     if (!currentLead) return;
     if (!currentLead.id || Number.isNaN(Number(currentLead.id))) {
-      alert('Invalid lead ID');
+      window.toast.error('Invalid lead ID');
       return;
     }
 
@@ -609,35 +824,50 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     const timeWithSeconds = leadActionForm.time.length === 5 ? `${leadActionForm.time}:00` : leadActionForm.time;
     const scheduledAt = `${leadActionForm.date}T${timeWithSeconds}`;
 
-    if (leadActionType !== 'remark' && (!leadActionForm.date || !leadActionForm.time)) {
-      alert('Please select date and time');
+    if (leadActionType !== 'remark' && leadActionType !== 'status' && (!leadActionForm.date || !leadActionForm.time)) {
+      window.toast.warning('Please select date and time');
       return;
     }
 
-    if (leadActionType !== 'remark' && !leadActionForm.notes.trim()) {
-      alert('Please enter notes');
+    if (leadActionType !== 'remark' && leadActionType !== 'status' && !leadActionForm.notes.trim()) {
+      window.toast.warning('Please enter notes');
       return;
     }
 
     if (leadActionType === 'remark' && !leadActionForm.notes.trim()) {
-      alert('Please enter a remark');
+      window.toast.warning('Please enter a remark');
+      return;
+    }
+
+    if (leadActionType === 'status' && !leadActionForm.status.trim()) {
+      window.toast.warning('Please select a status');
+      return;
+    }
+
+    if (leadActionType === 'status' && !leadActionForm.notes.trim()) {
+      window.toast.warning('Please enter a remark explaining the status update');
       return;
     }
 
     if (leadActionType === 'appointment' && !leadActionForm.title.trim()) {
-      alert('Please enter an appointment title');
+      window.toast.warning('Please enter an appointment title');
       return;
     }
 
-    if (leadActionType !== 'remark' && (!employeeId || employeeId < 1)) {
-      alert('Please enter a valid employee ID');
+    if (leadActionType !== 'remark' && leadActionType !== 'status' && (!employeeId || employeeId < 1)) {
+      window.toast.warning(leadActionType === 'appointment' ? 'Please select an assigned employee' : 'Please enter a valid employee ID');
       return;
     }
 
-    if (leadActionType !== 'remark' && leadActionForm.date) {
+    if (leadActionType === 'appointment' && crossBranchEnabled && !crossBranchTargetBranch) {
+      window.toast.warning('Please select a branch for the cross-branch assignment');
+      return;
+    }
+
+    if (leadActionType !== 'remark' && leadActionType !== 'status' && leadActionForm.date) {
       const today = new Date().toISOString().split('T')[0];
       if (leadActionForm.date < today) {
-        alert('Date cannot be in the past');
+        window.toast.error('Date cannot be in the past');
         return;
       }
     }
@@ -658,7 +888,10 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             branch: currentLead.branch,
             region: currentLead.region,
             booked: 1,
-            screenshot: leadActionForm.notes
+            screenshot: leadActionForm.notes,
+            crossBranch: crossBranchEnabled,
+            assignedBranch: crossBranchEnabled ? Number(crossBranchTargetBranch) : undefined,
+            leadName: `${currentLead.fname || ''} ${currentLead.lname || ''}`.trim() || undefined,
           })
         });
 
@@ -702,6 +935,17 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         if (!leadUpdateRes.ok) {
           console.warn('Follow-up created but lead update failed:', await leadUpdateRes.text());
         }
+      } else if (leadActionType === 'status') {
+        response = await fetch(`/api/leads/${leadId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: leadActionForm.status,
+            notes: leadActionForm.notes
+          })
+        });
+
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'Failed to update status');
       } else {
         response = await fetch('/api/lead-remarks', {
           method: 'POST',
@@ -719,27 +963,33 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       closeLeadActionModal();
       await fetchLeads();
       await fetchLeadActivity(leadId);
-      alert(
+      window.toast.success(
         leadActionType === 'appointment'
           ? 'Appointment booked successfully'
           : leadActionType === 'followup'
             ? 'Follow-up added successfully'
-            : 'Remark added successfully'
+            : leadActionType === 'status'
+              ? 'Status updated successfully'
+              : 'Remark added successfully'
       );
     } catch (error) {
       console.error('Error saving lead action:', error);
-      alert(error instanceof Error ? error.message : 'Failed to save lead action');
+      window.toast.error(error instanceof Error ? error.message : 'Failed to save lead action');
     } finally {
       setLeadActionSaving(false);
     }
   };
 
   const handleConvertToOpportunity = async (leadId: number) => {
+    if (isFoe(user)) {
+      window.toast.error('FOE accounts cannot convert leads to opportunities.');
+      return;
+    }
     try {
       const numericLeadId = Number(leadId);
       const lead = leads.find(l => Number(l.id) === numericLeadId);
       if (!lead) {
-        alert('Lead not found');
+        window.toast.error('Lead not found');
         return;
       }
 
@@ -749,7 +999,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       router.push(`/admin/leads/opportunity-flow?leadId=${numericLeadId}`);
     } catch (error) {
       console.error('Error converting lead to opportunity:', error);
-      alert('Unable to open opportunity wizard. Please try again.');
+      window.toast.error('Unable to open opportunity wizard. Please try again.');
     }
   };
 
@@ -759,21 +1009,21 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     setAssignSearch('');
     setAssignLoading(true);
     try {
-      const params = new URLSearchParams({ status: '1', limit: '200' });
-      const res = await fetch(`/api/employees?${params}`);
+      const res = await fetch('/api/employees/active');
       if (!res.ok) throw new Error('Failed to load employees');
-      const data = await res.json();
-      const employees: Array<{ id: number; name: string; branch: number | null; role: number | null }> = data.employees || [];
+      const employees: Array<{ id: number; name: string; branch: number | null; role: number | null }> = await res.json();
       const userBranch = Number(user?.branch || 0);
       const userType = String(user?.type || '').toLowerCase().replace(/[\s-]+/g, '_');
-      const isBranchManager = userType === 'branch_manager';
-      const filtered = isBranchManager && userBranch
+      // Branch Manager and FOE only assign within their own branch's staff; CEO
+      // (and everyone else covered by isDSorBM) can assign across all branches.
+      const isBranchScoped = ['branch_manager', 'bm', 'foe'].includes(userType) && !isCeo(user);
+      const filtered = isBranchScoped && userBranch
         ? employees.filter(e => e.branch === userBranch)
         : employees;
       setAssignCounselors(filtered);
     } catch (err) {
       console.error('Error loading counselors:', err);
-      alert('Failed to load employees');
+      window.toast.error('Failed to load employees');
     } finally {
       setAssignLoading(false);
     }
@@ -789,14 +1039,19 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         body: JSON.stringify({ assignTo: employeeId, Counsilor: employeeId }),
       });
       if (!res.ok) throw new Error('Failed to assign lead');
+      const updatedLead = await res.json();
+      // Merge the server's response (not just the raw employeeId) so
+      // dmEmployeeByASSIGNTo/dmEmployeeByCoUNSILOR — which the "Assigned To"
+      // column actually renders (lead.dmEmployeeByASSIGNTo?.name) — reflect the
+      // new counselor immediately instead of only updating on next page load.
       setLeads(prev => prev.map(l =>
-        Number(l.id) === Number(assignLead.id) ? { ...l, assignTo: employeeId } : l
+        Number(l.id) === Number(assignLead.id) ? { ...l, ...updatedLead } : l
       ));
       setShowAssignModal(false);
-      alert('Lead assigned successfully');
+      window.toast.success('Lead assigned successfully');
     } catch (err) {
       console.error('Error assigning lead:', err);
-      alert('Failed to assign lead');
+      window.toast.error('Failed to assign lead');
     } finally {
       setAssignSaving(false);
     }
@@ -816,62 +1071,35 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     });
   };
 
+  // Branch branding (legal name, address, contact, licence) is resolved from
+  // the lead's own dm_branch record via the centralized receipt template
+  // shared with the Opportunity Flow wizard and the Clients page, instead of
+  // a hardcoded per-branch-name lookup table that silently fell back to
+  // Dubai's details for any branch it didn't recognize.
   const printLeadReceipt = (receipt: any, lead: Lead, qp: QuickPayLeadState) => {
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
-<title>Payment Receipt</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;color:#222;font-size:11pt;padding:50px 60px 80px}
-  .header{border-bottom:3px solid #003399;padding-bottom:14px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
-  .brand{font-size:15pt;font-weight:700;color:#002266}
-  .sub{font-size:9pt;color:#666;margin-top:3px}
-  .badge{background:#003399;color:#fff;padding:6px 16px;border-radius:4px;font-weight:700;font-size:10pt}
-  table{width:100%;border-collapse:collapse;margin:16px 0}
-  td{padding:9px 12px;font-size:10.5pt}
-  tr:nth-child(even) td:first-child{background:#0044B3;color:#fff;font-weight:600}
-  tr:nth-child(odd)  td:first-child{background:#002266;color:#fff;font-weight:600}
-  tr:nth-child(even) td:last-child{background:#E8EEFB}
-  tr:nth-child(odd)  td:last-child{background:#fff}
-  .total-row td:first-child{background:#001A4D!important;font-size:11.5pt}
-  .total-row td:last-child{background:#DCE6F9!important;font-weight:700;font-size:12pt;color:#001A4D}
-  .footer{margin-top:30px;border-top:2px solid #003399;padding-top:10px;text-align:center;color:#666;font-size:9pt}
-  @media print{@page{size:A4;margin:0}body{padding:40px 50px 60px}}
-</style></head><body>
-<div class="header">
-  <div>
-    <div class="brand">DM IMMIGRATION CONSULTANTS DMCC</div>
-    <div class="sub">Dubai Branch · 3703, Latifa Tower, Sheikh Zayed Road, Dubai UAE</div>
-    <div class="sub">Ph: +971 04 344 7757 · info@dm-consultant.com</div>
-  </div>
-  <div class="badge">OFFICIAL RECEIPT</div>
-</div>
-<div style="margin-bottom:18px;">
-  <div style="font-size:10pt;color:#666;">Receipt No: <strong>${receipt.receiptNumber || receipt.paymentNumber || 'N/A'}</strong></div>
-  <div style="font-size:10pt;color:#666;margin-top:4px;">Date: <strong>${qp.date ? new Date(qp.date).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}</strong></div>
-</div>
-<table>
-  <tr><td>Client Name</td><td>${lead.fname} ${lead.lname}</td></tr>
-  <tr><td>Email</td><td>${lead.email || '—'}</td></tr>
-  <tr><td>Payment Method</td><td>${qp.method.replace('_',' ').replace(/\\b\\w/g,(c)=>c.toUpperCase())}</td></tr>
-  ${qp.txnId ? `<tr><td>Transaction ID</td><td>${qp.txnId}</td></tr>` : ''}
-  <tr><td>Total Amount</td><td>AED ${Number(lead.payTotal || 0).toLocaleString()}</td></tr>
-  <tr><td>Previously Paid</td><td>AED ${Number(lead.paidYet || 0).toLocaleString()}</td></tr>
-  <tr><td>Amount Paid (This Receipt)</td><td>AED ${Number(qp.amount || 0).toLocaleString()}</td></tr>
-  <tr class="total-row"><td>Remaining Balance</td><td>AED ${Math.max(0, Number(lead.payBalance || 0) - Number(qp.amount || 0)).toLocaleString()}</td></tr>
-</table>
-<p style="margin-top:16px;font-size:10pt;color:#444;">This receipt confirms payment received by DM Immigration Consultants DMCC. Please retain for your records.</p>
-<div style="margin-top:40px;display:flex;justify-content:space-between;font-size:10pt;">
-  <div>Client Signature: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
-  <div>Authorised Signatory: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
-</div>
-<div class="footer">DM Immigration Consultants DMCC · Registered in Dubai · DMCC License · www.dm-consultant.com</div>
-</body></html>`;
-    const win = window.open('', '_blank', 'width=860,height=1100');
-    if (!win) { alert('Allow pop-ups to view the receipt.'); return; }
-    win.document.write(html);
-    win.document.close();
-    win.addEventListener('load', () => setTimeout(() => win.print(), 300));
-    if (win.document.readyState === 'complete') setTimeout(() => win.print(), 500);
+    const branchDetails = getLeadBranchDetails(lead as any);
+    printReceiptDocument({
+      receiptNumber: receipt.receiptNumber || receipt.paymentNumber,
+      paymentDate: qp.date,
+      clientName: `${lead.fname} ${lead.lname}`,
+      email: lead.email,
+      agreementNumber: receipt.agreementNumber,
+      opportunityId: (lead as any).resolved_opportunity_id || (lead as any).opportunity_id,
+      companyName: branchDetails.companyName,
+      branchName: branchDetails.branchName,
+      branchAddress: branchDetails.branchAddress,
+      branchEmail: branchDetails.branchEmail,
+      branchPhone: branchDetails.branchPhone,
+      licenseNumber: branchDetails.licenseNumber,
+      vatGstPercent: branchDetails.vatGstPercent,
+      paymentMethod: qp.method,
+      transactionId: qp.txnId,
+      currency: currencyCode || 'AED',
+      totalAmount: lead.payTotal,
+      previouslyPaid: lead.paidYet,
+      paidAmount: qp.amount,
+      remainingBalance: Math.max(0, Number(lead.payBalance || 0) - Number(qp.amount || 0)),
+    });
   };
 
   const submitQuickPayForLead = async () => {
@@ -955,7 +1183,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       }
 
       if (!opportunityId) {
-        alert('No opportunity found for this client. Please complete the opportunity flow first.');
+        window.toast.warning('No opportunity found for this client. Please complete the opportunity flow first.');
         return;
       }
 
@@ -963,32 +1191,138 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       router.push(`${getOperationsPath(lead)}?opportunityId=${opportunityId}&leadId=${lead.id}&clientName=${encodeURIComponent(clientName)}`);
     } catch (error) {
       console.error('Error opening operations:', error);
-      alert('Unable to open operations module for this client.');
+      window.toast.error('Unable to open operations module for this client.');
+    }
+  };
+
+  const handleOpenClientOpportunityFlow = async (lead: Lead) => {
+    try {
+      let opportunityId = Number((lead as any).opportunity_id || (lead as any).resolved_opportunity_id);
+      if (!opportunityId) {
+        const response = await fetch(`/api/opportunities?leadId=${lead.id}`);
+        if (response.ok) {
+          const opportunities = await response.json();
+          opportunityId = Number(Array.isArray(opportunities) ? opportunities[0]?.id : 0);
+        }
+      }
+
+      const params = new URLSearchParams({
+        leadId: String(lead.id),
+        stage: 'closed',
+      });
+      if (opportunityId) params.set('opportunityId', String(opportunityId));
+      router.push(`/admin/leads/opportunity-flow?${params.toString()}`);
+    } catch (error) {
+      console.error('Error opening opportunity flow:', error);
+      window.toast.error('Unable to open opportunity flow for this client.');
     }
   };
 
   const handleBulkConvertToOpportunity = async () => {
+    if (isFoe(user)) {
+      window.toast.error('FOE accounts cannot convert leads to opportunities.');
+      return;
+    }
     if (selectedLeads.length === 0) {
-      alert('Please select a lead to convert');
+      window.toast.warning('Please select a lead to convert');
       return;
     }
 
     if (selectedLeads.length > 1) {
-      alert('Please select only one lead at a time. The opportunity wizard works one lead at a time.');
+      window.toast.warning('Please select only one lead at a time. The opportunity wizard works one lead at a time.');
       return;
     }
 
     const selectedLeadId = Number(selectedLeads[0]);
     const lead = leads.find(l => Number(l.id) === selectedLeadId);
     if (!lead) {
-      alert('Selected lead not found');
+      window.toast.error('Selected lead not found');
       return;
     }
 
     const confirmed = confirm(`Open opportunity wizard for ${lead.fname} ${lead.lname}?`);
     if (!confirmed) return;
 
+    // Mark the lead as a draft opportunity immediately so it moves out of the
+    // Leads tab and into Opportunity Draft the moment conversion starts, rather
+    // than only once the wizard's Payment stage creates the real dmc_opportunities
+    // row. This intentionally does NOT create that row itself - doing so here
+    // would make ensureOpportunityForClient() (opportunity-flow-wizard.tsx) find
+    // an "existing opportunity" and skip creating the actual payment/invoice/
+    // agreement records later.
+    try {
+      await fetch(`/api/leads/${selectedLeadId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ opportunity_status: 'draft' }),
+      });
+    } catch (err) {
+      console.error('Error marking lead as draft opportunity:', err);
+    }
+
     router.push(`/admin/leads/opportunity-flow?leadId=${selectedLeadId}`);
+  };
+
+  const handleBulkTransfer = async (employeeId?: number) => {
+    if (selectedLeads.length === 0) return;
+    const counsellorId = employeeId ?? (bulkTransferCounselorId ? Number(bulkTransferCounselorId) : null);
+    if (!counsellorId) {
+      window.toast.warning('Select a counselor to transfer to');
+      return;
+    }
+    setBulkActionSaving(true);
+    try {
+      const res = await fetch('/api/admin/lead-pool', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ leadIds: selectedLeads, counsellorId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to transfer leads');
+      window.toast.success(`Transferred ${data.transferred} lead(s) to ${data.counsellorName}`);
+      setSelectedLeads([]);
+      setBulkTransferCounselorId('');
+      setShowBulkTransferModal(false);
+      fetchLeads();
+    } catch (err) {
+      console.error('Error bulk-transferring leads:', err);
+      window.toast.error(err instanceof Error ? err.message : 'Failed to transfer leads');
+    } finally {
+      setBulkActionSaving(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLeads.length === 0) return;
+    const confirmed = confirm(`This will permanently delete ${selectedLeads.length} lead(s) and cannot be undone. Continue?`);
+    if (!confirmed) return;
+    setBulkActionSaving(true);
+    try {
+      const res = await fetch('/api/leads/bulk-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ leadIds: selectedLeads }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete leads');
+      window.toast.success(`Deleted ${data.deleted} lead(s)`);
+      setSelectedLeads([]);
+      fetchLeads();
+    } catch (err) {
+      console.error('Error bulk-deleting leads:', err);
+      window.toast.error(err instanceof Error ? err.message : 'Failed to delete leads');
+    } finally {
+      setBulkActionSaving(false);
+    }
   };
 
   const handleExportExcel = async () => {
@@ -1024,41 +1358,53 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     const validTypes = ['.xlsx', '.xls', '.csv'];
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
     if (!validTypes.includes(ext)) {
-      alert('Please select a valid Excel file (.xlsx, .xls) or CSV file (.csv)');
+      window.toast.warning('Please select a valid Excel file (.xlsx, .xls) or CSV file (.csv)');
       event.target.value = '';
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size must be less than 5MB');
+      window.toast.warning('File size must be less than 5MB');
       event.target.value = '';
       return;
     }
 
     setImporting(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = (e.target?.result as string).split(',')[1];
+      // FileReader is callback-based, so it has to be wrapped in a Promise -
+      // otherwise the try/finally below resolves (and re-enables the Import
+      // button via setImporting(false)) as soon as the read is *kicked off*,
+      // not once the read and the subsequent upload have actually finished.
+      // For a large file that let a user fire a second, overlapping import
+      // of the same file well before the first one completed.
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+        reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
 
-        const response = await fetch('/api/leads', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            importType: 'excel',
-            fileData: base64
-          })
-        });
+      const response = await fetch('/api/leads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          importType: 'excel',
+          fileData: base64
+        })
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          alert(data.message);
-          fetchLeads();
-        } else {
-          console.error('Error importing leads');
-        }
-      };
-      reader.readAsDataURL(file);
+      if (response.ok) {
+        const data = await response.json();
+        window.toast.info(data.message);
+        fetchLeads();
+      } else {
+        const data = await response.json().catch(() => null);
+        window.toast.error(data?.error || 'Error importing leads');
+        console.error('Error importing leads');
+      }
     } catch (error) {
       console.error('Error importing leads:', error);
     } finally {
@@ -1122,13 +1468,21 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   const getLeadActionTitle = () => {
     if (leadActionType === 'appointment') return 'Book Appointment';
     if (leadActionType === 'followup') return 'Add Follow-up';
+    if (leadActionType === 'status') return 'Update Status';
     return 'Add Lead Remark';
   };
 
+  const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const formatDate = (value?: string | null) => {
     if (!value) return 'No date';
     const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleDateString();
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    // Fixed DD MMM YYYY format (e.g. "06 Jul 2026") - toLocaleDateString() without
+    // a pinned locale rendered differently per viewer's browser/OS settings
+    // (M/D/YYYY, D/M/YYYY, etc.), which is what this was changed to fix.
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const month = MONTH_ABBR[parsed.getMonth()];
+    return `${day} ${month} ${parsed.getFullYear()}`;
   };
 
   const formatDateTime = (value?: string | null) => {
@@ -1165,7 +1519,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           <button onClick={() => fetchLeads()} className="font-medium underline">Retry</button>
         </div>
       )}
-      <div className="bg-white rounded-lg shadow p-2">
+      <div ref={tabBarRef} className="sticky top-0 z-20 bg-white rounded-lg shadow p-2">
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => handleTabChange('leads')}
@@ -1178,6 +1532,19 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             <Users className="w-4 h-4 mr-2" />
             Lead List
           </button>
+          {showMyLeadsTab && (
+            <button
+              onClick={() => handleTabChange('my-leads')}
+              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'my-leads'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            >
+              <Users className="w-4 h-4 mr-2" />
+              My Leads
+            </button>
+          )}
           <button
             onClick={() => handleTabChange('opportunities')}
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -1199,6 +1566,17 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           >
             <CheckCircle className="w-4 h-4 mr-2" />
             Client List
+          </button>
+          <button
+            onClick={() => handleTabChange('duplicates')}
+            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'duplicates'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <AlertCircle className="w-4 h-4 mr-2" />
+            Duplicate Leads
           </button>
         </div>
       </div>
@@ -1222,7 +1600,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             )}
           </div>
 
-          <select
+          <SearchableSelect
             value={filters.status}
             onChange={(e) => setFilters({...filters, status: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1231,9 +1609,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             {filterOptions.statuses.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
 
-          <select
+          <SearchableSelect
             value={filters.priority}
             onChange={(e) => setFilters({...filters, priority: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1242,9 +1620,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             {filterOptions.priorities.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
 
-          <select
+          <SearchableSelect
             value={filters.region}
             onChange={(e) => setFilters({...filters, region: e.target.value, branch: ''})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1253,11 +1631,11 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             {filterOptions.regions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <select
+          <SearchableSelect
             value={filters.branch}
             onChange={(e) => setFilters({...filters, branch: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1266,9 +1644,22 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             {filteredBranchOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
 
-          <select
+          {isBranchManagerOrCeo(user) && (
+            <SearchableSelect
+              value={filters.assignTo}
+              onChange={(e) => setFilters({...filters, assignTo: e.target.value})}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All Counselors</option>
+              {counselorFilterOptions.map((option) => (
+                <option key={option.id} value={String(option.id)}>{option.name}</option>
+              ))}
+            </SearchableSelect>
+          )}
+
+          <SearchableSelect
             value={filters.countryInterest}
             onChange={(e) => setFilters({...filters, countryInterest: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1277,9 +1668,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             {filterOptions.countries.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
 
-          <select
+          <SearchableSelect
             value={filters.serviceInterest}
             onChange={(e) => setFilters({...filters, serviceInterest: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1288,9 +1679,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             {filterOptions.services.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
 
-          <select
+          <SearchableSelect
             value={filters.marketSource}
             onChange={(e) => setFilters({...filters, marketSource: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1299,11 +1690,11 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             {filterOptions.sources.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <select
+          <SearchableSelect
             value={filters.leadQuality}
             onChange={(e) => setFilters({...filters, leadQuality: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1312,7 +1703,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             {filterOptions.leadQualities.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
 
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -1347,7 +1738,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               marketSource: '',
               leadQuality: '',
               dateFrom: '',
-              dateTo: ''
+              dateTo: '',
+              assignTo: ''
             })}
             className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
           >
@@ -1355,17 +1747,10 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           </button>
         </div>
 
-        <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600">
-              Showing {pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}{' '}
-              {activeTab === 'opportunities' ? 'opportunity drafts' : activeTab === 'clients' ? 'clients' : 'leads'}
-            </span>
-          </div>
-
+        <div className="flex justify-end items-center">
           {showActions && (
             <div className="flex items-center space-x-2">
-              {activeTab === 'leads' && (
+              {(activeTab === 'leads' || activeTab === 'my-leads') && (
                 <div className="flex items-center bg-gray-100 rounded-lg p-1">
                   <button
                     onClick={() => setViewMode('list')}
@@ -1401,13 +1786,15 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                     <Plus className="w-4 h-4 mr-2" />
                     Add New Lead
                   </button>
-                  <button
-                    onClick={handleBulkConvertToOpportunity}
-                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    <Target className="w-4 h-4 mr-2" />
-                    Convert Selected to Opportunities
-                  </button>
+                  {!isFoe(user) && (
+                    <button
+                      onClick={handleBulkConvertToOpportunity}
+                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      <Target className="w-4 h-4 mr-2" />
+                      Convert Selected to Opportunities
+                    </button>
+                  )}
                 </>
               )}
               {activeTab === 'opportunities' && (
@@ -1426,32 +1813,84 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 onChange={handleImportExcel}
                 className="hidden"
               />
+              {activeTab === 'leads' && canBulkUpload && (
+                <button
+                  type="button"
+                  onClick={() => { window.location.href = '/api/leads/sample-template'; }}
+                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Sample
+                </button>
+              )}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={importing}
-                className={`flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 ${activeTab !== 'leads' ? 'hidden' : ''}`}
+                className={`flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 ${activeTab !== 'leads' || !canBulkUpload ? 'hidden' : ''}`}
               >
                 <Upload className="w-4 h-4 mr-2" />
                 {importing ? 'Importing...' : 'Import'}
               </button>
-              <button
-                onClick={handleExportExcel}
-                className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </button>
+              {isBranchManagerOrCeo(user) && (
+                <button
+                  onClick={handleExportExcel}
+                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
 
+      {activeTab === 'leads' && isCeo(user) && selectedLeads.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white rounded-lg shadow-xl px-4 py-3 flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-medium whitespace-nowrap">{selectedLeads.length} selected</span>
+          <button
+            onClick={() => { setBulkTransferSearch(''); setShowBulkTransferModal(true); }}
+            disabled={bulkActionSaving}
+            className="px-3 py-1.5 bg-blue-600 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            Transfer
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            disabled={bulkActionSaving}
+            className="px-3 py-1.5 bg-red-600 rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setSelectedLeads([])}
+            className="px-2 py-1.5 text-gray-300 hover:text-white text-sm"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Leads Display - List or Kanban View */}
       {viewMode === 'list' ? (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-white rounded-lg shadow">
+          {tableScrollWidth > 0 && (
+            <div
+              ref={topScrollRef}
+              onScroll={handleTopScroll}
+              className="overflow-x-auto overflow-y-hidden border-b border-gray-200"
+              style={{ height: 14 }}
+            >
+              <div style={{ width: tableScrollWidth, height: 1 }} />
+            </div>
+          )}
+          {/* overflow-x-auto only (not overflow-hidden on the card above) so
+              the sticky thead below can actually stick as the page scrolls -
+              an ancestor with overflow-hidden on both axes would otherwise
+              become the thead's sticky containing block instead of <main>. */}
+          <div ref={tableScrollRef} onScroll={handleTableScroll} className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="sticky z-10 bg-gray-50 shadow-sm" style={{ top: tabBarHeight }}>
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     {activeTab === 'leads' && (
@@ -1463,39 +1902,30 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                       />
                     )}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {activeTab === 'clients' ? 'Client Information' : activeTab === 'opportunities' ? 'Opportunity Draft' : 'Lead Information'}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Interest / Source
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Latest Remark
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Pipeline Stage
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
+                  <SortableTh
+                    label={activeTab === 'clients' ? 'Client Information' : activeTab === 'opportunities' ? 'Opportunity Draft' : 'Lead Information'}
+                    sortKey="name" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort}
+                  />
+                  <SortableTh label="Contact" sortKey="contact" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  <SortableTh label="Interest / Source" sortKey="interest" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  <SortableTh label="Latest Remark" sortKey="remark" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  <SortableTh label="Pipeline Stage" sortKey="stage" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  <SortableTh label="Status" sortKey="status" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
                   {activeTab === 'clients' && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Balance Due
-                    </th>
+                    <SortableTh label="Balance Due" sortKey="balanceDue" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
                   )}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Assigned To
-                  </th>
+                  <SortableTh label="Registered" sortKey="registered" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  {isBranchManagerOrCeo(user) && (
+                    <SortableTh label="Branch" sortKey="branch" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  )}
+                  <SortableTh label="Assigned To" sortKey="assignedTo" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {leads.map((lead: Lead, index) => {
+                {sortedLeadRows.map((lead: Lead, index) => {
                   const leadId = getSelectableLeadId(lead);
 
                   return (
@@ -1513,22 +1943,28 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <button
-                          onClick={() => {
-                            if (activeTab === 'leads') {
-                              router.push(`/admin/leads/${lead.id}/edit`);
-                            } else if (activeTab === 'opportunities') {
-                              router.push(`/admin/leads/opportunity-flow?leadId=${lead.id}`);
-                            } else {
-                              handleOpenOperations(lead);
-                            }
-                          }}
-                          className="text-sm font-semibold text-blue-700 hover:text-blue-900 hover:underline text-left"
-                        >
-                          {lead.fname} {lead.mname} {lead.lname}
-                        </button>
+                        {activeTab === 'leads' || activeTab === 'opportunities' ? (
+                          <Link
+                            href={activeTab === 'leads' ? `/admin/leads/${lead.id}/edit` : `/admin/leads/opportunity-flow?leadId=${lead.id}`}
+                            className="text-sm font-semibold text-blue-700 hover:text-blue-900 hover:underline text-left"
+                          >
+                            {lead.fname} {lead.mname} {lead.lname}
+                          </Link>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenOperations(lead)}
+                            className="text-sm font-semibold text-blue-700 hover:text-blue-900 hover:underline text-left"
+                          >
+                            {lead.fname} {lead.mname} {lead.lname}
+                          </button>
+                        )}
                         <div className="text-sm text-gray-500">
-                          {lead.nationality} • {lead.gender} • {lead.dob}
+                          {[
+                            lead.gender,
+                            lead.dob && !String(lead.dob).startsWith('1970-01-01') ? formatDate(lead.dob) : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' • ') || '—'}
                         </div>
                         <div className="flex items-center mt-1">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getQualityColor(lead.lead_quality || 'Unknown')}`}>
@@ -1556,9 +1992,31 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                         <Phone className="w-4 h-4 mr-1 text-gray-400" />
                         {lead.phone}
                       </div>
-                      <div className="text-sm text-gray-500 flex items-center mt-1">
+                      {(() => {
+                        const waNumber = lead.whatsapp_number || lead.mobile;
+                        const waLink = getWhatsAppLink(waNumber);
+                        if (!waLink) return null;
+                        return (
+                          <a
+                            href={waLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-sm text-green-600 flex items-center mt-1 hover:text-green-700 hover:underline"
+                            title="Chat on WhatsApp"
+                          >
+                            <MessageCircle className="w-4 h-4 mr-1 text-green-500" />
+                            {waNumber}
+                          </a>
+                        );
+                      })()}
+                      <div className="text-sm text-gray-500 flex items-center mt-1" title={lead.address || undefined}>
                         <MapPin className="w-4 h-4 mr-1 text-gray-400" />
-                        {lead.address}
+                        {/* Braanch is the authoritative "where this lead belongs" — lead.address is
+                            free text submitted by external intake forms (web-to-leads, etc.) and can
+                            be wrong/inconsistent with the branch (e.g. a residency-country default
+                            the visitor never changed), so it's shown as a hover tooltip, not the label. */}
+                        {lead.dmBranch?.name || lead.address || '—'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -1576,12 +2034,17 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                       ) : null}
                     </td>
                     <td className="px-6 py-4 max-w-[180px]">
-                      {(lead.latest_remark || lead.lead_remark) ? (
+                      {/* lead.lead_remark is intentionally excluded here — for
+                          web/pop/live-chat intake it's an auto-generated
+                          Source/Campaign/UTM summary (already shown in the
+                          Interest / Source column), not a real remark. Only
+                          genuine entries from dmc_forum_leads_remarks count. */}
+                      {lead.latest_remark ? (
                         <div
                           className="text-xs text-gray-700 line-clamp-3 leading-relaxed"
-                          title={lead.latest_remark || lead.lead_remark}
+                          title={lead.latest_remark}
                         >
-                          {lead.latest_remark || lead.lead_remark}
+                          {lead.latest_remark}
                         </div>
                       ) : (
                         <span className="text-xs text-gray-400">No remarks</span>
@@ -1652,17 +2115,27 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                       </td>
                     )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(lead.regdate)}
+                    </td>
+                    {isBranchManagerOrCeo(user) && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {lead.dmBranch?.name || '—'}
+                      </td>
+                    )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div>
-                        {lead.dmEmployeeByASSIGNTo?.name || (
-                          isDSorBM ? (
-                            <button
-                              onClick={() => openAssignModal(lead)}
-                              className="text-red-600 hover:text-red-800 font-medium underline"
-                              title="Click to assign lead"
-                            >
-                              Unassigned
-                            </button>
-                          ) : 'Unassigned'
+                        {canAssignLeads ? (
+                          <button
+                            onClick={() => openAssignModal(lead)}
+                            className={lead.dmEmployeeByASSIGNTo?.name
+                              ? 'text-gray-700 hover:text-blue-700 font-medium underline decoration-dotted'
+                              : 'text-red-600 hover:text-red-800 font-medium underline'}
+                            title="Click to assign or reassign this lead"
+                          >
+                            {lead.dmEmployeeByASSIGNTo?.name || 'Unassigned'}
+                          </button>
+                        ) : (
+                          lead.dmEmployeeByASSIGNTo?.name || 'Unassigned'
                         )}
                       </div>
                       <div className="text-xs text-gray-400">{lead.dmBranch?.name}</div>
@@ -1713,7 +2186,14 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                         >
                           <MessageSquare className="w-4 h-4" />
                         </button>
-                        {activeTab === 'leads' && (
+                        <button
+                          onClick={() => openLeadActionModal(lead, 'status')}
+                          className="text-emerald-600 hover:text-emerald-900"
+                          title="Update status with remark"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                        {activeTab === 'leads' && !isFoe(user) && (
                           <button
                             onClick={() => handleConvertToOpportunity(Number(lead.id))}
                             className="text-green-600 hover:text-green-900"
@@ -1722,38 +2202,49 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                             <Target className="w-4 h-4" />
                           </button>
                         )}
-                        {(activeTab === 'opportunities' || isClientLead(lead)) && (
+                        {activeTab === 'clients' && isClientLead(lead) && (
                           <button
-                            onClick={() => handleOpenOperations(lead)}
-                            className="text-purple-600 hover:text-purple-900"
-                            title={activeTab === 'opportunities' ? 'Open Opportunity Operations' : 'Open Operations'}
-                          >
-                            <Briefcase className="w-4 h-4" />
-                          </button>
-                        )}
-                        {activeTab === 'opportunities' && (
-                          <button
-                            onClick={() => router.push(`/admin/leads/opportunity-flow?leadId=${lead.id}`)}
+                            onClick={() => handleOpenClientOpportunityFlow(lead)}
                             className="text-amber-600 hover:text-amber-900"
                             title="Edit opportunity flow"
                           >
                             <Settings className="w-4 h-4" />
                           </button>
                         )}
-                        <button
-                          onClick={() => router.push(`/admin/leads/${lead.id}/edit`)}
+                        {activeTab === 'clients' && isClientLead(lead) && (
+                          <button
+                            onClick={() => handleOpenOperations(lead)}
+                            className="text-purple-600 hover:text-purple-900"
+                            title="Open Operations"
+                          >
+                            <Briefcase className="w-4 h-4" />
+                          </button>
+                        )}
+                        {activeTab === 'opportunities' && (
+                          <Link
+                            href={`/admin/leads/opportunity-flow?leadId=${lead.id}`}
+                            className="text-amber-600 hover:text-amber-900"
+                            title="Edit opportunity flow"
+                          >
+                            <Settings className="w-4 h-4" />
+                          </Link>
+                        )}
+                        <Link
+                          href={`/admin/leads/${lead.id}/edit`}
                           className="text-blue-600 hover:text-blue-900"
                           title="Edit lead"
                         >
                           <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteLead(lead.id)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Delete lead"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        </Link>
+                        {isCeo(user) && (
+                          <button
+                            onClick={() => handleDeleteLead(lead.id)}
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete lead"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1764,8 +2255,28 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           </div>
 
           {/* Pagination */}
-          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-            <div className="flex-1 flex justify-between sm:hidden">
+          <div className="bg-white px-4 py-3 flex flex-col gap-2 border-t border-gray-200 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex items-center justify-center space-x-2 sm:hidden">
+              <span className="text-sm text-gray-600">Show</span>
+              <select
+                value={pagination.limit}
+                onChange={(e) => setPagination(prev => ({ ...prev, limit: Number(e.target.value), page: 1 }))}
+                className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            <div className="flex-1 flex items-center justify-between sm:hidden">
+              <button
+                onClick={() => setPagination({...pagination, page: 1})}
+                disabled={pagination.page === 1}
+                className="relative inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => setPagination({...pagination, page: Math.max(1, pagination.page - 1)})}
                 disabled={pagination.page === 1}
@@ -1776,34 +2287,95 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               <button
                 onClick={() => setPagination({...pagination, page: Math.min(pagination.pages, pagination.page + 1)})}
                 disabled={pagination.page === pagination.pages}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >
                 Next
               </button>
+              <button
+                onClick={() => setPagination({...pagination, page: pagination.pages})}
+                disabled={pagination.page === pagination.pages}
+                className="relative inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </button>
             </div>
             <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-              <div>
+              <div className="flex items-center space-x-4">
                 <p className="text-sm text-gray-700">
-                  Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to{' '}
+                  Showing <span className="font-medium">{pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1}</span> to{' '}
                   <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of{' '}
                   <span className="font-medium">{pagination.total}</span> results
                 </p>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">Show</span>
+                  <select
+                    value={pagination.limit}
+                    onChange={(e) => setPagination(prev => ({ ...prev, limit: Number(e.target.value), page: 1 }))}
+                    className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                  {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setPagination({...pagination, page})}
-                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                        pagination.page === page
-                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
+                  <button
+                    onClick={() => setPagination({...pagination, page: 1})}
+                    disabled={pagination.page === 1}
+                    title="First page"
+                    className="relative inline-flex items-center px-2 py-2 border border-gray-300 text-sm font-medium text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-50 rounded-l-md"
+                  >
+                    <ChevronsLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setPagination({...pagination, page: Math.max(1, pagination.page - 1)})}
+                    disabled={pagination.page === 1}
+                    title="Previous page"
+                    className="relative inline-flex items-center px-2 py-2 border border-gray-300 text-sm font-medium text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  {getPageWindow(pagination.page, pagination.pages).map((page, idx) => (
+                    typeof page === 'number' ? (
+                      <button
+                        key={page}
+                        onClick={() => setPagination({...pagination, page})}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          pagination.page === page
+                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ) : (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500"
+                      >
+                        …
+                      </span>
+                    )
                   ))}
+                  <button
+                    onClick={() => setPagination({...pagination, page: Math.min(pagination.pages, pagination.page + 1)})}
+                    disabled={pagination.page === pagination.pages}
+                    title="Next page"
+                    className="relative inline-flex items-center px-2 py-2 border border-gray-300 text-sm font-medium text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setPagination({...pagination, page: pagination.pages})}
+                    disabled={pagination.page === pagination.pages}
+                    title="Last page"
+                    className="relative inline-flex items-center px-2 py-2 border border-gray-300 text-sm font-medium text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-50 rounded-r-md"
+                  >
+                    <ChevronsRight className="w-4 h-4" />
+                  </button>
                 </nav>
               </div>
             </div>
@@ -1813,9 +2385,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         <LeadKanbanSimple
           leads={leads}
           onLeadSelect={handleViewLead}
-          onConvertToOpportunity={handleConvertToOpportunity}
+          onConvertToOpportunity={isFoe(user) ? undefined : handleConvertToOpportunity}
           onEditLead={(lead) => router.push(`/admin/leads/${lead.id}/edit`)}
-          onDeleteLead={handleDeleteLead}
+          onDeleteLead={isCeo(user) ? handleDeleteLead : undefined}
           onStatusChange={handleStatusChange}
         />
       )}
@@ -1889,12 +2461,20 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                   <h4 className="font-semibold text-gray-900">Appointments, Follow-ups & Remarks</h4>
                   <p className="text-xs text-gray-500">Loaded from appointment, follow-up, and lead remarks tables.</p>
                 </div>
-                <button
-                  onClick={() => fetchLeadActivity(Number(currentLead.id))}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Refresh
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConversationHistoryLeadId(Number(currentLead.id))}
+                    className="px-3 py-1.5 text-sm border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50"
+                  >
+                    Conversation History
+                  </button>
+                  <button
+                    onClick={() => fetchLeadActivity(Number(currentLead.id))}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {leadActivityLoading ? (
@@ -1903,7 +2483,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{leadActivityError}</div>
               ) : (
                 <>
-                  <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+                  <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-6">
                     <div className="rounded-lg bg-indigo-50 p-3">
                       <div className="text-xs text-indigo-700">Fixed Appointments</div>
                       <div className="text-lg font-semibold text-indigo-900">{leadActivity?.summary.fixedAppointments || 0}</div>
@@ -1923,6 +2503,28 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                     <div className="rounded-lg bg-slate-50 p-3">
                       <div className="text-xs text-slate-700">Remarks</div>
                       <div className="text-lg font-semibold text-slate-900">{leadActivity?.summary.remarks || 0}</div>
+                    </div>
+                    <div className="rounded-lg bg-purple-50 p-3">
+                      <div className="text-xs text-purple-700">Activity Log</div>
+                      <div className="text-lg font-semibold text-purple-900">{leadActivity?.summary.activityLog || 0}</div>
+                    </div>
+                  </div>
+
+                  <div className="mb-4 rounded-lg border border-gray-200">
+                    <div className="border-b border-gray-200 px-3 py-2 text-sm font-semibold text-gray-900">Activity Log</div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {(leadActivity?.activityLog || []).length === 0 ? (
+                        <div className="p-3 text-sm text-gray-500">No activity recorded yet.</div>
+                      ) : leadActivity?.activityLog.map((entry) => (
+                        <div key={entry.id} className="border-b border-gray-100 p-3 last:border-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">{(entry.action || '').replace(/_/g, ' ')}</span>
+                            <span className="text-xs text-gray-500">{formatDateTime(entry.created_at)}</span>
+                          </div>
+                          <div className="mt-2 text-xs text-gray-700">{entry.remark}</div>
+                          {entry.actorName && <div className="mt-1 text-xs text-gray-500">By {entry.actorName}{entry.actor_role ? ` (${entry.actor_role})` : ''}</div>}
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -2004,6 +2606,12 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 Add Remark
               </button>
               <button
+                onClick={() => openLeadActionModal(currentLead, 'status')}
+                className="px-4 py-2 border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-50"
+              >
+                Update Status
+              </button>
+              <button
                 onClick={() => router.push(`/admin/leads/${currentLead.id}/edit`)}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
@@ -2043,7 +2651,29 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             </div>
 
             <div className="space-y-4">
-              {leadActionType !== 'remark' && (
+              {leadActionType === 'status' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Status</label>
+                  <SearchableSelect
+                    value={leadActionForm.status}
+                    onChange={(e) => setLeadActionForm({ ...leadActionForm, status: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select status</option>
+                    <option value="Prospect">Prospect/Interested</option>
+                    <option value="Not Interested">Not Interested</option>
+                    <option value="DNQ">DNQ</option>
+                    <option value="Not_answered">Not Answered</option>
+                    <option value="Could Not Connect">Could Not Connect/Wrong Number</option>
+                    <option value="Call Back">Call Back</option>
+                    <option value="Abroad Lead">Abroad Lead</option>
+                    <option value="Junk">Junk</option>
+                    <option value="Duplicate">Duplicate</option>
+                  </SearchableSelect>
+                </div>
+              )}
+
+              {leadActionType !== 'remark' && leadActionType !== 'status' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
@@ -2069,7 +2699,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               {leadActionType === 'appointment' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Type</label>
-                  <select
+                  <SearchableSelect
                     value={leadActionForm.meetingType}
                     onChange={(e) => setLeadActionForm({ ...leadActionForm, meetingType: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -2078,25 +2708,83 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                     <option value="document_review">Document Review</option>
                     <option value="follow_up">Follow-up</option>
                     <option value="visa_processing">Visa Processing</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               )}
 
-              {leadActionType !== 'remark' && (
+              {leadActionType === 'appointment' && (
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={crossBranchEnabled}
+                      onChange={(e) => {
+                        setCrossBranchEnabled(e.target.checked);
+                        setCrossBranchTargetBranch('');
+                        setLeadActionForm((prev) => ({ ...prev, employeeId: '' }));
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Cross Branch (assign to a counselor/BM in another branch)
+                  </label>
+                  {crossBranchEnabled && (
+                    <div className="mt-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                      <SearchableSelect
+                        value={crossBranchTargetBranch}
+                        onChange={(e) => {
+                          setCrossBranchTargetBranch(e.target.value);
+                          setLeadActionForm((prev) => ({ ...prev, employeeId: '' }));
+                        }}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select branch</option>
+                        {filterOptions.branches
+                          .filter((b) => String(b.value) !== String(currentLead?.branch || ''))
+                          .map((b) => (
+                            <option key={b.value} value={b.value}>{b.label}</option>
+                          ))}
+                      </SearchableSelect>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {leadActionType !== 'remark' && leadActionType !== 'status' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Employee ID</label>
-                    <input
-                      type="number"
-                      value={leadActionForm.employeeId}
-                      onChange={(e) => setLeadActionForm({ ...leadActionForm, employeeId: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Employee ID"
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Employee</label>
+                    {leadActionType === 'appointment' ? (
+                      <SearchableSelect
+                        value={leadActionForm.employeeId}
+                        onChange={(e) => setLeadActionForm({ ...leadActionForm, employeeId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        disabled={crossBranchEnabled && !crossBranchTargetBranch}
+                      >
+                        <option value="">
+                          {appointmentEmployeesLoading
+                            ? 'Loading…'
+                            : crossBranchEnabled && !crossBranchTargetBranch
+                              ? 'Select a branch first'
+                              : 'Select employee'}
+                        </option>
+                        {appointmentEmployees.map((emp) => (
+                          <option key={emp.id} value={String(emp.id)}>{emp.name}</option>
+                        ))}
+                      </SearchableSelect>
+                    ) : (
+                      <input
+                        type="number"
+                        value={leadActionForm.employeeId}
+                        onChange={(e) => setLeadActionForm({ ...leadActionForm, employeeId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="Employee ID"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                    <select
+                    <SearchableSelect
                       value={leadActionForm.priority}
                       onChange={(e) => setLeadActionForm({ ...leadActionForm, priority: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -2104,12 +2792,12 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
                       <option value="high">High</option>
-                    </select>
+                    </SearchableSelect>
                   </div>
                 </div>
               )}
 
-              {leadActionType !== 'remark' && (
+              {leadActionType !== 'remark' && leadActionType !== 'status' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {leadActionType === 'appointment' ? 'Appointment Title' : 'Follow-up Subject'}
@@ -2126,14 +2814,14 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {leadActionType === 'remark' ? 'Remark' : 'Notes'}
+                  {leadActionType === 'remark' || leadActionType === 'status' ? 'Remark' : 'Notes'}
                 </label>
                 <textarea
                   value={leadActionForm.notes}
                   onChange={(e) => setLeadActionForm({ ...leadActionForm, notes: e.target.value })}
                   rows={4}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder={leadActionType === 'remark' ? 'Enter lead remark...' : 'Enter notes...'}
+                  placeholder={leadActionType === 'status' ? 'Explain why the status is changing...' : leadActionType === 'remark' ? 'Enter lead remark...' : 'Enter notes...'}
                 />
               </div>
             </div>
@@ -2203,7 +2891,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 onChange={(e) => setFormData({...formData, phone: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
-              <select
+              <SearchableSelect
                 value={formData.country_interest || ''}
                 onChange={(e) => setFormData({...formData, country_interest: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -2212,8 +2900,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 {filterOptions.countries.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 value={formData.service_interest || ''}
                 onChange={(e) => setFormData({...formData, service_interest: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -2222,8 +2910,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 {filterOptions.services.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 value={formData.priority || ''}
                 onChange={(e) => setFormData({...formData, priority: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -2232,8 +2920,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 value={formData.lead_quality || ''}
                 onChange={(e) => setFormData({...formData, lead_quality: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -2242,7 +2930,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 <option value="Hot">Hot</option>
                 <option value="Warm">Warm</option>
                 <option value="Cold">Cold</option>
-              </select>
+              </SearchableSelect>
             </div>
             <div className="mt-6 flex justify-end space-x-3">
               <button
@@ -2311,7 +2999,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 onChange={(e) => setFormData({...formData, phone: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
-              <select
+              <SearchableSelect
                 value={formData.country_interest || ''}
                 onChange={(e) => setFormData({...formData, country_interest: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -2320,8 +3008,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 {filterOptions.countries.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 value={formData.service_interest || ''}
                 onChange={(e) => setFormData({...formData, service_interest: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -2330,10 +3018,22 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 {filterOptions.services.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 value={formData.status || ''}
-                onChange={(e) => setFormData({...formData, status: e.target.value})}
+                onChange={(e) => {
+                  const nextStatus = e.target.value;
+                  const wasProspect = formData.status === 'Prospect';
+                  const isProspect = nextStatus === 'Prospect';
+                  setFormData({
+                    ...formData,
+                    status: nextStatus,
+                    // Prospect leads use a P1-P4 priority scale instead of
+                    // High/Medium/Low, so the previously selected priority
+                    // may no longer be a valid option once status changes.
+                    priority: isProspect && !wasProspect ? 'P1' : !isProspect && wasProspect ? 'Medium' : formData.priority
+                  });
+                }}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select Status</option>
@@ -2344,17 +3044,30 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 <option value="Could Not Connect">Could Not Connect/Wrong Number</option>
                 <option value="Call Back">Call Back</option>
                 <option value="Abroad Lead">Abroad Lead</option>
-              </select>
-              <select
+                <option value="Junk">Junk</option>
+                <option value="Duplicate">Duplicate</option>
+              </SearchableSelect>
+              <SearchableSelect
                 value={formData.priority || ''}
                 onChange={(e) => setFormData({...formData, priority: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select Priority</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
+                {formData.status === 'Prospect' ? (
+                  <>
+                    <option value="P1">P1</option>
+                    <option value="P2">P2</option>
+                    <option value="P3">P3</option>
+                    <option value="P4">P4</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </>
+                )}
+              </SearchableSelect>
             </div>
             <div className="mt-6 flex justify-end space-x-3">
               <button
@@ -2417,7 +3130,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                    <select value={quickPayLead.method}
+                    <SearchableSelect value={quickPayLead.method}
                       onChange={e => setQuickPayLead(p => p ? { ...p, method: e.target.value } : null)}
                       className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                       <option value="cash">Cash</option>
@@ -2426,7 +3139,17 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                       <option value="debit_card">Debit Card</option>
                       <option value="cheque">Cheque</option>
                       <option value="online">Online</option>
-                    </select>
+                      <optgroup label="Bank">
+                        {BANK_PAYMENT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Card / POS">
+                        {CARD_PAYMENT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </optgroup>
+                    </SearchableSelect>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date</label>
@@ -2460,12 +3183,16 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 className="px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">
                 {quickPayLead.success ? 'Close' : 'Cancel'}
               </button>
-              {quickPayLead.success && quickPayLead.receipt ? (
+              {quickPayLead.success && quickPayLead.receipt && quickPayLead.receipt.accountantStatus === 'verified' ? (
                 <button
                   onClick={() => printLeadReceipt(quickPayLead.receipt, quickPayLead.lead, quickPayLead)}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
                   <Printer className="w-4 h-4" /> Print Receipt
                 </button>
+              ) : quickPayLead.success && quickPayLead.receipt ? (
+                <span className="text-xs font-medium text-amber-700 bg-amber-100 border border-amber-200 rounded-full px-3 py-2">
+                  Awaiting accounts verification
+                </span>
               ) : (
                 <button onClick={submitQuickPayForLead} disabled={quickPayLead.saving}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-60">
@@ -2554,6 +3281,83 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             <div className="border-t px-6 py-3 flex justify-end">
               <button
                 onClick={() => setShowAssignModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {conversationHistoryLeadId && (
+        <ConversationHistoryModal
+          leadId={conversationHistoryLeadId}
+          clientName={currentLead ? `${currentLead.fname} ${currentLead.lname}` : undefined}
+          onClose={() => setConversationHistoryLeadId(null)}
+        />
+      )}
+
+      {showBulkTransferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Transfer Leads</h2>
+                <p className="text-sm text-gray-500">
+                  {selectedLeads.length} lead{selectedLeads.length === 1 ? '' : 's'} selected
+                </p>
+              </div>
+              <button onClick={() => setShowBulkTransferModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="px-6 py-3 border-b">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search counselors..."
+                  value={bulkTransferSearch}
+                  onChange={e => setBulkTransferSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Counselor list */}
+            <div className="flex-1 overflow-y-auto px-6 py-2">
+              {bulkCeoCounselors.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No employees found</div>
+              ) : (
+                bulkCeoCounselors
+                  .filter(e => !bulkTransferSearch || e.name.toLowerCase().includes(bulkTransferSearch.toLowerCase()))
+                  .map(emp => (
+                    <button
+                      key={emp.id}
+                      onClick={() => handleBulkTransfer(emp.id)}
+                      disabled={bulkActionSaving}
+                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-200 mb-1 flex items-center justify-between disabled:opacity-50"
+                    >
+                      <div>
+                        <div className="font-medium text-gray-900 text-sm">{emp.name}</div>
+                        <div className="text-xs text-gray-500">ID: {emp.id}</div>
+                      </div>
+                      <span className="text-xs text-blue-600 font-medium">
+                        {bulkActionSaving ? 'Transferring...' : 'Transfer'}
+                      </span>
+                    </button>
+                  ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t px-6 py-3 flex justify-end">
+              <button
+                onClick={() => setShowBulkTransferModal(false)}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
               >
                 Close

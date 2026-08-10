@@ -24,24 +24,24 @@ interface DmPolandWorkPermitAttributes {
 interface DmPolandWorkPermitCreationAttributes extends Optional<DmPolandWorkPermitAttributes, never> {}
 
 class DmPolandWorkPermit extends Model<DmPolandWorkPermitAttributes, DmPolandWorkPermitCreationAttributes> implements DmPolandWorkPermitAttributes {
-  public id!: number;
-  public leadId!: number;
-  public docs_received!: Date;
-  public designation!: string;
-  public company_name!: string;
-  public wp_renewal!: string;
-  public wp_payment!: number;
-  public job_applied_date!: Date;
-  public job_offer_rec_date!: Date;
-  public job_status!: string;
-  public job_hard_status!: string;
-  public work_permit_rec_date!: Date;
-  public work_permit_hard_rec_date!: Date;
-  public app_country_name!: number;
-  public salary!: string;
-  public created!: Date;
-  public created_by!: number;
-  public final_pay!: number;
+  declare id: number;
+  declare leadId: number;
+  declare docs_received: Date;
+  declare designation: string;
+  declare company_name: string;
+  declare wp_renewal: string;
+  declare wp_payment: number;
+  declare job_applied_date: Date;
+  declare job_offer_rec_date: Date;
+  declare job_status: string;
+  declare job_hard_status: string;
+  declare work_permit_rec_date: Date;
+  declare work_permit_hard_rec_date: Date;
+  declare app_country_name: number;
+  declare salary: string;
+  declare created: Date;
+  declare created_by: number;
+  declare final_pay: number;
 
   public static associate(models: any) {
   }

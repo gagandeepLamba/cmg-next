@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DmEmployee, DmRole, DmBranch, DmRegion } from '@/models'
 import { Op } from 'sequelize'
+import { requireAuth, isAuthError } from '@/lib/apiAuth'
 
 export async function GET(request: NextRequest) {
+  // Read-only listing also accepts counselors.manage - Branch Manager holds
+  // that permission (not employees.manage) but still needs to list their
+  // branch's counselors, e.g. to populate the Leads page's counselor filter.
+  const auth = requireAuth(request, ['employees.manage', 'counselors.manage'])
+  if (isAuthError(auth)) return auth
   try {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -67,6 +73,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['employees.manage'])
+  if (isAuthError(auth)) return auth
   try {
     const data = await request.json()
 

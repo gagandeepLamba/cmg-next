@@ -17,17 +17,17 @@ interface BusinessAssPaymentAttributes {
 interface BusinessAssPaymentCreationAttributes extends Optional<BusinessAssPaymentAttributes, 'leadid' | 'payMethod'> {}
 
 class BusinessAssPayment extends Model<BusinessAssPaymentAttributes, BusinessAssPaymentCreationAttributes> implements BusinessAssPaymentAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public paydate!: string;
-  public payMethod!: string | null;
-  public payTotal!: number;
-  public discount!: number;
-  public taxAmt!: number;
-  public payBalance!: number;
-  public payAmt!: number;
-  public totPayAmt!: number;
-  public demdRemark!: string;
+  declare id: number;
+  declare leadid: number | null;
+  declare paydate: string;
+  declare payMethod: string | null;
+  declare payTotal: number;
+  declare discount: number;
+  declare taxAmt: number;
+  declare payBalance: number;
+  declare payAmt: number;
+  declare totPayAmt: number;
+  declare demdRemark: string;
 
   public static associate(models: any) {
   }

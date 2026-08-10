@@ -1,26 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
-import { verifyToken } from '@/lib/auth';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { isCeo } from '@/lib/roleChecks';
 
 let dbReady = false;
 async function ensureDB() {
   if (!dbReady) { await connectDB(); dbReady = true; }
 }
 
-function authUser(request: NextRequest) {
-  const token =
-    request.cookies.get('auth-token')?.value ||
-    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-  return token ? verifyToken(token) : null;
-}
-
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const cu = authUser(request);
-  if (!cu) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = requireAuth(request, ['admin.access', 'marketing.manage']);
+  if (isAuthError(auth)) return auth;
   await ensureDB();
 
   const { id } = await params;
@@ -67,8 +61,11 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const cu = authUser(request);
-  if (!cu) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = requireAuth(request, ['admin.access', 'marketing.manage']);
+  if (isAuthError(auth)) return auth;
+  if (!isCeo(auth)) {
+    return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+  }
   await ensureDB();
 
   const { id } = await params;

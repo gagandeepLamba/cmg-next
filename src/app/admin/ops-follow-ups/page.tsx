@@ -1,5 +1,7 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -69,7 +71,7 @@ export default function OpsFollowUpsPage() {
 
   // Role detection
   const normalizedRole = String(user?.type || '').toLowerCase().replace(/[\s-]+/g, '_');
-  const canViewAll = user?.role === 1 || ['admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos', 'director_of_operations'].includes(normalizedRole);
+  const canViewAll = user?.role === 1 || ['admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos', 'director_of_operations', 'operation_manager'].includes(normalizedRole);
   const isBranchManager = ['branch_manager', 'bm'].includes(normalizedRole) && !canViewAll;
   const viewLabel = canViewAll ? 'All Follow-ups' : isBranchManager ? 'Branch Follow-ups' : 'My Follow-ups';
 
@@ -113,7 +115,7 @@ export default function OpsFollowUpsPage() {
       setAddNoteText('');
       await fetchFollowUps();
     } catch {
-      alert('Failed to update follow-up');
+      window.toast.error('Failed to update follow-up');
     } finally {
       setActionLoading(null);
     }
@@ -133,7 +135,7 @@ export default function OpsFollowUpsPage() {
       setAddNoteText('');
       await fetchFollowUps();
     } catch {
-      alert('Failed to save note');
+      window.toast.error('Failed to save note');
     } finally {
       setActionLoading(null);
     }
@@ -154,6 +156,18 @@ export default function OpsFollowUpsPage() {
       (fu.phone || '').includes(searchTerm);
     return matchesSearch;
   });
+
+  const { sorted: sortedFollowUps, sortKey: followUpSortKey, sortDirection: followUpSortDirection, toggleSort: toggleFollowUpSort } = useSortableData(
+    filtered,
+    {
+      lead: (fu) => `${fu.fname || ''} ${fu.lname || ''}`,
+      counselor: (fu) => fu.employeeName,
+      dueDate: (fu) => fu.reminder_date,
+      priority: (fu) => fu.priority,
+      status: (fu) => getDisplayStatus(fu),
+      message: (fu) => fu.message,
+    },
+  );
 
   const formatDate = (d: string) => {
     if (!d) return '—';
@@ -223,19 +237,19 @@ export default function OpsFollowUpsPage() {
             className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+        <SearchableSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
           <option value="">All Status</option>
           <option value="pending">Pending</option>
           <option value="overdue">Overdue</option>
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
-        </select>
-        <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+        </SearchableSelect>
+        <SearchableSelect value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
           <option value="">All Priority</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
-        </select>
+        </SearchableSelect>
       </div>
 
       {/* Error */}
@@ -251,12 +265,12 @@ export default function OpsFollowUpsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lead</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Counselor</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Message</th>
+                <SortableTh label="Lead" sortKey="lead" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <SortableTh label="Counselor" sortKey="counselor" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <SortableTh label="Due Date" sortKey="dueDate" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <SortableTh label="Priority" sortKey="priority" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <SortableTh label="Status" sortKey="status" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <SortableTh label="Message" sortKey="message" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
@@ -267,7 +281,7 @@ export default function OpsFollowUpsPage() {
                     No follow-ups found.
                   </td>
                 </tr>
-              ) : filtered.map((fu) => {
+              ) : sortedFollowUps.map((fu) => {
                 const displayStatus = getDisplayStatus(fu);
                 const isExpanded = expandedId === fu.id;
                 const isRescheduling = rescheduleId === fu.id;

@@ -11,11 +11,11 @@ interface AppointmentCounteriesAttributes {
 interface AppointmentCounteriesCreationAttributes extends Optional<AppointmentCounteriesAttributes, never> {}
 
 class AppointmentCounteries extends Model<AppointmentCounteriesAttributes, AppointmentCounteriesCreationAttributes> implements AppointmentCounteriesAttributes {
-  public id!: number;
-  public country_name!: string;
-  public created!: Date;
-  public created_by!: number;
-  public status!: number;
+  declare id: number;
+  declare country_name: string;
+  declare created: Date;
+  declare created_by: number;
+  declare status: number;
 
   public static associate(models: any) {
   }

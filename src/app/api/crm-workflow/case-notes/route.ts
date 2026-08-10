@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CrmWorkflowService } from '@/services/crm-workflow-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['leads.view', 'leads.update']);
+    if (isAuthError(auth)) return auth;
+
     const body = await request.json();
     const { opportunityId, caseOfficerId, noteText } = body;
 

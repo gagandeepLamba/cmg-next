@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 type SearchRow = {
   id: string | number;
@@ -13,6 +14,8 @@ type SearchRow = {
 const likeTerm = (value: string) => `%${value.trim()}%`;
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const query = (searchParams.get('q') || '').trim();

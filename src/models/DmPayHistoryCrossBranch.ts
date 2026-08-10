@@ -27,27 +27,27 @@ interface DmPayHistoryCrossBranchAttributes {
 interface DmPayHistoryCrossBranchCreationAttributes extends Optional<DmPayHistoryCrossBranchAttributes, 'amount' | 'date' | 'payMethod' | 'tax' | 'payCategory' | 'status' | 'remark' | 'canDate'> {}
 
 class DmPayHistoryCrossBranch extends Model<DmPayHistoryCrossBranchAttributes, DmPayHistoryCrossBranchCreationAttributes> implements DmPayHistoryCrossBranchAttributes {
-  public id!: number;
-  public leadId!: number;
-  public amount!: number;
-  public counselor_receipt!: string;
-  public date!: Date | null;
-  public payMethod!: string | null;
-  public payBalance!: number;
-  public tax!: number;
-  public payCategory!: string | null;
-  public payment_remarks!: string;
-  public status!: number;
-  public remark!: string | null;
-  public canDate!: Date | null;
-  public thirdPartyAmt!: number;
-  public dmAmt!: number;
-  public dmTax!: number;
-  public dmRefundAmt!: number;
-  public curValue!: number;
-  public refNumber!: string;
-  public created_by!: number;
-  public stage!: string;
+  declare id: number;
+  declare leadId: number;
+  declare amount: number;
+  declare counselor_receipt: string;
+  declare date: Date | null;
+  declare payMethod: string | null;
+  declare payBalance: number;
+  declare tax: number;
+  declare payCategory: string | null;
+  declare payment_remarks: string;
+  declare status: number;
+  declare remark: string | null;
+  declare canDate: Date | null;
+  declare thirdPartyAmt: number;
+  declare dmAmt: number;
+  declare dmTax: number;
+  declare dmRefundAmt: number;
+  declare curValue: number;
+  declare refNumber: string;
+  declare created_by: number;
+  declare stage: string;
 
   public static associate(models: any) {
   }

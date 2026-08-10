@@ -14,14 +14,14 @@ interface DmOpsBusinessDosAttributes {
 interface DmOpsBusinessDosCreationAttributes extends Optional<DmOpsBusinessDosAttributes, never> {}
 
 class DmOpsBusinessDos extends Model<DmOpsBusinessDosAttributes, DmOpsBusinessDosCreationAttributes> implements DmOpsBusinessDosAttributes {
-  public id!: number;
-  public leadId!: number;
-  public LOSissuanceDate!: Date;
-  public LOSexpiryDate!: Date;
-  public designated_entity_name!: string;
-  public PRFilingDate!: Date;
-  public LOSFile!: string;
-  public comments!: string;
+  declare id: number;
+  declare leadId: number;
+  declare LOSissuanceDate: Date;
+  declare LOSexpiryDate: Date;
+  declare designated_entity_name: string;
+  declare PRFilingDate: Date;
+  declare LOSFile: string;
+  declare comments: string;
 
   public static associate(models: any) {
   }

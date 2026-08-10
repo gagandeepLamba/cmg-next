@@ -1,5 +1,7 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -62,6 +64,7 @@ export default function FollowUpsPage() {
   const [rescheduleId, setRescheduleId] = useState<number | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [remarksById, setRemarksById] = useState<Record<number, string>>({});
 
   const fetchFollowUps = useCallback(async () => {
     try {
@@ -87,7 +90,7 @@ export default function FollowUpsPage() {
   const handleAction = async (reminderId: number, action: 'complete' | 'cancel', rescheduledAt?: string) => {
     try {
       setActionLoading(reminderId);
-      const body: any = { reminderId, action };
+      const body: any = { reminderId, action, notes: remarksById[reminderId]?.trim() || undefined };
       if (action === 'cancel') body.action = 'cancel';
       if (rescheduledAt) { body.action = 'reschedule'; body.rescheduledAt = rescheduledAt; }
 
@@ -99,9 +102,10 @@ export default function FollowUpsPage() {
       if (!res.ok) throw new Error('Action failed');
       setRescheduleId(null);
       setRescheduleDate('');
+      setRemarksById((prev) => { const next = { ...prev }; delete next[reminderId]; return next; });
       await fetchFollowUps();
     } catch {
-      alert('Failed to update follow-up. Please try again.');
+      window.toast.error('Failed to update follow-up. Please try again.');
     } finally {
       setActionLoading(null);
     }
@@ -124,6 +128,18 @@ export default function FollowUpsPage() {
     const matchesPriority = !priorityFilter || fu.priority === priorityFilter;
     return matchesSearch && matchesStatus && matchesPriority;
   });
+
+  const { sorted: sortedFollowUps, sortKey: followUpSortKey, sortDirection: followUpSortDirection, toggleSort: toggleFollowUpSort } = useSortableData(
+    filtered,
+    {
+      lead: (fu) => `${fu.fname || ''} ${fu.lname || ''}`.trim() || `Lead #${fu.lead_id}`,
+      counselor: (fu) => fu.employeeName || fu.user_id,
+      dueDate: (fu) => fu.reminder_date,
+      priority: (fu) => fu.priority,
+      status: (fu) => getDisplayStatus(fu),
+      message: (fu) => fu.message,
+    },
+  );
 
   if (loading) {
     return (
@@ -186,7 +202,7 @@ export default function FollowUpsPage() {
               className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <select
+          <SearchableSelect
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
@@ -197,8 +213,8 @@ export default function FollowUpsPage() {
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
             <option value="rescheduled">Rescheduled</option>
-          </select>
-          <select
+          </SearchableSelect>
+          <SearchableSelect
             value={priorityFilter}
             onChange={e => setPriorityFilter(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
@@ -207,17 +223,23 @@ export default function FollowUpsPage() {
             <option value="high">High</option>
             <option value="medium">Medium</option>
             <option value="low">Low</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {['Lead', 'Counselor', 'Due Date', 'Priority', 'Status', 'Message', 'Actions', ''].map(h => (
+                <SortableTh label="Lead" sortKey="lead" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
+                <SortableTh label="Counselor" sortKey="counselor" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
+                <SortableTh label="Due Date" sortKey="dueDate" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
+                <SortableTh label="Priority" sortKey="priority" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
+                <SortableTh label="Message" sortKey="message" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
+                {['Actions', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     {h}
                   </th>
@@ -225,7 +247,7 @@ export default function FollowUpsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filtered.map(fu => {
+              {sortedFollowUps.map(fu => {
                 const leadName = `${fu.fname || ''} ${fu.lname || ''}`.trim() || `Lead #${fu.lead_id}`;
                 const displayStatus = getDisplayStatus(fu);
                 const isExpanded = expandedId === fu.id;
@@ -284,7 +306,7 @@ export default function FollowUpsPage() {
                     <td className="px-4 py-3">
                       {fu.lead_id ? (
                         <button
-                          onClick={() => router.push(`/admin/leads/${fu.lead_id}`)}
+                          onClick={() => router.push(`/admin/leads/${fu.lead_id}/edit`)}
                           title="View lead"
                           className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs hover:bg-blue-100 whitespace-nowrap"
                         >
@@ -299,6 +321,13 @@ export default function FollowUpsPage() {
                       <div className="flex flex-col gap-1 min-w-max">
                         {isPending && (
                           <>
+                            <textarea
+                              value={remarksById[fu.id] || ''}
+                              onChange={(e) => setRemarksById((prev) => ({ ...prev, [fu.id]: e.target.value }))}
+                              placeholder="Remarks (optional)"
+                              rows={2}
+                              className="w-40 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-blue-500"
+                            />
                             <button
                               onClick={() => handleAction(fu.id, 'complete')}
                               disabled={actionLoading === fu.id}
@@ -351,9 +380,10 @@ export default function FollowUpsPage() {
                           </>
                         )}
                         {!isPending && (
-                          <span className="text-xs text-gray-400 italic">
-                            {fu.completed_at ? `Done ${new Date(fu.completed_at).toLocaleDateString()}` : fu.status}
-                          </span>
+                          <div className="text-xs text-gray-400 italic">
+                            <div>{fu.completed_at ? `Done ${new Date(fu.completed_at).toLocaleDateString()}` : fu.status}</div>
+                            {fu.message && <div className="mt-0.5 not-italic text-gray-600">{fu.message}</div>}
+                          </div>
                         )}
                       </div>
                     </td>

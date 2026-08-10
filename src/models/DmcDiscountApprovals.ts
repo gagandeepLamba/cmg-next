@@ -28,27 +28,27 @@ interface DmcDiscountApprovalsAttributes {
 interface DmcDiscountApprovalsCreationAttributes extends Optional<DmcDiscountApprovalsAttributes, 'id' | 'approvedBy' | 'approvedDate' | 'rejectedDate' | 'expiryDate' | 'notes' | 'approvedAt'> {}
 
 class DmcDiscountApprovals extends Model<DmcDiscountApprovalsAttributes, DmcDiscountApprovalsCreationAttributes> implements DmcDiscountApprovalsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public opportunityId!: number | null;
-  public discountType!: 'percentage' | 'fixed' | 'special';
-  public discountAmount!: number;
-  public originalAmount!: number;
-  public discountedAmount!: number;
-  public currency!: string;
-  public reason!: string;
-  public requestedBy!: number;
-  public approvedBy!: number | null;
-  public status!: 'pending' | 'approved' | 'rejected' | 'expired';
-  public requestedDate!: Date;
-  public approvedDate!: Date | null;
-  public rejectedDate!: Date | null;
-  public expiryDate!: Date | null;
-  public notes!: string | null;
-  public approvedAt!: Date | null;
-  public createdBy!: number;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare leadId: number;
+  declare opportunityId: number | null;
+  declare discountType: 'percentage' | 'fixed' | 'special';
+  declare discountAmount: number;
+  declare originalAmount: number;
+  declare discountedAmount: number;
+  declare currency: string;
+  declare reason: string;
+  declare requestedBy: number;
+  declare approvedBy: number | null;
+  declare status: 'pending' | 'approved' | 'rejected' | 'expired';
+  declare requestedDate: Date;
+  declare approvedDate: Date | null;
+  declare rejectedDate: Date | null;
+  declare expiryDate: Date | null;
+  declare notes: string | null;
+  declare approvedAt: Date | null;
+  declare createdBy: number;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmcDiscountApprovals.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLead' });

@@ -14,14 +14,14 @@ interface DmVvApplicantFeesAttributes {
 interface DmVvApplicantFeesCreationAttributes extends Optional<DmVvApplicantFeesAttributes, never> { }
 
 class DmVvApplicantFees extends Model<DmVvApplicantFeesAttributes, DmVvApplicantFeesCreationAttributes> implements DmVvApplicantFeesAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public number_of_applicants!: number;
-  public amount!: number;
-  public tax!: number;
-  public total!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare lead_id: number;
+  declare number_of_applicants: number;
+  declare amount: number;
+  declare tax: number;
+  declare total: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

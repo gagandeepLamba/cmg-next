@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const legacyRoot = process.env.LEGACY_DM_PATH || 'D:\\xampp\\htdocs\\dm';
 
@@ -48,7 +49,10 @@ const countRows = async (table: string) => {
   }
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['settings.manage']);
+  if (isAuthError(auth)) return auth;
+
   const data = await Promise.all(
     modules.map(async (module) => ({
       ...module,

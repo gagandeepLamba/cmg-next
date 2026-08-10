@@ -13,13 +13,13 @@ interface DmVendorInvoiceAttributes {
 interface DmVendorInvoiceCreationAttributes extends Optional<DmVendorInvoiceAttributes, never> {}
 
 class DmVendorInvoice extends Model<DmVendorInvoiceAttributes, DmVendorInvoiceCreationAttributes> implements DmVendorInvoiceAttributes {
-  public id!: number;
-  public vendor_id!: number;
-  public batch_id!: number;
-  public ag_no!: string;
-  public invoice!: number;
-  public created!: number;
-  public created_by!: number;
+  declare id: number;
+  declare vendor_id: number;
+  declare batch_id: number;
+  declare ag_no: string;
+  declare invoice: number;
+  declare created: number;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

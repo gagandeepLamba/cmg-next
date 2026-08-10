@@ -18,18 +18,18 @@ interface DmForm4687Attributes {
 interface DmForm4687CreationAttributes extends Optional<DmForm4687Attributes, 'name' | 'phone' | 'email' | 'migrate' | 'age_range' | 'education' | 'immigration_type' | 'your_preferred_location' | 'form_date'> {}
 
 class DmForm4687 extends Model<DmForm4687Attributes, DmForm4687CreationAttributes> implements DmForm4687Attributes {
-  public id!: number;
-  public db4_status!: string;
-  public name!: string | null;
-  public phone!: string | null;
-  public email!: string | null;
-  public migrate!: string | null;
-  public age_range!: string | null;
-  public education!: string | null;
-  public immigration_type!: string | null;
-  public your_preferred_location!: string | null;
-  public form_date!: Date;
-  public done!: number;
+  declare id: number;
+  declare db4_status: string;
+  declare name: string | null;
+  declare phone: string | null;
+  declare email: string | null;
+  declare migrate: string | null;
+  declare age_range: string | null;
+  declare education: string | null;
+  declare immigration_type: string | null;
+  declare your_preferred_location: string | null;
+  declare form_date: Date;
+  declare done: number;
 
   public static associate(models: any) {
   }

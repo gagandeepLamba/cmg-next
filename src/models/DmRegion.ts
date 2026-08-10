@@ -9,9 +9,9 @@ interface DmRegionAttributes {
 interface DmRegionCreationAttributes extends Optional<DmRegionAttributes, 'status'> {}
 
 class DmRegion extends Model<DmRegionAttributes, DmRegionCreationAttributes> implements DmRegionAttributes {
-  public id!: number;
-  public name!: string;
-  public status!: number;
+  declare id: number;
+  declare name: string;
+  declare status: number;
 
   public static associate(models: any) {
   }

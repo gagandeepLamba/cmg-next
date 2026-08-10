@@ -13,13 +13,13 @@ interface DmCf7db3232Attributes {
 interface DmCf7db3232CreationAttributes extends Optional<DmCf7db3232Attributes, 'form_date'> {}
 
 class DmCf7db3232 extends Model<DmCf7db3232Attributes, DmCf7db3232CreationAttributes> implements DmCf7db3232Attributes {
-  public id!: number;
-  public cf7dbp_status!: string;
-  public cyour_name!: string;
-  public phonetext_748!: string;
-  public your_email!: string;
-  public hidden_field_1!: string;
-  public form_date!: Date;
+  declare id: number;
+  declare cf7dbp_status: string;
+  declare cyour_name: string;
+  declare phonetext_748: string;
+  declare your_email: string;
+  declare hidden_field_1: string;
+  declare form_date: Date;
 
   public static associate(models: any) {
   }

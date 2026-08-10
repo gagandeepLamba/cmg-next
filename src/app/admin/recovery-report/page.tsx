@@ -1,6 +1,8 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useCallback } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import {
   Search, RefreshCw, Filter, Download, DollarSign,
   AlertCircle, CheckCircle, TrendingDown, Users, FileText,
@@ -53,6 +55,20 @@ function pctPaid(paid: number, total: number) {
 
 export default function RecoveryReportPage() {
   const [rows, setRows] = useState<RecoveryRow[]>([]);
+  const { sorted: sortedRows, sortKey: recoverySortKey, sortDirection: recoverySortDirection, toggleSort: toggleRecoverySort } = useSortableData(
+    rows,
+    {
+      client: (row) => row.clientName,
+      agreement: (row) => row.agreementNumber,
+      service: (row) => row.serviceInterest,
+      totalFee: (row) => row.totalFee,
+      paid: (row) => row.amountPaid,
+      balanceDue: (row) => row.balanceDue,
+      recoveryPct: (row) => pctPaid(row.amountPaid, row.totalFee),
+      counselor: (row) => row.counselorName || row.assignedToName,
+      lastPayment: (row) => row.lastPaymentDate,
+    },
+  );
   const [summary, setSummary] = useState<Summary>({ totalClients: 0, totalFees: 0, totalPaid: 0, totalBalance: 0 });
   const [branches, setBranches] = useState<Branch[]>([]);
   const [counselors, setCounselors] = useState<Employee[]>([]);
@@ -173,16 +189,16 @@ export default function RecoveryReportPage() {
               onKeyDown={e => e.key === 'Enter' && load(1)}
               className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-          <select value={branchId} onChange={e => setBranchId(e.target.value)}
+          <SearchableSelect value={branchId} onChange={e => setBranchId(e.target.value)}
             className="text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="">All Branches</option>
             {branches.map(b => <option key={b.id} value={String(b.id)}>{b.name}</option>)}
-          </select>
-          <select value={counselorId} onChange={e => setCounselorId(e.target.value)}
+          </SearchableSelect>
+          <SearchableSelect value={counselorId} onChange={e => setCounselorId(e.target.value)}
             className="text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-48">
             <option value="">All Counselors</option>
             {counselors.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
-          </select>
+          </SearchableSelect>
           <input type="number" placeholder="Min balance (AED)" value={minBalance}
             onChange={e => setMinBalance(e.target.value)}
             className="text-sm border rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -227,23 +243,23 @@ export default function RecoveryReportPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Client</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Agreement</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Service / Country</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Fee</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-green-600 uppercase tracking-wider">Paid</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-red-600 uppercase tracking-wider">Balance Due</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider print:hidden">Recovery %</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Counselor</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Payment</th>
+                <SortableTh label="Client" sortKey="client" activeKey={recoverySortKey} direction={recoverySortDirection} onSort={toggleRecoverySort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                <SortableTh label="Agreement" sortKey="agreement" activeKey={recoverySortKey} direction={recoverySortDirection} onSort={toggleRecoverySort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                <SortableTh label="Service / Country" sortKey="service" activeKey={recoverySortKey} direction={recoverySortDirection} onSort={toggleRecoverySort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                <SortableTh label="Total Fee" sortKey="totalFee" activeKey={recoverySortKey} direction={recoverySortDirection} onSort={toggleRecoverySort} className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                <SortableTh label="Paid" sortKey="paid" activeKey={recoverySortKey} direction={recoverySortDirection} onSort={toggleRecoverySort} className="px-4 py-3 text-right text-xs font-semibold text-green-600 uppercase tracking-wider" />
+                <SortableTh label="Balance Due" sortKey="balanceDue" activeKey={recoverySortKey} direction={recoverySortDirection} onSort={toggleRecoverySort} className="px-4 py-3 text-right text-xs font-semibold text-red-600 uppercase tracking-wider" />
+                <SortableTh label="Recovery %" sortKey="recoveryPct" activeKey={recoverySortKey} direction={recoverySortDirection} onSort={toggleRecoverySort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider print:hidden" />
+                <SortableTh label="Counselor" sortKey="counselor" activeKey={recoverySortKey} direction={recoverySortDirection} onSort={toggleRecoverySort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                <SortableTh label="Last Payment" sortKey="lastPayment" activeKey={recoverySortKey} direction={recoverySortDirection} onSort={toggleRecoverySort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr><td colSpan={10} className="px-4 py-16 text-center text-gray-400">Loading…</td></tr>
-              ) : rows.length === 0 ? (
+              ) : sortedRows.length === 0 ? (
                 <tr><td colSpan={10} className="px-4 py-16 text-center text-gray-400">No outstanding balances found.</td></tr>
-              ) : rows.map((row, i) => {
+              ) : sortedRows.map((row, i) => {
                 const pct = pctPaid(row.amountPaid, row.totalFee);
                 const balanceClass = row.balanceDue > 50000
                   ? 'text-red-700 font-bold bg-red-50'

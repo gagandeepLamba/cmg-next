@@ -11,10 +11,16 @@ export interface LegacyAgreementTemplateFile {
   modifiedAt: string;
 }
 
+// Base directory for the legacy (pre-dm-next) PHP app's contract file store,
+// configurable via LEGACY_AGREEMENT_ROOT since it lives outside this repo -
+// falls back to this machine's current layout so existing deployments keep
+// working without requiring the env var to be set immediately.
+const LEGACY_AGREEMENT_ROOT = process.env.LEGACY_AGREEMENT_ROOT || 'D:\\xampp\\htdocs\\dm';
+
 const legacyRoots: Record<LegacyAgreementSection, string> = {
-  contract: 'D:\\xampp\\htdocs\\dm\\en_contract',
-  annexureA: 'D:\\xampp\\htdocs\\dm\\en_annexure_a',
-  annexureB: 'D:\\xampp\\htdocs\\dm\\en_annexure_b',
+  contract: path.join(LEGACY_AGREEMENT_ROOT, 'en_contract'),
+  annexureA: path.join(LEGACY_AGREEMENT_ROOT, 'en_annexure_a'),
+  annexureB: path.join(LEGACY_AGREEMENT_ROOT, 'en_annexure_b'),
 };
 
 function getLegacyRoot(section: LegacyAgreementSection): string {

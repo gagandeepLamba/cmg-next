@@ -39,6 +39,7 @@ const sourceSeeds = {
   2020: { name: 'IELTS Candidates', category: 'Specific Segments' },
   2021: { name: 'CBI Skilled', category: 'Specific Segments' },
   2022: { name: 'Data 3rd Party', category: 'Referral / Third Party' },
+  2023: { name: 'Website Pop up', category: 'Website' },
 };
 
 async function ensureCategoryColumn(connection) {

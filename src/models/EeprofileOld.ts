@@ -17,17 +17,17 @@ interface EeprofileOldAttributes {
 interface EeprofileOldCreationAttributes extends Optional<EeprofileOldAttributes, 'agreeNo' | 'docrec' | 'docstat' | 'pcfswp' | 'noc' | 'pldate' | 'pfexp' | 'crs' | 'status' | 'type'> {}
 
 class EeprofileOld extends Model<EeprofileOldAttributes, EeprofileOldCreationAttributes> implements EeprofileOldAttributes {
-  public id!: number;
-  public agreeNo!: number | null;
-  public docrec!: string | null;
-  public docstat!: string | null;
-  public pcfswp!: string | null;
-  public noc!: string | null;
-  public pldate!: string | null;
-  public pfexp!: string | null;
-  public crs!: string | null;
-  public status!: string | null;
-  public type!: string | null;
+  declare id: number;
+  declare agreeNo: number | null;
+  declare docrec: string | null;
+  declare docstat: string | null;
+  declare pcfswp: string | null;
+  declare noc: string | null;
+  declare pldate: string | null;
+  declare pfexp: string | null;
+  declare crs: string | null;
+  declare status: string | null;
+  declare type: string | null;
 
   public static associate(models: any) {
   }

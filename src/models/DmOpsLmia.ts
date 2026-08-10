@@ -14,14 +14,14 @@ interface DmOpsLmiaAttributes {
 interface DmOpsLmiaCreationAttributes extends Optional<DmOpsLmiaAttributes, never> {}
 
 class DmOpsLmia extends Model<DmOpsLmiaAttributes, DmOpsLmiaCreationAttributes> implements DmOpsLmiaAttributes {
-  public id!: number;
-  public leadId!: number;
-  public noc!: Date;
-  public lmia_submit_date!: Date;
-  public lmia_status!: string;
-  public date_of_approved!: Date;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare leadId: number;
+  declare noc: Date;
+  declare lmia_submit_date: Date;
+  declare lmia_status: string;
+  declare date_of_approved: Date;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

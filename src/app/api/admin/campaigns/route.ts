@@ -6,6 +6,7 @@ const handlers = createCrudHandlers({
   entityName: 'campaign',
   searchFields: ['campaign'],
   filters: { status: 'status' },
+  requiredPermissions: ['campaigns.manage'],
   defaults: (body) => ({
     created: body.created || new Date(),
     created_by: body.created_by || 1,

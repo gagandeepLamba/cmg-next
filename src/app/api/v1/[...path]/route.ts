@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { verifyToken, type User } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
 import { sequelize } from '@/lib/sequelize';
 import { HRService } from '@/services/hr-service';
 import { PROService } from '@/services/pro-service';
@@ -574,6 +575,7 @@ async function handlePut({ request, user, path }: HandlerContext) {
 async function handleDelete({ user, path }: HandlerContext) {
   if (path[0] === 'hr' && path[1] === 'employees' && path[2]) {
     requirePermission(user, ['admin.access', 'hr.delete']);
+    if (!isCeo(user)) return forbidden();
     return ok(await HRService.softDeleteEmployee(Number.parseInt(path[2], 10)));
   }
 

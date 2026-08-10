@@ -11,11 +11,11 @@ interface DmContractFileAttributes {
 interface DmContractFileCreationAttributes extends Optional<DmContractFileAttributes, 'status'> {}
 
 class DmContractFile extends Model<DmContractFileAttributes, DmContractFileCreationAttributes> implements DmContractFileAttributes {
-  public id!: number;
-  public country!: number;
-  public service!: number;
-  public file!: string;
-  public status!: number;
+  declare id: number;
+  declare country: number;
+  declare service: number;
+  declare file: string;
+  declare status: number;
 
   public static associate(models: any) {
   }

@@ -1,13 +1,15 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Search, Download, Printer, Eye, Edit2, X, User, RefreshCw } from 'lucide-react';
+import { Search, Download, Printer, Eye, Edit2, X, User, RefreshCw, Mail } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ── BRAND ─────────────────────────────────────────────────────────────────
-const G  = '#002266';   // dark blue — table headers, left cells
-const G2 = '#003399';   // primary logo blue — subject lines, badges, highlights
-const GL = '#E8EEFB';   // light blue bg — alternating table rows
-const GD = '#001A4D';   // deepest navy — total row, darkest accents
+const G  = '#1C6B10';   // dark green — outer petal (table headers, left cells)
+const G2 = '#35AE22';   // primary logo green (subject lines, badges, highlights)
+const GL = '#E8F7E4';   // light green bg (alternating table rows)
+const GD = '#14500A';   // deepest green (total row, darkest accents)
 const TX = '#2D2D2D';
 const GR = '#666666';
 const RD = '#C0392B';
@@ -50,10 +52,10 @@ function ordinalPlain(ds: string): string {
   const sfx = [11,12,13].includes(day) ? 'th' : ['st','nd','rd'][((day%10)-1)] || 'th';
   return `${day}${sfx} ${d.toLocaleString('en-GB',{month:'long'})} ${d.getFullYear()}`;
 }
-function aed(v: string | number): string {
+function aed(v: string | number, currency = 'AED'): string {
   const n = Number(v);
   if (!n) return '';
-  return `AED ${n.toLocaleString()}`;
+  return `${currency} ${n.toLocaleString()}`;
 }
 
 // ── DMC LOGO SVG (starburst) ───────────────────────────────────────────────
@@ -208,6 +210,7 @@ function buildLetterHTML(d: LetterData): string {
 interface FormState {
   templateId: string; refSeq: string; date: string;
   empName: string; empTitle: string; empDesignation: string;
+  empEmail: string;
   empDepartment: string; empBranch: string;
   passportNo: string; emiratesId: string; nationality: string;
   doj: string; dol: string; pronoun: string;
@@ -230,7 +233,7 @@ interface FormState {
 
 const defaultForm: FormState = {
   templateId: 'T-01', refSeq: '001', date: new Date().toISOString().slice(0,10),
-  empName: '', empTitle: 'Mr. / Ms.', empDesignation: '', empDepartment: '', empBranch: 'Dubai Branch',
+  empName: '', empTitle: 'Mr. / Ms.', empDesignation: '', empEmail: '', empDepartment: '', empBranch: 'Dubai Branch',
   passportNo: '', emiratesId: '', nationality: '', doj: '', dol: '', pronoun: 'he/she',
   newDesignation: '', effectiveDate: '', newSalary: '',
   reportingTo: '', startDate: '', offerSalary: '', probation: '90 Days',
@@ -240,7 +243,7 @@ const defaultForm: FormState = {
   referenceBody: '', memoFrom: '', memoTo: 'All Staff', memoBody: '', subject: '',
 };
 
-function buildLetterData(f: FormState): LetterData {
+function buildLetterData(f: FormState, currency = 'AED'): LetterData {
   const year = new Date().getFullYear();
   const refNo = `DMC/DB/HR/${year}/${f.refSeq.padStart(3,'0')}`;
   const he   = f.pronoun === 'she' ? 'she' : f.pronoun === 'they' ? 'they' : 'he';
@@ -258,7 +261,7 @@ function buildLetterData(f: FormState): LetterData {
       tableRows: [
         { label: 'Effective Date',    value: ordinalPlain(f.effectiveDate) || '[Date]' },
         { label: 'New Designation',   value: f.newDesignation || '[Designation]' },
-        { label: 'Monthly Salary',    value: aed(f.newSalary) || '[Amount]', highlight: true },
+        { label: 'Monthly Salary',    value: aed(f.newSalary, currency) || '[Amount]', highlight: true },
       ],
       closing: 'Yours sincerely,',
     };
@@ -275,28 +278,42 @@ function buildLetterData(f: FormState): LetterData {
         { label: 'Department',       value: f.empDepartment  || '[Department]'  },
         { label: 'Reporting To',     value: f.reportingTo    || '[Reporting Manager]' },
         { label: 'Start Date',       value: ordinalPlain(f.startDate) || '[Date]' },
-        { label: 'Monthly Salary',   value: aed(f.offerSalary) || '[Amount]', highlight: true },
+        { label: 'Monthly Salary',   value: aed(f.offerSalary, currency) || '[Amount]', highlight: true },
         { label: 'Probation Period', value: f.probation || '90 Days', highlight: true },
       ],
       closing: 'Yours sincerely,',
     };
 
-    case 'T-03': return {
-      refNo, date: f.date, templateId: 'T-03',
-      toName: 'To Whom It May Concern',
-      subject: 'Experience Certificate / No Objection Certificate',
-      subjectColor: G2,
-      salutation: 'To Whom It May Concern,',
-      body: `This is to certify that <strong>${f.empName || '[Full Name]'}</strong>, holder of Passport No. <strong>${f.passportNo || '[Passport No.]'}</strong>, has been employed with DM Immigration Consultants DMCC, Dubai Branch, as a <strong>${f.empDesignation || '[Designation]'}</strong> from <strong>${ordinalPlain(f.doj) || '[Start Date]'}</strong> to <strong>${ordinalPlain(f.dol) || 'Present'}</strong>.\n\nDuring the tenure of employment, <strong>${he}/${he === 'he' ? 'she' : he}</strong> has demonstrated professionalism, dedication, and a high standard of performance. We wish <strong>${him}</strong> every success in future endeavours.`,
-      tableRows: [
-        { label: 'Employee Name',     value: f.empName        || '[Full Name]'  },
-        { label: 'Designation',       value: f.empDesignation || '[Designation]'},
-        { label: 'Department',        value: f.empDepartment  || '[Department]' },
-        { label: 'Period of Service', value: `${ordinalPlain(f.doj)||'[Start]'} – ${ordinalPlain(f.dol)||'Present'}` },
-        { label: 'Monthly Salary',    value: aed(f.basicSalary) || '[Amount]', highlight: true },
-      ],
-      closing: 'Yours faithfully,',
-    };
+    case 'T-03': {
+      // Passport No. is optional - omit the clause entirely rather than
+      // leaving a "[Passport No.]" placeholder in a real, generated letter.
+      const passportClause = f.passportNo?.trim() ? `, holder of Passport No. <strong>${f.passportNo}</strong>,` : ',';
+      // With an end date, this reads as a combined Relieving cum Experience
+      // Letter (confirms service period, that the employee has been formally
+      // relieved of duties, and dues settled). Without one (still employed),
+      // it reads as a plain Experience Letter - "relieved" wouldn't be true yet.
+      const isRelieved = Boolean(f.dol?.trim());
+      const verb = f.pronoun === 'they' ? 'have' : 'has';
+      const heCap = he.charAt(0).toUpperCase() + he.slice(1);
+      return {
+        refNo, date: f.date, templateId: 'T-03',
+        toName: 'To Whom It May Concern',
+        subject: isRelieved ? 'Relieving cum Experience Certificate' : 'Experience Certificate',
+        subjectColor: G2,
+        salutation: 'To Whom It May Concern,',
+        body: isRelieved
+          ? `This is to certify that <strong>${f.empName || '[Full Name]'}</strong>${passportClause} was employed with DM Immigration Consultants DMCC, Dubai Branch, as a <strong>${f.empDesignation || '[Designation]'}</strong> from <strong>${ordinalPlain(f.doj) || '[Start Date]'}</strong> to <strong>${ordinalPlain(f.dol)}</strong>.\n\nThis is further to certify that ${heCap} has been duly relieved of ${his} duties and responsibilities with effect from <strong>${ordinalPlain(f.dol)}</strong>, and all dues payable to ${him} by the Company as on the date of relieving have been settled in full. ${heCap} has no dues outstanding against the Company as of the date of this letter.\n\nDuring the tenure of employment, ${he} ${verb} demonstrated professionalism, dedication, and a high standard of performance. We wish ${him} every success in ${his} future endeavours.`
+          : `This is to certify that <strong>${f.empName || '[Full Name]'}</strong>${passportClause} has been employed with DM Immigration Consultants DMCC, Dubai Branch, as a <strong>${f.empDesignation || '[Designation]'}</strong> since <strong>${ordinalPlain(f.doj) || '[Start Date]'}</strong> and continues to be in active service with the Company.\n\nDuring the tenure of employment, ${he} ${verb} demonstrated professionalism, dedication, and a high standard of performance. We wish ${him} every success in ${his} future endeavours.`,
+        tableRows: [
+          { label: 'Employee Name',     value: f.empName        || '[Full Name]'  },
+          { label: 'Designation',       value: f.empDesignation || '[Designation]'},
+          { label: 'Department',        value: f.empDepartment  || '[Department]' },
+          { label: 'Period of Service', value: `${ordinalPlain(f.doj)||'[Start]'} – ${ordinalPlain(f.dol)||'Present'}` },
+          { label: 'Monthly Salary',    value: aed(f.basicSalary, currency) || '[Amount]', highlight: true },
+        ],
+        closing: 'Yours faithfully,',
+      };
+    }
 
     case 'T-04': return {
       refNo, date: f.date, templateId: 'T-04',
@@ -327,10 +344,10 @@ function buildLetterData(f: FormState): LetterData {
         { label: 'Employee Name',        value: f.empName        || '[Full Name]'   },
         { label: 'Designation',          value: f.empDesignation || '[Designation]' },
         { label: 'Date of Joining',      value: ordinalPlain(f.doj) || '[Start Date]' },
-        { label: 'Basic Salary',         value: aed(f.basicSalary) || '[Amount]'    },
-        { label: 'Housing Allowance',    value: aed(f.housing)    || '[Amount]'     },
-        { label: 'Transport Allowance',  value: aed(f.transport)  || '[Amount]'     },
-        { label: 'Total Monthly Salary', value: aed(f.totalSalary||f.basicSalary) || '[Total Amount]', highlight: true },
+        { label: 'Basic Salary',         value: aed(f.basicSalary, currency) || '[Amount]'    },
+        { label: 'Housing Allowance',    value: aed(f.housing, currency)    || '[Amount]'     },
+        { label: 'Transport Allowance',  value: aed(f.transport, currency)  || '[Amount]'     },
+        { label: 'Total Monthly Salary', value: aed(f.totalSalary||f.basicSalary, currency) || '[Total Amount]', highlight: true },
       ],
       closing: 'Yours faithfully,',
     };
@@ -437,10 +454,28 @@ const selectCls = inputCls;
 
 // ── MAIN MODULE ────────────────────────────────────────────────────────────
 export default function DMCLettersModule() {
+  const { currencyCode } = useAuth();
   const [form, setForm]           = useState<FormState>(defaultForm);
   const [mode, setMode]           = useState<'form' | 'preview'>('form');
   const [generating, setGenerating] = useState(false);
+  const [emailing, setEmailing]   = useState(false);
+  const [emailRecipient, setEmailRecipient] = useState('');
   const [history, setHistory]     = useState<{id:number;templateId:string;name:string;date:string;refNo:string}[]>([]);
+
+  useEffect(() => {
+    fetch('/api/admin/hr/letter-log')
+      .then((res) => res.json())
+      .then((json) => {
+        setHistory((json.history || []).map((row: any) => ({
+          id: row.id,
+          templateId: row.template_id,
+          name: row.employee_name,
+          date: row.letter_date || row.created_at,
+          refNo: row.ref_number,
+        })));
+      })
+      .catch(() => setHistory([]));
+  }, []);
   const previewRef                = useRef<HTMLDivElement>(null);
   const emp                       = useEmployeeSearch();
 
@@ -457,6 +492,7 @@ export default function DMCLettersModule() {
       empName:       e.name        || '',
       empTitle:      title,
       empDesignation:designation,
+      empEmail:      e.email       || '',
       passportNo:    e.ppNo        || '',
       emiratesId:    e.EID         || '',
       nationality:   e.nationality || '',
@@ -468,7 +504,7 @@ export default function DMCLettersModule() {
     emp.setQuery(''); // clear dropdown
   };
 
-  const letterData = buildLetterData(form);
+  const letterData = buildLetterData(form, currencyCode);
 
   const printLetter = () => {
     const html = buildLetterHTML(letterData);
@@ -502,12 +538,65 @@ export default function DMCLettersModule() {
       pdf.save(filename);
       addToHistory();
     } catch (e) {
-      alert('PDF generation failed. Use Print instead.');
+      window.toast.error('PDF generation failed. Use Print instead.');
     } finally { setGenerating(false); }
   };
 
+  const emailToEmployee = async () => {
+    const to = (emailRecipient || form.empEmail || '').trim();
+    if (!to) { window.toast.error('Enter a recipient email address first.'); return; }
+    if (!previewRef.current) return;
+    setEmailing(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF       = (await import('jspdf')).default;
+      const el = previewRef.current;
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+      const imgData = canvas.toDataURL('image/jpeg', 0.96);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const W = pdf.internal.pageSize.getWidth();
+      const H = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * W) / canvas.width;
+      let left = imgH;
+      let pos  = 0;
+      pdf.addImage(imgData, 'JPEG', 0, pos, W, imgH);
+      left -= H;
+      while (left > 0) { pos -= H; pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, pos, W, imgH); left -= H; }
+      const filename = `DMC_${form.templateId}_${(form.empName || 'Letter').replace(/\s+/g,'_')}_${form.date}.pdf`;
+      const pdfBase64 = pdf.output('datauristring').split(',')[1];
+
+      const res = await fetch('/api/admin/hr/letters/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          subject: `${currentTemplate?.name || 'Letter'} - ${form.empName || ''}`.trim(),
+          fileName: filename,
+          pdfBase64,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Send failed');
+      window.toast.success(`Emailed to ${to}`);
+      addToHistory();
+    } catch (e) {
+      window.toast.error(e instanceof Error ? e.message : 'Failed to email letter');
+    } finally { setEmailing(false); }
+  };
+
   const addToHistory = () => {
-    setHistory(p => [{ id: Date.now(), templateId: form.templateId, name: form.empName || '—', date: form.date, refNo: `DMC/DB/HR/${new Date().getFullYear()}/${form.refSeq.padStart(3,'0')}` }, ...p.slice(0,49)]);
+    const refNo = `DMC/DB/HR/${new Date().getFullYear()}/${form.refSeq.padStart(3,'0')}`;
+    setHistory(p => [{ id: Date.now(), templateId: form.templateId, name: form.empName || '—', date: form.date, refNo }, ...p.slice(0,49)]);
+    fetch('/api/admin/hr/letter-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        templateId: form.templateId,
+        templateName: currentTemplate?.name || '',
+        employeeName: form.empName || '—',
+        refNumber: refNo,
+        letterDate: form.date || null,
+      }),
+    }).catch(() => {});
   };
 
   const currentTemplate = TEMPLATES.find(t => t.id === form.templateId)!;
@@ -537,6 +626,18 @@ export default function DMCLettersModule() {
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-semibold rounded-lg hover:bg-green-50 disabled:opacity-60">
             <Download className="w-3.5 h-3.5"/>
             {generating ? 'Generating…' : 'Download PDF'}
+          </button>
+          <input
+            type="email"
+            value={emailRecipient}
+            onChange={(e) => setEmailRecipient(e.target.value)}
+            placeholder={form.empEmail || 'employee@email.com'}
+            className="w-44 rounded-lg border-0 bg-white/90 px-2 py-1.5 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-white"
+          />
+          <button onClick={emailToEmployee} disabled={emailing}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 text-xs font-semibold rounded-lg hover:bg-green-50 disabled:opacity-60">
+            <Mail className="w-3.5 h-3.5"/>
+            {emailing ? 'Sending…' : 'Email to Employee'}
           </button>
         </div>
       </div>
@@ -637,9 +738,9 @@ export default function DMCLettersModule() {
                   <div className="text-xs font-bold text-green-800 uppercase tracking-wide mb-2">Employee Details</div>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Title">
-                      <select value={form.empTitle} onChange={e => set('empTitle', e.target.value)} className={selectCls}>
+                      <SearchableSelect value={form.empTitle} onChange={e => set('empTitle', e.target.value)} className={selectCls}>
                         <option>Mr.</option><option>Ms.</option><option>Mrs.</option><option>Dr.</option>
-                      </select>
+                      </SearchableSelect>
                     </Field>
                     <Field label="Full Name">
                       <input type="text" value={form.empName} onChange={e => set('empName', e.target.value)} className={inputCls} placeholder="Employee full name"/>
@@ -651,11 +752,11 @@ export default function DMCLettersModule() {
                       <input type="text" value={form.empDepartment} onChange={e => set('empDepartment', e.target.value)} className={inputCls}/>
                     </Field>
                     <Field label="Pronoun">
-                      <select value={form.pronoun} onChange={e => set('pronoun', e.target.value)} className={selectCls}>
+                      <SearchableSelect value={form.pronoun} onChange={e => set('pronoun', e.target.value)} className={selectCls}>
                         <option value="he">he / him / his</option>
                         <option value="she">she / her / her</option>
                         <option value="they">they / them / their</option>
-                      </select>
+                      </SearchableSelect>
                     </Field>
                     <Field label="Branch">
                       <input type="text" value={form.empBranch} onChange={e => set('empBranch', e.target.value)} className={inputCls}/>
@@ -689,7 +790,7 @@ export default function DMCLettersModule() {
                   {/* T-03: Exp/NOC */}
                   {form.templateId === 'T-03' && (
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Passport No."><input type="text" value={form.passportNo} onChange={e=>set('passportNo',e.target.value)} className={inputCls}/></Field>
+                      <Field label="Passport No. (optional)"><input type="text" value={form.passportNo} onChange={e=>set('passportNo',e.target.value)} className={inputCls}/></Field>
                       <Field label="Date of Joining"><input type="date" value={form.doj} onChange={e=>set('doj',e.target.value)} className={inputCls}/></Field>
                       <Field label="End Date (blank = Present)"><input type="date" value={form.dol} onChange={e=>set('dol',e.target.value)} className={inputCls}/></Field>
                       <Field label="Monthly Salary (AED)"><input type="number" value={form.basicSalary} onChange={e=>set('basicSalary',e.target.value)} className={inputCls}/></Field>
@@ -701,9 +802,9 @@ export default function DMCLettersModule() {
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="Incident Date"><input type="date" value={form.incidentDate} onChange={e=>set('incidentDate',e.target.value)} className={inputCls}/></Field>
                       <Field label="Previous Warning">
-                        <select value={form.prevWarning} onChange={e=>set('prevWarning',e.target.value)} className={selectCls}>
+                        <SearchableSelect value={form.prevWarning} onChange={e=>set('prevWarning',e.target.value)} className={selectCls}>
                           <option>None</option><option>Verbal Warning</option><option>First Written Warning</option><option>Second Written Warning</option>
-                        </select>
+                        </SearchableSelect>
                       </Field>
                       <div className="col-span-2">
                         <Field label="Nature of Issue / Misconduct">

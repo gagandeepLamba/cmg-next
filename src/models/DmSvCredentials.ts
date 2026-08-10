@@ -20,20 +20,20 @@ interface DmSvCredentialsAttributes {
 interface DmSvCredentialsCreationAttributes extends Optional<DmSvCredentialsAttributes, 'leadid' | 'eeuid' | 'eeusrpsswrd' | 'eeregemail' | 'eeregpsswrd' | 'eesecq1' | 'ee1' | 'eesecq2' | 'ee2' | 'eesecq3' | 'ee3'> {}
 
 class DmSvCredentials extends Model<DmSvCredentialsAttributes, DmSvCredentialsCreationAttributes> implements DmSvCredentialsAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public eeuid!: string | null;
-  public eeusrpsswrd!: string | null;
-  public eeregemail!: string | null;
-  public eeregpsswrd!: string | null;
-  public eesecq1!: string | null;
-  public ee1!: string | null;
-  public eesecq2!: string | null;
-  public ee2!: string | null;
-  public eesecq3!: string | null;
-  public ee3!: string | null;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare leadid: number | null;
+  declare eeuid: string | null;
+  declare eeusrpsswrd: string | null;
+  declare eeregemail: string | null;
+  declare eeregpsswrd: string | null;
+  declare eesecq1: string | null;
+  declare ee1: string | null;
+  declare eesecq2: string | null;
+  declare ee2: string | null;
+  declare eesecq3: string | null;
+  declare ee3: string | null;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

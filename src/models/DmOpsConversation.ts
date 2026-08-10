@@ -19,19 +19,19 @@ interface DmOpsConversationAttributes {
 interface DmOpsConversationCreationAttributes extends Optional<DmOpsConversationAttributes, 'leadid' | 'date' | 'type' | 'conversation' | 'emp' | 'automated' | 'created'> {}
 
 class DmOpsConversation extends Model<DmOpsConversationAttributes, DmOpsConversationCreationAttributes> implements DmOpsConversationAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public date!: string | null;
-  public type!: string | null;
-  public conversation!: string | null;
-  public emp!: number;
-  public automated!: number;
-  public created!: Date;
-  public followup!: Date;
-  public status!: number;
-  public followup_remarks!: string;
-  public conversation_status!: string;
-  public status_date!: Date;
+  declare id: number;
+  declare leadid: number | null;
+  declare date: string | null;
+  declare type: string | null;
+  declare conversation: string | null;
+  declare emp: number;
+  declare automated: number;
+  declare created: Date;
+  declare followup: Date;
+  declare status: number;
+  declare followup_remarks: string;
+  declare conversation_status: string;
+  declare status_date: Date;
 
   public static associate(models: any) {
   }

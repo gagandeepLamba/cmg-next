@@ -24,24 +24,24 @@ interface DmFeeAttributes {
 interface DmFeeCreationAttributes extends Optional<DmFeeAttributes, 'service' | 'country' | 'branch' | 'currency' | 'upfront' | 'prof_fee' | 'firstMonth' | 'secondMonth' | 'thirdMonth' | 'prof_fee_month' | 'firstStage' | 'secondStage' | 'thirdStage' | 'forthStage' | 'prof_fee_stage' | 'status'> {}
 
 class DmFee extends Model<DmFeeAttributes, DmFeeCreationAttributes> implements DmFeeAttributes {
-  public id!: number;
-  public service!: number | null;
-  public country!: number | null;
-  public branch!: number | null;
-  public currency!: number | null;
-  public upfront!: number;
-  public prof_fee!: number;
-  public firstMonth!: number;
-  public secondMonth!: number;
-  public thirdMonth!: number;
-  public prof_fee_month!: number;
-  public firstStage!: number;
-  public secondStage!: number;
-  public thirdStage!: number;
-  public forthStage!: number;
-  public fifthStage!: number;
-  public prof_fee_stage!: number;
-  public status!: number;
+  declare id: number;
+  declare service: number | null;
+  declare country: number | null;
+  declare branch: number | null;
+  declare currency: number | null;
+  declare upfront: number;
+  declare prof_fee: number;
+  declare firstMonth: number;
+  declare secondMonth: number;
+  declare thirdMonth: number;
+  declare prof_fee_month: number;
+  declare firstStage: number;
+  declare secondStage: number;
+  declare thirdStage: number;
+  declare forthStage: number;
+  declare fifthStage: number;
+  declare prof_fee_stage: number;
+  declare status: number;
 
   public static associate(models: any) {
     DmFee.belongsTo(models.DmBranch, { foreignKey: 'branch', targetKey: 'id', as: 'dmBranch' });

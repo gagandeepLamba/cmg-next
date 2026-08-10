@@ -22,22 +22,22 @@ interface DmOldPaymentAttributes {
 interface DmOldPaymentCreationAttributes extends Optional<DmOldPaymentAttributes, 'agreeNo' | 'payCategory' | 'payMethod'> {}
 
 class DmOldPayment extends Model<DmOldPaymentAttributes, DmOldPaymentCreationAttributes> implements DmOldPaymentAttributes {
-  public id!: number;
-  public agreeNo!: string | null;
-  public recieptno!: number;
-  public paydate!: string;
-  public payCategory!: string | null;
-  public payMethod!: string | null;
-  public payTotal!: number;
-  public discount!: number;
-  public taxAmt!: number;
-  public payBalance!: number;
-  public payAmt!: number;
-  public totPayAmt!: number;
-  public totBalance!: number;
-  public nextPayAmt!: number;
-  public nextPayDate!: string;
-  public demdRemark!: string;
+  declare id: number;
+  declare agreeNo: string | null;
+  declare recieptno: number;
+  declare paydate: string;
+  declare payCategory: string | null;
+  declare payMethod: string | null;
+  declare payTotal: number;
+  declare discount: number;
+  declare taxAmt: number;
+  declare payBalance: number;
+  declare payAmt: number;
+  declare totPayAmt: number;
+  declare totBalance: number;
+  declare nextPayAmt: number;
+  declare nextPayDate: string;
+  declare demdRemark: string;
 
   public static associate(models: any) {
   }

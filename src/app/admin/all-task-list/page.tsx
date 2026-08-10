@@ -1,10 +1,13 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useAuth } from '@/contexts/AuthContext'
+import EmployeePicker from '@/components/admin/EmployeePicker'
 import {
   CheckSquare,
   Square,
@@ -14,7 +17,8 @@ import {
   Filter,
   Plus,
   Edit,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react'
 
 interface Task {
@@ -50,12 +54,32 @@ interface DmTaskRecord {
 }
 
 export default function AllTaskListPage() {
+  const { hasPermission } = useAuth()
+  const canReassign = hasPermission('operations.task_reassign') || hasPermission('operations.manage')
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [assignedFilter, setAssignedFilter] = useState('')
+  const [reassigningTaskId, setReassigningTaskId] = useState<number | null>(null)
+  const [reassignError, setReassignError] = useState<string | null>(null)
+
+  const handleReassign = async (taskId: number, employee: { id: number; name: string }) => {
+    setReassignError(null)
+    try {
+      const response = await fetch('/api/admin/tasks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: taskId, asignTo: employee.id }),
+      })
+      if (!response.ok) throw new Error('Failed to reassign task')
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, assignedTo: employee.id, assignedToName: employee.name } : t)))
+      setReassigningTaskId(null)
+    } catch (error) {
+      setReassignError(error instanceof Error ? error.message : 'Failed to reassign task')
+    }
+  }
 
   const fetchTasks = async () => {
     try {
@@ -162,6 +186,18 @@ export default function AllTaskListPage() {
     return matchesSearch && matchesStatus && matchesPriority && matchesAssigned
   })
 
+  const { sorted: sortedTasks, sortKey: taskSortKey, sortDirection: taskSortDirection, toggleSort: toggleTaskSort } = useSortableData(
+    filteredTasks,
+    {
+      task: (t) => t.title,
+      assignedTo: (t) => t.assignedToName,
+      priority: (t) => t.priority,
+      status: (t) => t.status,
+      dueDate: (t) => t.dueDate,
+      lead: (t) => t.leadName,
+    },
+  )
+
   const taskStats = {
     total: tasks.length,
     pending: tasks.filter(t => t.status === 'pending').length,
@@ -173,16 +209,16 @@ export default function AllTaskListPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -195,6 +231,10 @@ export default function AllTaskListPage() {
             Create Task
           </Button>
         </div>
+
+        {reassignError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{reassignError}</div>
+        )}
 
         {/* Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
@@ -267,7 +307,7 @@ export default function AllTaskListPage() {
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 w-full"
                 />
               </div>
-              <select
+              <SearchableSelect
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -277,8 +317,8 @@ export default function AllTaskListPage() {
                 <option value="in_progress">In Progress</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -288,15 +328,15 @@ export default function AllTaskListPage() {
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
-              </select>
-              <select
+              </SearchableSelect>
+              <SearchableSelect
                 value={assignedFilter}
                 onChange={(e) => setAssignedFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">All Assigned</option>
                 <option value="me">My Tasks</option>
-              </select>
+              </SearchableSelect>
               <Button variant="outline">
                 <Filter className="h-4 w-4 mr-2" />
                 More Filters
@@ -312,31 +352,19 @@ export default function AllTaskListPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Task
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Assigned To
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Priority
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Due Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Lead
-                    </th>
+                    <SortableTh label="Task" sortKey="task" activeKey={taskSortKey} direction={taskSortDirection} onSort={toggleTaskSort} />
+                    <SortableTh label="Assigned To" sortKey="assignedTo" activeKey={taskSortKey} direction={taskSortDirection} onSort={toggleTaskSort} />
+                    <SortableTh label="Priority" sortKey="priority" activeKey={taskSortKey} direction={taskSortDirection} onSort={toggleTaskSort} />
+                    <SortableTh label="Status" sortKey="status" activeKey={taskSortKey} direction={taskSortDirection} onSort={toggleTaskSort} />
+                    <SortableTh label="Due Date" sortKey="dueDate" activeKey={taskSortKey} direction={taskSortDirection} onSort={toggleTaskSort} />
+                    <SortableTh label="Lead" sortKey="lead" activeKey={taskSortKey} direction={taskSortDirection} onSort={toggleTaskSort} />
                     <th className="relative px-6 py-3">
                       <span className="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredTasks.map((task) => (
+                  {sortedTasks.map((task) => (
                     <tr key={task.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-start space-x-3">
@@ -388,15 +416,31 @@ export default function AllTaskListPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <Button variant="outline" size="sm">
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                      <td className="px-6 py-4 text-right text-sm font-medium">
+                        {reassigningTaskId === task.id ? (
+                          <div className="flex items-center gap-2 text-left">
+                            <div className="w-56">
+                              <EmployeePicker
+                                placeholder="Reassign to…"
+                                onSelect={(employee) => handleReassign(task.id, employee)}
+                              />
+                            </div>
+                            <Button variant="outline" size="sm" onClick={() => setReassigningTaskId(null)}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end space-x-2">
+                            {canReassign && (
+                              <Button variant="outline" size="sm" title="Reassign task" onClick={() => setReassigningTaskId(task.id)}>
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm">
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -413,6 +457,6 @@ export default function AllTaskListPage() {
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+    </>
   )
 }

@@ -1,9 +1,15 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { DmB2b, DmB2bAttributes } from '@/models';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 export default function B2BManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [b2bCompanies, setB2bCompanies] = useState<DmB2bAttributes[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,6 +48,17 @@ export default function B2BManagement() {
 
   const filteredCompanies = b2bCompanies.filter(company =>
     company.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const { sorted: sortedCompanies, sortKey: companySortKey, sortDirection: companySortDirection, toggleSort: toggleCompanySort } = useSortableData(
+    filteredCompanies,
+    {
+      id: (c) => c.id,
+      name: (c) => c.name,
+      status: (c) => c.status,
+      created: (c) => c.created,
+      createdBy: (c) => c.created_by,
+    },
   );
 
   const handleViewCompany = (company: DmB2bAttributes) => {
@@ -129,11 +146,11 @@ export default function B2BManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <SearchableSelect className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
           <input
             type="date"
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -142,33 +159,23 @@ export default function B2BManagement() {
       </div>
 
       {/* B2B Companies Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Company Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created By
-                </th>
+                <SortableTh label="ID" sortKey="id" activeKey={companySortKey} direction={companySortDirection} onSort={toggleCompanySort} />
+                <SortableTh label="Company Name" sortKey="name" activeKey={companySortKey} direction={companySortDirection} onSort={toggleCompanySort} />
+                <SortableTh label="Status" sortKey="status" activeKey={companySortKey} direction={companySortDirection} onSort={toggleCompanySort} />
+                <SortableTh label="Created Date" sortKey="created" activeKey={companySortKey} direction={companySortDirection} onSort={toggleCompanySort} />
+                <SortableTh label="Created By" sortKey="createdBy" activeKey={companySortKey} direction={companySortDirection} onSort={toggleCompanySort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredCompanies.map((company) => (
+              {sortedCompanies.map((company) => (
                 <tr key={company.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
@@ -201,15 +208,17 @@ export default function B2BManagement() {
                     <button className="text-indigo-600 hover:text-indigo-900 mr-3">
                       Edit
                     </button>
-                    <button 
-                      onClick={() => {
-                        setSelectedCompany(company);
-                        setShowModal(true);
-                      }}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => {
+                          setSelectedCompany(company);
+                          setShowModal(true);
+                        }}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -315,7 +324,7 @@ export default function B2BManagement() {
                   <label htmlFor="companyStatus" className="block text-sm font-medium text-gray-700">
                     Status
                   </label>
-                  <select
+                  <SearchableSelect
                     id="companyStatus"
                     value={newCompany.status}
                     onChange={(e) => setNewCompany({ ...newCompany, status: parseInt(e.target.value) })}
@@ -323,7 +332,7 @@ export default function B2BManagement() {
                   >
                     <option value={1}>Active</option>
                     <option value={0}>Inactive</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
             </div>

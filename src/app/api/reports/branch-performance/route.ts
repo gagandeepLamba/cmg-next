@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DmBranch, DmcForumLeads, DmEmployee, DmRegion, DmRole } from '@/models';
 import { Op, QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const toPlain = (row: any) => row?.get ? row.get({ plain: true }) : row;
 const toPlainArray = (rows: any[]) => rows.map(toPlain);
@@ -13,6 +14,9 @@ const labelFor = (map: Map<string, string>, value: unknown) => {
 };
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['reports.view']);
+  if (isAuthError(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const dateRange = searchParams.get('dateRange') || 'month';
@@ -38,8 +42,8 @@ export async function GET(request: NextRequest) {
 
     // Fetch all branches
     const branchRows = await DmBranch.findAll({
-      attributes: ['id', 'name', 'region', 'status'],
-      order: [['name', 'ASC']]
+      attributes: ['id', 'branch', 'region', 'status'],
+      order: [['branch', 'ASC']]
     });
     const branches = toPlainArray(branchRows);
 
@@ -88,7 +92,7 @@ export async function GET(request: NextRequest) {
         {
           model: DmBranch,
           as: 'dmBranch',
-          attributes: ['id', 'name'],
+          attributes: ['id', 'branch'],
           required: false
         }
       ]
@@ -164,7 +168,7 @@ export async function GET(request: NextRequest) {
 
       return {
         id: branch.id,
-        name: branch.name,
+        name: branch.branch,
         region: regionMap.get(branch.region) || 'Unknown',
         totalLeads,
         convertedLeads,
@@ -245,7 +249,7 @@ export async function GET(request: NextRequest) {
         } : null,
         dmBranch: lead.branch ? {
           id: lead.branch,
-          name: branches.find(b => b.id === lead.branch)?.name || 'Unknown'
+          name: branches.find(b => b.id === lead.branch)?.branch || 'Unknown'
         } : null
       }))
     });

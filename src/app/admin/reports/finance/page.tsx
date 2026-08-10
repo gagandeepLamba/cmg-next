@@ -1,12 +1,15 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useRouter } from 'next/navigation';
-import { 
+import {
   FileText, DollarSign, TrendingUp, Calendar, CheckCircle,
   XCircle, Clock, Filter, Search, Download, Eye,
   Users, Building, AlertCircle, BarChart3
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ContractData {
   id: number;
@@ -59,6 +62,7 @@ interface ContractStatistics {
 
 export default function FinanceReport() {
   const router = useRouter();
+  const { currencyCode } = useAuth();
   const [contracts, setContracts] = useState<ContractData[]>([]);
   const [statistics, setStatistics] = useState<ContractStatistics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,9 +76,13 @@ export default function FinanceReport() {
     dateTo: ''
   });
   const [selectedContract, setSelectedContract] = useState<ContractData | null>(null);
-  const formatCurrency = (value: number) => (
-    new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED', maximumFractionDigits: 0 }).format(Number(value || 0))
-  );
+  const formatCurrency = (value: number) => {
+    try {
+      return new Intl.NumberFormat('en-AE', { style: 'currency', currency: currencyCode, maximumFractionDigits: 0 }).format(Number(value || 0));
+    } catch {
+      return `${currencyCode} ${Number(value || 0).toLocaleString()}`;
+    }
+  };
 
   useEffect(() => {
     fetchContractData();
@@ -169,6 +177,18 @@ export default function FinanceReport() {
     
     return matchesSearch && matchesVerification && matchesPayment && matchesBatch;
   });
+
+  const { sorted: sortedContracts, sortKey: contractSortKey, sortDirection: contractSortDirection, toggleSort: toggleContractSort } = useSortableData(
+    filteredContracts,
+    {
+      contract: (c) => c.contract,
+      lead: (c) => `${c.dmcForumLeads?.fname || ''} ${c.dmcForumLeads?.lname || ''}`,
+      service: (c) => c.dmcForumLeads?.service_interest_label || c.dmcForumLeads?.service_interest,
+      verification: (c) => c.verify,
+      payment: (c) => c.payment_status,
+      value: (c) => c.dmcForumLeads?.payTotal,
+    },
+  );
 
   const exportToExcel = () => {
     // Create CSV content
@@ -347,7 +367,7 @@ export default function FinanceReport() {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
-              <select
+              <SearchableSelect
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -356,12 +376,12 @@ export default function FinanceReport() {
                 <option value="month">Last Month</option>
                 <option value="quarter">Last Quarter</option>
                 <option value="year">Last Year</option>
-              </select>
+              </SearchableSelect>
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Verification Status</label>
-              <select
+              <SearchableSelect
                 value={filters.verificationStatus}
                 onChange={(e) => setFilters({...filters, verificationStatus: e.target.value})}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -370,12 +390,12 @@ export default function FinanceReport() {
                 <option value="1">Verified</option>
                 <option value="0">Pending</option>
                 <option value="2">Rejected</option>
-              </select>
+              </SearchableSelect>
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Payment Status</label>
-              <select
+              <SearchableSelect
                 value={filters.paymentStatus}
                 onChange={(e) => setFilters({...filters, paymentStatus: e.target.value})}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -384,7 +404,7 @@ export default function FinanceReport() {
                 <option value="1">Paid</option>
                 <option value="2">Unpaid</option>
                 <option value="0">Partial</option>
-              </select>
+              </SearchableSelect>
             </div>
           </div>
         </div>
@@ -398,17 +418,17 @@ export default function FinanceReport() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contract</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lead</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verification</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                  <SortableTh label="Contract" sortKey="contract" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
+                  <SortableTh label="Lead" sortKey="lead" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
+                  <SortableTh label="Service" sortKey="service" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
+                  <SortableTh label="Verification" sortKey="verification" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
+                  <SortableTh label="Payment" sortKey="payment" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
+                  <SortableTh label="Value" sortKey="value" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredContracts.map((contract) => (
+                {sortedContracts.map((contract) => (
                   <tr key={contract.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">{contract.contract}</div>

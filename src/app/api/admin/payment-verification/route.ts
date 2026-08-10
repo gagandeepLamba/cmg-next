@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
   const search   = (searchParams.get('search') || '').trim();
   const dateFrom = searchParams.get('dateFrom') || '';
   const dateTo   = searchParams.get('dateTo') || '';
+  const leadId   = searchParams.get('leadId') || '';
   const page     = Math.max(1, parseInt(searchParams.get('page') || '1'));
   const limit    = Math.min(100, parseInt(searchParams.get('limit') || '25'));
   const offset   = (page - 1) * limit;
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
   }
   if (dateFrom) { conditions.push('DATE(p.createdAt) >= :dateFrom'); replacements.dateFrom = dateFrom; }
   if (dateTo)   { conditions.push('DATE(p.createdAt) <= :dateTo'); replacements.dateTo = dateTo; }
+  if (leadId)   { conditions.push('o.leadId = :leadId'); replacements.leadId = leadId; }
 
   const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -51,7 +53,7 @@ export async function GET(request: NextRequest) {
     sequelize.query<{ total: number }>(
       `SELECT COUNT(*) AS total
        FROM dm_opportunity_payments p
-       LEFT JOIN dm_opportunities o ON o.id = p.opportunityId
+       LEFT JOIN dmc_opportunities o ON o.id = p.opportunityId
        LEFT JOIN dmc_forum_leads l ON l.id = o.leadId
        ${where}`,
       { replacements, type: QueryTypes.SELECT }
@@ -90,7 +92,14 @@ export async function GET(request: NextRequest) {
          p.paymentMethod,
          p.paymentDate,
          p.transactionId,
-         p.proofOfPaymentUrl,
+         -- The opportunity flow wizard's Payment stage defers the actual file
+         -- upload to the Documents stage (it needs an opportunityId for the
+         -- blob path, which isn't known until the opportunity is created), so
+         -- a proof-of-payment file usually lands in dmc_opportunity_documents
+         -- (documentType='proof_of_payment') rather than p.receiptUrl. Prefer
+         -- receiptUrl when a caller did set it directly, otherwise fall back
+         -- to the latest matching document for this opportunity.
+         COALESCE(p.receiptUrl, doc.filePath) AS proofOfPaymentUrl,
          p.status,
          COALESCE(p.accountantStatus,'pending') AS accountantStatus,
          p.accountantRemarks,
@@ -104,9 +113,19 @@ export async function GET(request: NextRequest) {
          s.name AS serviceName,
          p.createdAt
        FROM dm_opportunity_payments p
-       LEFT JOIN dm_opportunities o ON o.id = p.opportunityId
+       LEFT JOIN dmc_opportunities o ON o.id = p.opportunityId
        LEFT JOIN dmc_forum_leads l ON l.id = o.leadId
        LEFT JOIN dm_service s ON s.id = l.service_interest
+       LEFT JOIN (
+         SELECT d1.opportunityId, d1.filePath
+         FROM dmc_opportunity_documents d1
+         INNER JOIN (
+           SELECT opportunityId, MAX(id) AS latestId
+           FROM dmc_opportunity_documents
+           WHERE documentType = 'proof_of_payment'
+           GROUP BY opportunityId
+         ) latest ON latest.opportunityId = d1.opportunityId AND latest.latestId = d1.id
+       ) doc ON doc.opportunityId = p.opportunityId
        ${where}
        ORDER BY
          CASE p.accountantStatus WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 ELSE 2 END ASC,

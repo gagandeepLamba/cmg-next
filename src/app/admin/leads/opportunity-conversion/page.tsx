@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +11,7 @@ import {
   ChevronLeft, Save, Mail, Phone, MapPin, Globe, Target, TrendingUp, Users, Briefcase,
   Flag, MessageSquare, ArrowRight, Check, Info, Building, Award, Zap
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ConversionData {
   leadId: number;
@@ -30,6 +32,7 @@ interface OpportunityConversionWizardProps {
 }
 
 function OpportunityConversionWizard({ leadId }: OpportunityConversionWizardProps) {
+  const { currencyCode } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [conversionData, setConversionData] = useState<ConversionData>({
     leadId: leadId,
@@ -81,7 +84,7 @@ function OpportunityConversionWizard({ leadId }: OpportunityConversionWizardProp
       setSubmitted(true);
     } catch (error) {
       console.error('Error creating opportunity:', error);
-      alert('Failed to create opportunity. Please try again.');
+      window.toast.error('Failed to create opportunity. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -135,7 +138,7 @@ function OpportunityConversionWizard({ leadId }: OpportunityConversionWizardProp
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Opportunity Type *</label>
-                    <select
+                    <SearchableSelect
                       value={conversionData.opportunityType}
                       onChange={(e) => handleInputChange('opportunityType', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -144,14 +147,14 @@ function OpportunityConversionWizard({ leadId }: OpportunityConversionWizardProp
                       <option value="existing_business">Existing Business</option>
                       <option value="referral">Referral</option>
                       <option value="partner">Partner</option>
-                    </select>
+                    </SearchableSelect>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Value *</label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span className="text-gray-500">$</span>
+                        <span className="text-gray-500">{currencyCode}</span>
                       </div>
                       <input
                         type="text"
@@ -165,7 +168,7 @@ function OpportunityConversionWizard({ leadId }: OpportunityConversionWizardProp
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Priority *</label>
-                    <select
+                    <SearchableSelect
                       value={conversionData.priority}
                       onChange={(e) => handleInputChange('priority', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -174,7 +177,7 @@ function OpportunityConversionWizard({ leadId }: OpportunityConversionWizardProp
                       <option value="medium">Medium</option>
                       <option value="high">High</option>
                       <option value="critical">Critical</option>
-                    </select>
+                    </SearchableSelect>
                   </div>
                 </div>
               </div>
@@ -268,7 +271,7 @@ function OpportunityConversionWizard({ leadId }: OpportunityConversionWizardProp
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Assigned To</label>
-                    <select
+                    <SearchableSelect
                       value={conversionData.assignedTo}
                       onChange={(e) => handleInputChange('assignedTo', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -277,7 +280,7 @@ function OpportunityConversionWizard({ leadId }: OpportunityConversionWizardProp
                       <option value="1">John Smith</option>
                       <option value="3">Mike Johnson</option>
                       <option value="4">Sarah Wilson</option>
-                    </select>
+                    </SearchableSelect>
                   </div>
                 </div>
               </div>
@@ -384,7 +387,7 @@ function OpportunityConversionWizard({ leadId }: OpportunityConversionWizardProp
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Value:</span>
-                    <span className="font-medium">${conversionData.estimatedValue || '0'}</span>
+                    <span className="font-medium">{currencyCode} {conversionData.estimatedValue || '0'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Probability:</span>

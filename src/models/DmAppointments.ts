@@ -13,13 +13,13 @@ interface DmAppointmentsAttributes {
 interface DmAppointmentsCreationAttributes extends Optional<DmAppointmentsAttributes, 'status'> {}
 
 class DmAppointments extends Model<DmAppointmentsAttributes, DmAppointmentsCreationAttributes> implements DmAppointmentsAttributes {
-  public id!: number;
-  public task!: string;
-  public asignBy!: number;
-  public status!: string;
-  public created!: Date;
-  public doc!: Date;
-  public notf!: number;
+  declare id: number;
+  declare task: string;
+  declare asignBy: number;
+  declare status: string;
+  declare created: Date;
+  declare doc: Date;
+  declare notf: number;
 
   public static associate(models: any) {
   }

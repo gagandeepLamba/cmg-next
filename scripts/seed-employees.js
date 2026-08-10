@@ -22,25 +22,41 @@ const DEPT = { Sales: 5, Admin: 1 };
 // New hires: created if missing (matched by username). Existing records are
 // left alone except role/branch/department, which are kept in sync.
 const newEmployees = [
-  { branch: 'DXB', dept: 'Admin', doj: null, name: 'Soumya', username: 'Soumya', role: 'CEO' },
-  { branch: 'DXB', dept: 'Admin', doj: null, name: 'Chetan Kumbhar', username: 'chetankumbhar', role: 'CEO' },
-  { branch: 'DXB', dept: 'Sales', doj: null, name: 'Sales1', username: 'sales1', role: 'Counsellor' },
-  { branch: 'DXB', dept: 'Sales', doj: null, name: 'Sales2', username: 'sales2', role: 'Counsellor' },
+  { branch: 'AUH', dept: 'Sales', doj: '2026-06-26', name: 'Satvir', username: 'Satvir', role: 'Counsellor' },
+  { branch: 'AUH', dept: 'Sales', doj: '2024-01-23', name: 'Gaurav Singh', username: 'GauravS', role: 'Counsellor' },
+  { branch: 'AUH', dept: 'Sales', doj: '2025-06-12', name: 'Mohammed Loirdigi', username: 'Mohammed', role: 'Counsellor' },
+  { branch: 'AUH', dept: 'Sales', doj: '2025-06-01', name: 'Pooja Dhankar', username: 'Pooja', role: 'Counsellor' },
+  { branch: 'AUH', dept: 'Sales', doj: '2026-07-01', name: 'Surabhi', username: 'Surabhi', role: 'Counsellor' },
+  { branch: 'AUH', dept: 'Sales', doj: '2025-10-22', name: 'Uppala Sravan Kumar', username: 'Sravan', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Sales', doj: '2020-02-25', name: 'Sherin Almas Shanoob', username: 'SherinA', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Sales', doj: '2025-05-01', name: 'Soundar', username: 'Soundar', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Sales', doj: '2026-01-07', name: 'Mahnaz Sarwari', username: 'Mahnaz', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Sales', doj: '2026-02-14', name: 'Umer Iqbal', username: 'Umer', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Sales', doj: '2026-03-08', name: 'Bharti', username: 'Bharti', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Sales', doj: '2026-04-22', name: 'Mohamad Abbas', username: 'MohamadAbbas', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Sales', doj: '2026-05-21', name: 'Prince Sharma', username: 'Prince', role: 'Counsellor' },
+  { branch: 'KWT', dept: 'Sales', doj: '2024-11-28', name: 'Sachin Pillai', username: 'Sachin', role: 'Counsellor' },
+  { branch: 'QTR', dept: 'Sales', doj: '2024-06-25', name: 'Abdul Saud Khan', username: 'AbdulSaud', role: 'Counsellor' },
+  { branch: 'QTR', dept: 'Sales', doj: '2024-04-02', name: 'Jaya Prakash', username: 'Jaya', role: 'Counsellor' },
+  { branch: 'QTR', dept: 'Sales', doj: '2024-12-07', name: 'Mohd Altamash', username: 'Altamash', role: 'Counsellor' },
+  { branch: 'QTR', dept: 'Sales', doj: '2025-06-10', name: 'Syed Khaleel', username: 'Syed', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Admin', doj: '2026-01-09', name: 'FOE Dubai', username: 'FOEDubai', role: 'FOE' },
+  { branch: 'KWT', dept: 'Admin', doj: '2024-07-31', name: 'Shelane Dela Pieza', username: 'Shelane', role: 'FOE' },
+  { branch: 'HYD', dept: 'Sales', doj: null, name: 'Rishab Agarwal', username: 'Rishab', role: 'Counsellor' },
+  { branch: 'HYD', dept: 'Sales', doj: null, name: 'Battu Shruti', username: 'Shruti', role: 'Branch Manager' },
+  { branch: 'HYD', dept: 'Sales', doj: null, name: 'Kappa Harika', username: 'Harika', role: 'Counsellor' },
+  { branch: 'HYD', dept: 'Sales', doj: null, name: 'Gaddam Madhu Sudhan Reddy', username: 'Madhu', role: 'Counsellor' },
+  { branch: 'HYD', dept: 'Sales', doj: null, name: 'Christopher Walter Mackness', username: 'Christopher', role: 'Counsellor' },
+  { branch: 'AUH', dept: 'Sales', doj: null, name: 'Mohamad Ismail', username: 'MohamadIsmail', role: 'Branch Manager' },
+  { branch: 'DXB', dept: 'Sales', doj: null, name: 'Naveed Pasha', username: 'NaveedPasha', role: 'Assistant Director of Sales' },
+  { branch: 'DXB', dept: 'Sales', doj: null, name: 'Misbah', username: 'Misbah', role: 'Branch Manager' },
+  { branch: 'KWT', dept: 'Sales', doj: null, name: 'Shahzad Ali', username: 'ShahzadAli', role: 'Assistant Director of Sales' },
+  { branch: 'QTR', dept: 'Sales', doj: null, name: 'Deenadayalan', username: 'Deenadayalan', role: 'Branch Manager' },
+  { branch: 'DXB', dept: 'Admin', doj: null, name: 'Lukeman', username: 'Lukeman', role: 'CEO' },
+  { branch: 'QTR', dept: 'Admin', doj: null, name: 'Bismymol Mathew', username: 'Bismymol', role: 'FOE' },
   { branch: 'DXB', dept: 'Admin', doj: null, name: 'Accounts', username: 'Accounts', role: 'Accountant' },
   { branch: 'DXB', dept: 'Admin', doj: null, name: 'HR', username: 'HR', role: 'HR' },
   { branch: 'DXB', dept: 'Admin', doj: null, name: 'PRO', username: 'PRO', role: 'PRO' },
-];
-
-// Usernames from the previous roster that are no longer part of newEmployees
-// above. These are NOT deleted automatically — run scripts/delete-employees.js
-// (or your own confirmed step) against them once you're ready to remove them
-// from the live database.
-const removedUsernames = [
-  'Satvir', 'GauravS', 'Mohammed', 'Pooja', 'Surabhi', 'Sravan', 'SherinA',
-  'Soundar', 'Mahnaz', 'Umer', 'Bharti', 'MohamadAbbas', 'Prince', 'Sachin',
-  'AbdulSaud', 'Jaya', 'Altamash', 'Syed', 'FOEDubai', 'Shelane', 'Rishab',
-  'Shruti', 'Harika', 'Madhu', 'Christopher', 'MohamadIsmail', 'NaveedPasha',
-  'Misbah', 'ShahzadAli', 'Deenadayalan', 'Lukeman', 'Bismymol',
 ];
 
 async function resolveLookups(connection) {

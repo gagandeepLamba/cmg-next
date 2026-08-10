@@ -1,21 +1,33 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect } from 'react';
 import { DmEmployeeAttributes } from '@/models';
+import { useBulkSelection } from '@/hooks/useBulkSelection';
+import BulkActionBar from '@/components/admin/BulkActionBar';
+import EmployeeDocumentsPanel from '@/components/admin/EmployeeDocumentsPanel';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 type EmployeeRow = DmEmployeeAttributes & {
   roleName?: string | null;
   branchName?: string | null;
+  regionName?: string | null;
   departmentName?: string | null;
 };
 
 type RoleOption = { id: number; name: string; type: string };
 type BranchOption = { id: number; name: string };
+type RegionOption = { id: number; name: string };
 
 export default function EmployeesManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [branches, setBranches] = useState<BranchOption[]>([]);
+  const [regions, setRegions] = useState<RegionOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeRow | null>(null);
@@ -32,6 +44,20 @@ export default function EmployeesManagement() {
     department: '',
     status: ''
   });
+  const { selectedIds, toggleOne, toggleAll, clear, isSelected, allSelected } = useBulkSelection(employees);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const { sorted: sortedEmployees, sortKey: employeeSortKey, sortDirection: employeeSortDirection, toggleSort: toggleEmployeeSort } = useSortableData(
+    employees,
+    {
+      name: (e) => e.name,
+      email: (e) => e.email,
+      mobile: (e) => e.mobile,
+      department: (e) => (e.department === 1 ? 'Sales' : e.department === 2 ? 'Operations' : 'Admin'),
+      role: (e) => [e.roleName, e.branchName, e.regionName].filter(Boolean).join(' / '),
+      status: (e) => e.status,
+      workMode: (e) => e.wfh,
+    },
+  );
 
   useEffect(() => {
     fetchEmployees();
@@ -40,6 +66,7 @@ export default function EmployeesManagement() {
   useEffect(() => {
     fetchRoles();
     fetchBranches();
+    fetchRegions();
   }, []);
 
   const fetchRoles = async () => {
@@ -59,10 +86,22 @@ export default function EmployeesManagement() {
       const response = await fetch('/api/admin/branches?limit=200&status=1');
       const result = await response.json();
       if (response.ok) {
-        setBranches((result.data || []).map((b: any) => ({ id: b.id, name: b.name })));
+        setBranches((result.data || []).map((b: any) => ({ id: b.id, name: b.branch })));
       }
     } catch (error) {
       console.error('Error fetching branches:', error);
+    }
+  };
+
+  const fetchRegions = async () => {
+    try {
+      const response = await fetch('/api/admin/regions?limit=200&status=1');
+      const result = await response.json();
+      if (response.ok) {
+        setRegions((result.data || []).map((r: any) => ({ id: r.id, name: r.name })));
+      }
+    } catch (error) {
+      console.error('Error fetching regions:', error);
     }
   };
 
@@ -126,11 +165,11 @@ export default function EmployeesManagement() {
         fetchEmployees();
       } else {
         const result = await response.json();
-        alert('Failed to delete employee: ' + result.error);
+        window.toast.error('Failed to delete employee: ' + result.error);
       }
     } catch (error) {
       console.error('Error deleting employee:', error);
-      alert('Failed to delete employee');
+      window.toast.error('Failed to delete employee');
     }
   };
 
@@ -146,11 +185,11 @@ export default function EmployeesManagement() {
         fetchEmployees();
       } else {
         const result = await response.json();
-        alert('Error adding employee: ' + result.error);
+        window.toast.error('Error adding employee: ' + result.error);
       }
     } catch (error) {
       console.error('Error adding employee:', error);
-      alert('Error adding employee');
+      window.toast.error('Error adding employee');
     }
   };
 
@@ -168,11 +207,11 @@ export default function EmployeesManagement() {
         fetchEmployees();
       } else {
         const result = await response.json();
-        alert('Error updating employee: ' + result.error);
+        window.toast.error('Error updating employee: ' + result.error);
       }
     } catch (error) {
       console.error('Error updating employee:', error);
-      alert('Error updating employee');
+      window.toast.error('Error updating employee');
     }
   };
 
@@ -200,6 +239,26 @@ export default function EmployeesManagement() {
 
   const getWorkModeColor = (wfh: number) => {
     return wfh === 1 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800';
+  };
+
+  const runBulkAction = async (action: 'activate' | 'deactivate' | 'delete') => {
+    setBulkBusy(true);
+    try {
+      const res = await fetch('/api/admin/employees/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [...selectedIds], action }),
+      });
+      if (!res.ok) {
+        const result = await res.json();
+        window.toast.error('Bulk action failed: ' + (result.error || 'Unknown error'));
+        return;
+      }
+      clear();
+      fetchEmployees();
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   if (loading) {
@@ -247,7 +306,7 @@ export default function EmployeesManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select
+          <SearchableSelect
             value={filters.department}
             onChange={(e) => handleFilterChange('department', e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -256,8 +315,8 @@ export default function EmployeesManagement() {
             <option value="1">Sales</option>
             <option value="2">Operations</option>
             <option value="3">Admin</option>
-          </select>
-          <select
+          </SearchableSelect>
+          <SearchableSelect
             value={filters.status}
             onChange={(e) => handleFilterChange('status', e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -265,7 +324,7 @@ export default function EmployeesManagement() {
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
           <button
             onClick={handleSearch}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -276,24 +335,40 @@ export default function EmployeesManagement() {
       </div>
 
       {/* Employees Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mobile</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role / Branch</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Work Mode</th>
+                <th className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </th>
+                <SortableTh label="Employee" sortKey="name" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
+                <SortableTh label="Email" sortKey="email" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
+                <SortableTh label="Mobile" sortKey="mobile" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
+                <SortableTh label="Department" sortKey="department" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
+                <SortableTh label="Role / Branch" sortKey="role" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
+                <SortableTh label="Work Mode" sortKey="workMode" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {employees.map((employee) => (
+              {sortedEmployees.map((employee) => (
                 <tr key={employee.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected(employee.id)}
+                      onChange={(e) => toggleOne(employee.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
@@ -322,7 +397,7 @@ export default function EmployeesManagement() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{employee.roleName || 'Unassigned'}</div>
-                    <div className="text-sm text-gray-500">{employee.branchName || ''}</div>
+                    <div className="text-sm text-gray-500">{[employee.branchName, employee.regionName].filter(Boolean).join(' / ')}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(employee.status)}`}>
@@ -347,12 +422,14 @@ export default function EmployeesManagement() {
                     >
                       Edit
                     </button>
-                    <button
-                      onClick={() => handleDeleteEmployee(employee.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteEmployee(employee.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -361,12 +438,23 @@ export default function EmployeesManagement() {
         </div>
       </div>
 
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        busy={bulkBusy}
+        onActivate={() => runBulkAction('activate')}
+        onDeactivate={() => runBulkAction('deactivate')}
+        onDelete={() => runBulkAction('delete')}
+        onClear={clear}
+        entityLabel="employee"
+        deleteConfirmMessage={`Deactivate ${selectedIds.size} employee(s)? This marks them inactive and stamps a leave date — it does not permanently delete their record.`}
+      />
+
       {/* Pagination Controls */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700">Show</span>
-            <select
+            <SearchableSelect
               value={pagination.limit}
               onChange={(e) => handleLimitChange(parseInt(e.target.value))}
               className="px-3 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -376,7 +464,7 @@ export default function EmployeesManagement() {
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
-            </select>
+            </SearchableSelect>
             <span className="text-sm text-gray-700">entries</span>
           </div>
           <div className="flex items-center gap-2">
@@ -445,6 +533,7 @@ export default function EmployeesManagement() {
                     <p><span className="font-medium">Username:</span> {selectedEmployee.username}</p>
                     <p><span className="font-medium">Role / Designation:</span> {selectedEmployee.roleName || 'Unassigned'}</p>
                     <p><span className="font-medium">Branch:</span> {selectedEmployee.branchName || 'N/A'}</p>
+                    <p><span className="font-medium">Region:</span> {selectedEmployee.regionName || 'N/A'}</p>
                     <p><span className="font-medium">Department:</span> {
                       selectedEmployee.department === 1 ? 'Sales' :
                       selectedEmployee.department === 2 ? 'Operations' : 'Admin'
@@ -482,6 +571,7 @@ export default function EmployeesManagement() {
                   <p className="mt-1">{selectedEmployee.remark}</p>
                 </div>
               )}
+              <EmployeeDocumentsPanel employeeId={selectedEmployee.id} />
             </div>
             <div className="mt-6 flex justify-end space-x-3">
               <button
@@ -507,6 +597,7 @@ export default function EmployeesManagement() {
           title="Add New Employee"
           roles={roles}
           branches={branches}
+          regions={regions}
           onSubmit={handleAddEmployee}
           onClose={() => setShowAddModal(false)}
         />
@@ -519,6 +610,7 @@ export default function EmployeesManagement() {
           initialData={selectedEmployee}
           roles={roles}
           branches={branches}
+          regions={regions}
           onSubmit={handleUpdateEmployee}
           onClose={() => { setShowEditModal(false); setSelectedEmployee(null); }}
         />
@@ -532,11 +624,12 @@ interface EmployeeFormModalProps {
   initialData?: EmployeeRow | null;
   roles: RoleOption[];
   branches: BranchOption[];
+  regions: RegionOption[];
   onSubmit: (data: Partial<DmEmployeeAttributes>) => void;
   onClose: () => void;
 }
 
-function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onClose }: EmployeeFormModalProps) {
+function EmployeeFormModal({ title, initialData, roles, branches, regions, onSubmit, onClose }: EmployeeFormModalProps) {
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     email: initialData?.email || '',
@@ -562,15 +655,22 @@ function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onCl
     em_local_name: initialData?.em_local_name || '',
     em_local_number: initialData?.em_local_number || '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload: Partial<DmEmployeeAttributes> = {
-      ...formData,
-      dob: formData.dob ? new Date(formData.dob) : null,
-      doj: formData.doj ? new Date(formData.doj) : null,
-    };
-    onSubmit(payload);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const payload: Partial<DmEmployeeAttributes> = {
+        ...formData,
+        dob: formData.dob ? new Date(formData.dob) : null,
+        doj: formData.doj ? new Date(formData.doj) : null,
+      };
+      await onSubmit(payload);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const field = (label: string, key: keyof typeof formData, type = 'text', required = false) => (
@@ -613,7 +713,7 @@ function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onCl
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Department *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.department ?? 1}
                 onChange={(e) => setFormData(prev => ({ ...prev, department: parseInt(e.target.value) }))}
@@ -622,12 +722,12 @@ function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onCl
                 <option value={1}>Sales</option>
                 <option value={2}>Operations</option>
                 <option value={3}>Admin</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Role / Designation *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.role ?? ''}
                 onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value ? parseInt(e.target.value) : null }))}
@@ -637,27 +737,43 @@ function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onCl
                 {roles.map((role) => (
                   <option key={role.id} value={role.id}>{role.name}</option>
                 ))}
-              </select>
+              </SearchableSelect>
               <p className="mt-1 text-xs text-gray-500">Permissions and module access are applied automatically from this role.</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Branch</label>
-              <select
+              <label className="block text-sm font-medium text-gray-700">Branch *</label>
+              <SearchableSelect
+                required
                 value={formData.branch ?? ''}
                 onChange={(e) => setFormData(prev => ({ ...prev, branch: e.target.value ? parseInt(e.target.value) : null }))}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">No branch</option>
+                <option value="">Select a branch</option>
                 {branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>{branch.name}</option>
                 ))}
-              </select>
+              </SearchableSelect>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Region *</label>
+              <SearchableSelect
+                required
+                value={formData.region ?? ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, region: e.target.value ? parseInt(e.target.value) : null }))}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select a region</option>
+                {regions.map((region) => (
+                  <option key={region.id} value={region.id}>{region.name}</option>
+                ))}
+              </SearchableSelect>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Gender *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.gender}
                 onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
@@ -665,12 +781,12 @@ function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onCl
               >
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Status *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.status}
                 onChange={(e) => setFormData(prev => ({ ...prev, status: parseInt(e.target.value) }))}
@@ -678,12 +794,12 @@ function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onCl
               >
                 <option value={1}>Active</option>
                 <option value={0}>Inactive</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Work Mode *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.wfh}
                 onChange={(e) => setFormData(prev => ({ ...prev, wfh: parseInt(e.target.value) }))}
@@ -691,12 +807,12 @@ function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onCl
               >
                 <option value={0}>Office</option>
                 <option value={1}>Remote</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Employment Type</label>
-              <select
+              <SearchableSelect
                 value={formData.employment_type}
                 onChange={(e) => setFormData(prev => ({ ...prev, employment_type: e.target.value }))}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -705,7 +821,7 @@ function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onCl
                 <option value="Part-time">Part-time</option>
                 <option value="Contract">Contract</option>
                 <option value="Intern">Intern</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             <div className="md:col-span-2">
@@ -737,9 +853,10 @@ function EmployeeFormModal({ title, initialData, roles, branches, onSubmit, onCl
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {initialData ? 'Update Employee' : 'Add Employee'}
+              {isSubmitting ? 'Saving...' : initialData ? 'Update Employee' : 'Add Employee'}
             </button>
           </div>
         </form>

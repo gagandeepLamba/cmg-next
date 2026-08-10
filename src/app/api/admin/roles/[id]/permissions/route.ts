@@ -3,11 +3,14 @@ import { DmRole } from '@/models/DmRole';
 import { DmPermission } from '@/models/DmPermission';
 import { DmRolePermission } from '@/models/DmRolePermission';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireAuth(request, ['roles.manage', 'admin.access']);
+  if (isAuthError(auth)) return auth;
   try {
     const { id } = await params;
     const roleId = Number.parseInt(id, 10);
@@ -47,6 +50,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireAuth(request, ['roles.manage', 'admin.access']);
+  if (isAuthError(auth)) return auth;
   try {
     const { id } = await params;
     const roleId = Number.parseInt(id, 10);

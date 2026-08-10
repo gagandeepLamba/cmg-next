@@ -20,23 +20,23 @@ export interface DmcMeetingSchedulesAttributes {
 export interface DmcMeetingSchedulesCreationAttributes extends Optional<DmcMeetingSchedulesAttributes, 'id' | 'location' | 'agenda' | 'status' | 'priority' | 'notes' | 'completed_at' | 'created_at' | 'updated_at'> {}
 
 export class DmcMeetingSchedules extends Model<DmcMeetingSchedulesAttributes, DmcMeetingSchedulesCreationAttributes> implements DmcMeetingSchedulesAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public user_id!: number;
-  public meeting_date!: Date;
-  public meeting_type!: string;
-  public location?: string;
-  public agenda?: string;
-  public status!: string;
-  public priority!: string;
-  public notes?: string;
-  public completed_at?: Date;
-  public created_at!: Date;
-  public updated_at!: Date;
+  declare id: number;
+  declare lead_id: number;
+  declare user_id: number;
+  declare meeting_date: Date;
+  declare meeting_type: string;
+  declare location?: string;
+  declare agenda?: string;
+  declare status: string;
+  declare priority: string;
+  declare notes?: string;
+  declare completed_at?: Date;
+  declare created_at: Date;
+  declare updated_at: Date;
 
   // Associations
-  public dmcForumLead?: any;
-  public dmEmployee?: any;
+  declare dmcForumLead?: any;
+  declare dmEmployee?: any;
 
   public static associate(models: any) {
     DmcMeetingSchedules.belongsTo(models.DmcForumLeads, {

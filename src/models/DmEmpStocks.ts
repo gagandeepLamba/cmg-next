@@ -22,22 +22,22 @@ interface DmEmpStocksAttributes {
 interface DmEmpStocksCreationAttributes extends Optional<DmEmpStocksAttributes, never> {}
 
 class DmEmpStocks extends Model<DmEmpStocksAttributes, DmEmpStocksCreationAttributes> implements DmEmpStocksAttributes {
-  public id!: number;
-  public branch!: number;
-  public msisdn!: string;
-  public type!: number;
-  public model!: string;
-  public model_number!: string;
-  public serial_number!: string;
-  public description!: string;
-  public charger!: number;
-  public battery!: number;
-  public mouse!: number;
-  public keyboard!: number;
-  public created!: Date;
-  public status!: number;
-  public created_by!: number;
-  public dop!: Date;
+  declare id: number;
+  declare branch: number;
+  declare msisdn: string;
+  declare type: number;
+  declare model: string;
+  declare model_number: string;
+  declare serial_number: string;
+  declare description: string;
+  declare charger: number;
+  declare battery: number;
+  declare mouse: number;
+  declare keyboard: number;
+  declare created: Date;
+  declare status: number;
+  declare created_by: number;
+  declare dop: Date;
 
   public static associate(models: any) {
   }

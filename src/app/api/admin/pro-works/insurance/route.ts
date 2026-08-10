@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PROService } from '@/services/pro-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const categories = ['Health', 'Vehicle', 'Office', 'Workmen Compensation', 'Other'] as const;
 const statuses = ['Active', 'Expiring', 'Expired', 'Cancelled'] as const;
@@ -35,6 +36,8 @@ const isStatus = (value: unknown): value is InsuranceStatus => (
 );
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.view', 'hr.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const records = await PROService.listInsuranceRecords({
@@ -50,6 +53,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.create']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
 
@@ -86,6 +91,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const insuranceId = readString(body, 'insurance_id');

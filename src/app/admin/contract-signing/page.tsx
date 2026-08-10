@@ -1,7 +1,7 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -241,15 +241,15 @@ export default function ContractSigningPage() {
   }
 
   const handleSendReminder = (contract: ContractSigning) => {
-    alert(`Sending reminder for contract: ${contract.contractNumber}`)
+    window.toast.info(`Sending reminder for contract: ${contract.contractNumber}`)
   }
 
   const handleDownload = (contract: ContractSigning) => {
-    alert(`Downloading contract: ${contract.contractNumber}`)
+    window.toast.info(`Downloading contract: ${contract.contractNumber}`)
   }
 
   const handlePrint = (contract: ContractSigning) => {
-    alert(`Printing contract: ${contract.contractNumber}`)
+    window.toast.info(`Printing contract: ${contract.contractNumber}`)
   }
 
   const formatCurrency = (amount: number, currency: string) => {
@@ -272,17 +272,17 @@ export default function ContractSigningPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   if (viewMode === 'details' && selectedContract) {
     return (
-      <MainLayout>
+      <>
         <div className="space-y-6">
           {/* Details Header */}
           <div className="flex justify-between items-center">
@@ -516,12 +516,12 @@ export default function ContractSigningPage() {
             </div>
           </div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -556,7 +556,7 @@ export default function ContractSigningPage() {
                 />
               </div>
 
-              <select
+              <SearchableSelect
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -568,9 +568,9 @@ export default function ContractSigningPage() {
                 <option value="signed">Signed</option>
                 <option value="expired">Expired</option>
                 <option value="cancelled">Cancelled</option>
-              </select>
+              </SearchableSelect>
 
-              <select
+              <SearchableSelect
                 value={methodFilter}
                 onChange={(e) => setMethodFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -580,7 +580,7 @@ export default function ContractSigningPage() {
                 <option value="digital">Digital Certificate</option>
                 <option value="wet_ink">Wet Ink</option>
                 <option value="hybrid">Hybrid</option>
-              </select>
+              </SearchableSelect>
 
               <Button variant="outline">
                 <Filter className="h-4 w-4 mr-2" />
@@ -685,7 +685,7 @@ export default function ContractSigningPage() {
           </Card>
         )}
       </div>
-    </MainLayout>
+    </>
   )
 }
 

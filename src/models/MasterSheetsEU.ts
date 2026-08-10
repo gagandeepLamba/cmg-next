@@ -10,10 +10,10 @@ interface MasterSheetsEUAttributes {
 interface MasterSheetsEUCreationAttributes extends Optional<MasterSheetsEUAttributes, 'userid' | 'file' | 'date'> {}
 
 class MasterSheetsEU extends Model<MasterSheetsEUAttributes, MasterSheetsEUCreationAttributes> implements MasterSheetsEUAttributes {
-  public id!: number;
-  public userid!: number | null;
-  public file!: string | null;
-  public date!: string | null;
+  declare id: number;
+  declare userid: number | null;
+  declare file: string | null;
+  declare date: string | null;
 
   public static associate(models: any) {
   }

@@ -13,13 +13,13 @@ interface DmJsOpsPrescreeningAttributes {
 interface DmJsOpsPrescreeningCreationAttributes extends Optional<DmJsOpsPrescreeningAttributes, never> {}
 
 class DmJsOpsPrescreening extends Model<DmJsOpsPrescreeningAttributes, DmJsOpsPrescreeningCreationAttributes> implements DmJsOpsPrescreeningAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public prescreening_date!: Date;
-  public prescreening_status!: string;
-  public interview_mode!: string;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare lead_id: number;
+  declare prescreening_date: Date;
+  declare prescreening_status: string;
+  declare interview_mode: string;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

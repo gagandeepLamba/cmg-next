@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { HRService } from '@/services/hr-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const letterTypes = ['relieving', 'experience'] as const;
 type LetterType = typeof letterTypes[number];
@@ -13,6 +14,8 @@ const isLetterType = (value: unknown): value is LetterType => (
 );
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const [templates, letters] = await Promise.all([
@@ -31,6 +34,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.create', 'hr.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const employeeId = readString(body, 'employee_id');
@@ -62,5 +67,22 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to generate HR letter';
     console.error('Failed to generate HR letter:', error);
     return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.delete']);
+  if (isAuthError(auth)) return auth;
+  try {
+    const { searchParams } = new URL(request.url);
+    const letterId = searchParams.get('letter_id');
+    if (!letterId) {
+      return NextResponse.json({ error: 'letter_id is required' }, { status: 400 });
+    }
+    await HRService.deleteEmployeeLetter(letterId);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete HR letter:', error);
+    return NextResponse.json({ error: 'Failed to delete HR letter' }, { status: 500 });
   }
 }

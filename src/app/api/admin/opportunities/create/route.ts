@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DmcForumLeads } from '@/models';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['leads.view', 'leads.update']);
+    if (isAuthError(auth)) return auth;
+
     const body = await request.json();
     const { leadId, ...data } = body;
 
@@ -44,7 +48,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['leads.view', 'leads.update']);
+  if (isAuthError(auth)) return auth;
+
   return NextResponse.json(
     { message: 'Method not allowed' },
     { status: 405 }

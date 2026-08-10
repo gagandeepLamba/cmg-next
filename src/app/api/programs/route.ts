@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DmProgramType } from '@/models/DmProgramType';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = requireAuth(request);
+    if (isAuthError(auth)) return auth;
+
     const programs = await DmProgramType.findAll({
       where: {
         status: 1

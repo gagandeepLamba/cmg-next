@@ -22,22 +22,22 @@ interface LpLeadsAttributes {
 interface LpLeadsCreationAttributes extends Optional<LpLeadsAttributes, never> {}
 
 class LpLeads extends Model<LpLeadsAttributes, LpLeadsCreationAttributes> implements LpLeadsAttributes {
-  public id!: number;
-  public name!: string;
-  public phone!: string;
-  public email!: string;
-  public location!: string;
-  public program!: string;
-  public lp!: string;
-  public ip_address!: string;
-  public status!: number;
-  public created!: Date;
-  public emp_id!: number;
-  public lead_id!: number;
-  public lead_remark!: string;
-  public branch!: number;
-  public education!: string;
-  public age!: string;
+  declare id: number;
+  declare name: string;
+  declare phone: string;
+  declare email: string;
+  declare location: string;
+  declare program: string;
+  declare lp: string;
+  declare ip_address: string;
+  declare status: number;
+  declare created: Date;
+  declare emp_id: number;
+  declare lead_id: number;
+  declare lead_remark: string;
+  declare branch: number;
+  declare education: string;
+  declare age: string;
 
   public static associate(models: any) {
   }

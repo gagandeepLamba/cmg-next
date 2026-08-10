@@ -10,10 +10,10 @@ interface DmGaryContractAttributes {
 interface DmGaryContractCreationAttributes extends Optional<DmGaryContractAttributes, 'leadid'> {}
 
 class DmGaryContract extends Model<DmGaryContractAttributes, DmGaryContractCreationAttributes> implements DmGaryContractAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public contract!: string;
-  public contract_signed!: string;
+  declare id: number;
+  declare leadid: number | null;
+  declare contract: string;
+  declare contract_signed: string;
 
   public static associate(models: any) {
   }

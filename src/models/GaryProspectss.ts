@@ -14,14 +14,14 @@ interface GaryProspectssAttributes {
 interface GaryProspectssCreationAttributes extends Optional<GaryProspectssAttributes, 'ag_no' | 'date' | 'old_new' | 'noc' | 'counselorid' | 'terence'> {}
 
 class GaryProspectss extends Model<GaryProspectssAttributes, GaryProspectssCreationAttributes> implements GaryProspectssAttributes {
-  public id!: number;
-  public ag_no!: number | null;
-  public date!: string | null;
-  public old_new!: string | null;
-  public noc!: string | null;
-  public counselorid!: number | null;
-  public terence!: number | null;
-  public date_edit!: string;
+  declare id: number;
+  declare ag_no: number | null;
+  declare date: string | null;
+  declare old_new: string | null;
+  declare noc: string | null;
+  declare counselorid: number | null;
+  declare terence: number | null;
+  declare date_edit: string;
 
   public static associate(models: any) {
   }

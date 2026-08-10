@@ -29,28 +29,28 @@ interface DmcOpportunityQuotationsAttributes {
 interface DmcOpportunityQuotationsCreationAttributes extends Optional<DmcOpportunityQuotationsAttributes, 'id' | 'sentDate' | 'acceptedDate' | 'rejectedDate' | 'rejectedReason'> {}
 
 class DmcOpportunityQuotations extends Model<DmcOpportunityQuotationsAttributes, DmcOpportunityQuotationsCreationAttributes> implements DmcOpportunityQuotationsAttributes {
-  public id!: number;
-  public opportunityId!: number;
-  public quotationNumber!: string;
-  public version!: number;
-  public validUntil!: Date;
-  public status!: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
-  public subtotal!: number;
-  public discount!: number;
-  public discountType!: 'percentage' | 'fixed';
-  public tax!: number;
-  public taxRate!: number;
-  public total!: number;
-  public currency!: string;
-  public terms!: string;
-  public notes!: string;
-  public sentDate!: Date | null;
-  public acceptedDate!: Date | null;
-  public rejectedDate!: Date | null;
-  public rejectedReason!: string | null;
-  public createdBy!: number;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare opportunityId: number;
+  declare quotationNumber: string;
+  declare version: number;
+  declare validUntil: Date;
+  declare status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+  declare subtotal: number;
+  declare discount: number;
+  declare discountType: 'percentage' | 'fixed';
+  declare tax: number;
+  declare taxRate: number;
+  declare total: number;
+  declare currency: string;
+  declare terms: string;
+  declare notes: string;
+  declare sentDate: Date | null;
+  declare acceptedDate: Date | null;
+  declare rejectedDate: Date | null;
+  declare rejectedReason: string | null;
+  declare createdBy: number;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmcOpportunityQuotations.belongsTo(models.DmcOpportunities, { foreignKey: 'opportunityId', targetKey: 'id', as: 'dmcOpportunity' });

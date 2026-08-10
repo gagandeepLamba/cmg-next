@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DmcForumLeads } from '@/models';
@@ -122,7 +123,7 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
       onOpportunityCreated(newOpportunity.id);
     } catch (error) {
       console.error('Error creating opportunity:', error);
-      alert('Failed to create opportunity. Please try again.');
+      window.toast.error('Failed to create opportunity. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -167,7 +168,7 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Opportunity Type *</label>
-                  <select
+                  <SearchableSelect
                     value={opportunityData.opportunityType}
                     onChange={(e) => handleInputChange('opportunityType', e.target.value)}
                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -176,14 +177,14 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
                     <option value="existing_business">Existing Business</option>
                     <option value="referral">Referral</option>
                     <option value="partner">Partner</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Source</label>
-                  <select
+                  <SearchableSelect
                     value={opportunityData.source}
                     onChange={(e) => handleInputChange('source', e.target.value)}
                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -195,12 +196,12 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
                     <option value="phone">Phone</option>
                     <option value="event">Event</option>
                     <option value="other">Other</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Priority *</label>
-                  <select
+                  <SearchableSelect
                     value={opportunityData.priority}
                     onChange={(e) => handleInputChange('priority', e.target.value)}
                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -209,7 +210,7 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
                     <option value="critical">Critical</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
 
@@ -259,7 +260,7 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Sales Stage *</label>
-                  <select
+                  <SearchableSelect
                     value={opportunityData.stage}
                     onChange={(e) => handleInputChange('stage', e.target.value)}
                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -272,7 +273,7 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
                     <option value="negotiation">Negotiation</option>
                     <option value="closed_won">Closed Won</option>
                     <option value="closed_lost">Closed Lost</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div>
@@ -316,7 +317,7 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
 
               <div className="mt-4">
                 <label className="block text-sm font-medium mb-2">Assigned To *</label>
-                <select
+                <SearchableSelect
                   value={opportunityData.assignedTo}
                   onChange={(e) => handleInputChange('assignedTo', parseInt(e.target.value))}
                   className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -325,7 +326,7 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
                   <option value="1">John Smith</option>
                   <option value="3">Mike Johnson</option>
                   <option value="4">Sarah Wilson</option>
-                </select>
+                </SearchableSelect>
               </div>
             </div>
           </motion.div>
@@ -361,7 +362,7 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Next Action</label>
-                  <select
+                  <SearchableSelect
                     value={opportunityData.nextAction}
                     onChange={(e) => handleInputChange('nextAction', e.target.value)}
                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -373,7 +374,7 @@ export default function LeadOpportunityWizard({ leadId, onOpportunityCreated }: 
                     <option value="proposal">Send Proposal</option>
                     <option value="follow_up">Follow Up</option>
                     <option value="close">Close Deal</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
 

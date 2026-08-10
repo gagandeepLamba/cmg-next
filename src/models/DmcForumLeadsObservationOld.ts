@@ -10,10 +10,10 @@ interface DmcForumLeadsObservationOldAttributes {
 interface DmcForumLeadsObservationOldCreationAttributes extends Optional<DmcForumLeadsObservationOldAttributes, never> {}
 
 class DmcForumLeadsObservationOld extends Model<DmcForumLeadsObservationOldAttributes, DmcForumLeadsObservationOldCreationAttributes> implements DmcForumLeadsObservationOldAttributes {
-  public id!: number;
-  public agreeNo!: string;
-  public obs_sheet!: string;
-  public agreement_sheet!: string;
+  declare id: number;
+  declare agreeNo: string;
+  declare obs_sheet: string;
+  declare agreement_sheet: string;
 
   public static associate(models: any) {
   }

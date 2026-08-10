@@ -1,9 +1,11 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
 import { DollarSign, TrendingUp, Calendar, Building } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
@@ -24,6 +26,7 @@ interface BranchRetention {
 }
 
 export default function ApprovedRetainedAmountReport() {
+  const { currencyCode } = useAuth();
   const [monthlyData, setMonthlyData] = useState<RetentionData[]>([]);
   const [branchData, setBranchData] = useState<BranchRetention[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,7 +141,7 @@ export default function ApprovedRetainedAmountReport() {
             <div>
               <p className="text-sm text-gray-600">Total Approved</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${(totalApproved / 1000000).toFixed(2)}M
+                {currencyCode} {(totalApproved / 1000000).toFixed(2)}M
               </p>
             </div>
           </div>
@@ -150,7 +153,7 @@ export default function ApprovedRetainedAmountReport() {
             <div>
               <p className="text-sm text-gray-600">Total Retained</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${(totalRetained / 1000000).toFixed(2)}M
+                {currencyCode} {(totalRetained / 1000000).toFixed(2)}M
               </p>
             </div>
           </div>
@@ -162,7 +165,7 @@ export default function ApprovedRetainedAmountReport() {
             <div>
               <p className="text-sm text-gray-600">Pending</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${(totalPending / 1000000).toFixed(2)}M
+                {currencyCode} {(totalPending / 1000000).toFixed(2)}M
               </p>
             </div>
           </div>
@@ -185,7 +188,7 @@ export default function ApprovedRetainedAmountReport() {
       <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Report Period</h3>
-          <select
+          <SearchableSelect
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -193,7 +196,7 @@ export default function ApprovedRetainedAmountReport() {
             <option value="3months">Last 3 Months</option>
             <option value="6months">Last 6 Months</option>
             <option value="1year">Last Year</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
@@ -241,10 +244,10 @@ export default function ApprovedRetainedAmountReport() {
               {branchData.map((branch, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{branch.branch}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${(branch.totalApproved / 1000).toFixed(0)}K</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${(branch.totalRetained / 1000).toFixed(0)}K</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{currencyCode} {(branch.totalApproved / 1000).toFixed(0)}K</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{currencyCode} {(branch.totalRetained / 1000).toFixed(0)}K</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{branch.retentionRate}%</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${branch.averageAmount.toLocaleString()}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{currencyCode} {branch.averageAmount.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

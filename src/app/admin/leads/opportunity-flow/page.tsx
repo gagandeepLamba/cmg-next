@@ -7,6 +7,8 @@ import OpportunityFlowWizard from '../opportunity-flow-wizard';
 function OpportunityFlowContent() {
   const searchParams = useSearchParams();
   const leadId = searchParams.get('leadId');
+  const opportunityId = searchParams.get('opportunityId');
+  const initialStage = searchParams.get('stage') || undefined;
 
   if (!leadId) {
     return (
@@ -25,7 +27,13 @@ function OpportunityFlowContent() {
     );
   }
 
-  return <OpportunityFlowWizard leadId={parseInt(leadId)} />;
+  return (
+    <OpportunityFlowWizard
+      leadId={parseInt(leadId)}
+      initialStage={initialStage}
+      initialOpportunityId={opportunityId ? Number(opportunityId) : undefined}
+    />
+  );
 }
 
 export default function OpportunityFlowPage() {

@@ -13,14 +13,17 @@
     "db:seed:roles": "node scripts/seed-roles-permissions.js",
     "db:seed:sources": "node scripts/seed-sources.js",
     "db:seed:fees": "node scripts/seed-fees.js",
+    "db:seed:employees": "node scripts/seed-employees.js",
+    "db:seed:countries": "node scripts/seed-countries.js",
     "db:seed:program-types": "node scripts/seed-program-types.js",
-    "db:seed:employees": "node scripts/seed-employees.js"
+    "db:seed:program-validity": "node scripts/seed-program-validity.js"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
     "@prisma/client": "6.19.2",
     "@radix-ui/react-select": "^2.2.6",
     "@tanstack/react-query": "^5.101.0",
+    "@vercel/blob": "^2.5.0",
     "bcryptjs": "^3.0.3",
     "chart.js": "^4.5.1",
     "dotenv": "^17.2.3",
@@ -34,16 +37,19 @@
     "next": "^16.1.6",
     "next-auth": "^4.24.13",
     "node-cron": "^4.2.1",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.17.2",
     "pg-hstore": "^2.3.4",
     "react": "19.2.3",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "19.2.3",
+    "react-dropzone": "^20.0.0",
     "recharts": "^3.7.0",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.3",
     "tailwind-merge": "^3.4.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

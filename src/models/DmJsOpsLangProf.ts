@@ -21,21 +21,21 @@ interface DmJsOpsLangProfAttributes {
 interface DmJsOpsLangProfCreationAttributes extends Optional<DmJsOpsLangProfAttributes, 'tab' | 'langTest' | 'spLangTest' | 'testStatus' | 'expiryDate' | 'testDate' | 'testScore' | 'rating' | 'reading' | 'writing' | 'listening' | 'speaking' | 'meetingreq'> {}
 
 class DmJsOpsLangProf extends Model<DmJsOpsLangProfAttributes, DmJsOpsLangProfCreationAttributes> implements DmJsOpsLangProfAttributes {
-  public id!: number;
-  public leadId!: number;
-  public tab!: number | null;
-  public langTest!: string | null;
-  public spLangTest!: string | null;
-  public testStatus!: string | null;
-  public expiryDate!: string | null;
-  public testDate!: string | null;
-  public testScore!: string | null;
-  public rating!: string | null;
-  public reading!: string | null;
-  public writing!: string | null;
-  public listening!: string | null;
-  public speaking!: string | null;
-  public meetingreq!: string | null;
+  declare id: number;
+  declare leadId: number;
+  declare tab: number | null;
+  declare langTest: string | null;
+  declare spLangTest: string | null;
+  declare testStatus: string | null;
+  declare expiryDate: string | null;
+  declare testDate: string | null;
+  declare testScore: string | null;
+  declare rating: string | null;
+  declare reading: string | null;
+  declare writing: string | null;
+  declare listening: string | null;
+  declare speaking: string | null;
+  declare meetingreq: string | null;
 
   public static associate(models: any) {
   }

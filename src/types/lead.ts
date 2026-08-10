@@ -6,6 +6,7 @@ export interface Lead {
   email: string;
   phone: string;
   mobile: string;
+  whatsapp_number?: string | null;
   nationality: string;
   address: string;
   dob: string;
@@ -41,5 +42,14 @@ export interface Lead {
   agreementNumber?: string;
   dmEmployeeByASSIGNTo?: { id: number; name: string };
   dmEmployeeByCoUNSILOR?: { id: number; name: string };
-  dmBranch?: { id: number; name: string };
+  dmBranch?: {
+    id: number;
+    name: string;
+    nameAr?: string | null;
+    address?: string | null;
+    email?: string | null;
+    mobile?: string | null;
+    licenseNumber?: string | null;
+    vatGstPercent?: number | string | null;
+  };
 }

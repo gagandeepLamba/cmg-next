@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { models, sequelize } from '@/models';
 import { QueryTypes } from 'sequelize';
+import { verifyToken } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const toPlain = (row: any) => row?.get ? row.get({ plain: true }) : row;
 
@@ -35,6 +38,9 @@ function normalizeTemplate(row: any) {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireAuth(request);
+    if (isAuthError(auth)) return auth;
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'templates';
     const limit = Math.max(Number(searchParams.get('limit') || 10), 1);
@@ -117,6 +123,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['templates.manage']);
+    if (isAuthError(auth)) return auth;
+
     const body = await request.json();
     const action = body.action;
 
@@ -150,6 +159,70 @@ export async function POST(request: NextRequest) {
     );
   } catch (error: any) {
     console.error('Error in email templates API:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const auth = requireAuth(request, ['templates.manage']);
+    if (isAuthError(auth)) return auth;
+
+    const body = await request.json();
+    const id = Number(body.id);
+    if (!id) {
+      return NextResponse.json({ error: 'Template id is required' }, { status: 400 });
+    }
+    const data = body.data || {};
+    await sequelize.query(
+      `UPDATE dm_email_templates SET program = ?, template = ?, status = ? WHERE id = ?`,
+      {
+        replacements: [
+          data.name || data.subject || 'Email Template',
+          data.htmlContent || data.textContent || '',
+          data.status === 'inactive' ? 0 : 1,
+          id,
+        ],
+      }
+    );
+    const rows = await sequelize.query(`SELECT * FROM dm_email_templates WHERE id = ?`, {
+      replacements: [id],
+      type: QueryTypes.SELECT,
+    });
+    if (!rows[0]) {
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, template: normalizeTemplate(rows[0]) });
+  } catch (error: any) {
+    console.error('Error updating email template:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const token = request.cookies.get('auth-token')?.value
+      || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    if (!currentUser || !isCeo(currentUser)) {
+      return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = Number(searchParams.get('id'));
+    if (!id) {
+      return NextResponse.json({ error: 'Template id is required' }, { status: 400 });
+    }
+    await models.DmEmailTemplates.destroy({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Error deleting email template:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: error.message },
       { status: 500 }

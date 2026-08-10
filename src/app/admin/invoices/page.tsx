@@ -1,22 +1,28 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { Eye, Printer, Download } from 'lucide-react';
 import { DmB2bInvoicesAttributes } from '@/models';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 
 interface FilterOption {
   value: string;
   label: string;
 }
 
+type InvoiceRow = DmB2bInvoicesAttributes & { currencyCode?: string };
+
 export default function InvoicesManagement() {
-  const [invoices, setInvoices] = useState<DmB2bInvoicesAttributes[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [selectedInvoice, setSelectedInvoice] = useState<DmB2bInvoicesAttributes | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRow | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isAddingInvoice, setIsAddingInvoice] = useState(false);
   const [purposeOptions, setPurposeOptions] = useState<FilterOption[]>([]);
   const [newInvoice, setNewInvoice] = useState({
     region: 1,
@@ -44,7 +50,7 @@ export default function InvoicesManagement() {
 
   const toNumber = (value: unknown) => Number(value || 0);
 
-  const normalizeInvoice = (invoice: DmB2bInvoicesAttributes): DmB2bInvoicesAttributes => ({
+  const normalizeInvoice = (invoice: InvoiceRow): InvoiceRow => ({
     ...invoice,
     receipt: invoice.receipt || '',
     company: invoice.company || '',
@@ -56,6 +62,7 @@ export default function InvoicesManagement() {
     payBalance: toNumber(invoice.payBalance),
     discount: toNumber(invoice.discount),
     created: invoice.created ? new Date(invoice.created) : new Date(),
+    currencyCode: invoice.currencyCode || 'AED',
   });
 
   const fetchInvoices = async () => {
@@ -103,13 +110,30 @@ export default function InvoicesManagement() {
     return matchesSearch && matchesRegion && matchesStatus;
   });
 
+  const { sorted: sortedInvoices, sortKey: invoiceSortKey, sortDirection: invoiceSortDirection, toggleSort: toggleInvoiceSort } = useSortableData(
+    filteredInvoices,
+    {
+      receipt: (invoice) => invoice.receipt,
+      company: (invoice) => invoice.company,
+      purpose: (invoice) => getPurposeLabel(invoice.purpose),
+      amount: (invoice) => invoice.amount,
+      taxAmount: (invoice) => invoice.taxAmt,
+      totalAmount: (invoice) => invoice.totPayAmt,
+      balance: (invoice) => invoice.payBalance,
+      paymentMode: (invoice) => invoice.payment_mode,
+      status: (invoice) => invoice.status,
+    },
+  );
+
   const handleViewInvoice = (invoice: DmB2bInvoicesAttributes) => {
     setSelectedInvoice(invoice);
     setShowModal(true);
   };
 
   const handleAddInvoice = async () => {
-    if (newInvoice.receipt && newInvoice.company) {
+    if (!newInvoice.receipt || !newInvoice.company || isAddingInvoice) return;
+    setIsAddingInvoice(true);
+    try {
       const res = await fetch('/api/admin/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,7 +141,7 @@ export default function InvoicesManagement() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.message || 'Failed to create invoice');
+        window.toast.error(err.error || err.message || 'Failed to create invoice');
         return;
       }
       await fetchInvoices();
@@ -140,6 +164,8 @@ export default function InvoicesManagement() {
         created_by: 1,
       });
       setShowAddModal(false);
+    } finally {
+      setIsAddingInvoice(false);
     }
   };
 
@@ -162,6 +188,68 @@ export default function InvoicesManagement() {
       default:
         return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  // Opens a formatted, standalone copy of the invoice in a new tab and
+  // auto-triggers the browser's print dialog, from which "Save as PDF" is a
+  // built-in destination — same open/review/download pattern already used
+  // for receipts and B2B invoices on the Invoices & Payments page.
+  const openInvoiceDocument = (invoice: InvoiceRow, autoPrint: boolean) => {
+    const w = window.open('', '_blank');
+    if (!w) {
+      window.toast.error('Please allow pop-ups to open the invoice.');
+      return;
+    }
+    const cur = invoice.currencyCode || 'AED';
+    const fmt = (n?: number | null) => `${cur} ${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    w.document.write(`
+      <html><head><title>Invoice ${invoice.receipt}</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+        .header { text-align: center; border-bottom: 3px solid #1e40af; padding-bottom: 20px; margin-bottom: 20px; }
+        .header h1 { color: #1e40af; margin: 0; font-size: 24px; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .col { flex: 1; }
+        .label { font-weight: bold; color: #555; font-size: 12px; text-transform: uppercase; }
+        .value { font-size: 14px; margin-top: 4px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; }
+        th { background: #1e40af; color: white; }
+        .total-row td { background: #f0f4ff; font-weight: bold; }
+        .footer { margin-top: 40px; font-size: 12px; color: #888; text-align: center; border-top: 1px solid #ddd; padding-top: 10px; }
+        @media print { body { padding: 20px; } }
+      </style></head><body>
+      <div class="header"><h1>INVOICE</h1></div>
+      <div class="row">
+        <div class="col">
+          <div class="label">Billed To</div>
+          <div class="value">${invoice.company || 'N/A'}</div>
+        </div>
+        <div class="col" style="text-align:right">
+          <div class="label">Invoice Details</div>
+          <div class="value"><strong>Receipt #:</strong> ${invoice.receipt}</div>
+          <div class="value"><strong>Date:</strong> ${invoice.created ? new Date(invoice.created).toLocaleDateString() : 'N/A'}</div>
+          <div class="value"><strong>Purpose:</strong> ${getPurposeLabel(invoice.purpose)}</div>
+        </div>
+      </div>
+      <table>
+        <tr><th>Description</th><th style="text-align:right">Amount</th></tr>
+        <tr><td>Amount</td><td style="text-align:right">${fmt(invoice.amount)}</td></tr>
+        ${invoice.discount ? `<tr><td>Discount</td><td style="text-align:right; color:red">- ${fmt(invoice.discount)}</td></tr>` : ''}
+        <tr><td>Tax (${invoice.vat || 0}%)</td><td style="text-align:right">${fmt(invoice.taxAmt)}</td></tr>
+        <tr class="total-row"><td>Total Amount</td><td style="text-align:right">${fmt(invoice.totPayAmt)}</td></tr>
+        <tr><td>Balance Due</td><td style="text-align:right">${fmt(invoice.payBalance)}</td></tr>
+      </table>
+      <div class="row">
+        <div class="col"><div class="label">Payment Mode</div><div class="value">${invoice.payment_mode || 'N/A'}</div></div>
+        <div class="col"><div class="label">Status</div><div class="value">${getStatusText(invoice.status)}</div></div>
+      </div>
+      ${invoice.narration ? `<div style="margin-top:16px"><div class="label">Narration</div><div class="value">${invoice.narration}</div></div>` : ''}
+      <div class="footer"><p>This is a computer-generated invoice.</p></div>
+      ${autoPrint ? '<script>window.onload=()=>window.print();</script>' : ''}
+      </body></html>
+    `);
+    w.document.close();
   };
 
   if (loading) {
@@ -200,19 +288,19 @@ export default function InvoicesManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select value={regionFilter} onChange={e => setRegionFilter(e.target.value)}
+          <SearchableSelect value={regionFilter} onChange={e => setRegionFilter(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All Regions</option>
             <option value="1">UAE</option>
             <option value="2">Canada</option>
             <option value="3">Australia</option>
-          </select>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          </SearchableSelect>
+          <SearchableSelect value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All Status</option>
             <option value="1">Paid</option>
             <option value="0">Pending</option>
-          </select>
+          </SearchableSelect>
           <input
             type="date"
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -221,45 +309,27 @@ export default function InvoicesManagement() {
       </div>
 
       {/* Invoices Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Receipt
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Company
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Purpose
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tax Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Balance
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Payment Mode
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <SortableTh label="Receipt" sortKey="receipt" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
+                <SortableTh label="Company" sortKey="company" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
+                <SortableTh label="Purpose" sortKey="purpose" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
+                <SortableTh label="Amount" sortKey="amount" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
+                <SortableTh label="Tax Amount" sortKey="taxAmount" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
+                <SortableTh label="Total Amount" sortKey="totalAmount" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
+                <SortableTh label="Balance" sortKey="balance" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
+                <SortableTh label="Payment Mode" sortKey="paymentMode" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredInvoices.map((invoice) => (
+              {sortedInvoices.map((invoice) => (
                 <tr key={invoice.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
@@ -274,22 +344,22 @@ export default function InvoicesManagement() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      ${invoice.amount?.toLocaleString() || '0'}
+                      {invoice.currencyCode || 'AED'} {invoice.amount?.toLocaleString() || '0'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      ${invoice.taxAmt?.toLocaleString() || '0'}
+                      {invoice.currencyCode || 'AED'} {invoice.taxAmt?.toLocaleString() || '0'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      ${invoice.totPayAmt?.toLocaleString() || '0'}
+                      {invoice.currencyCode || 'AED'} {invoice.totPayAmt?.toLocaleString() || '0'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      ${invoice.payBalance?.toLocaleString() || '0'}
+                      {invoice.currencyCode || 'AED'} {invoice.payBalance?.toLocaleString() || '0'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -303,18 +373,32 @@ export default function InvoicesManagement() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleViewInvoice(invoice)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                    >
-                      View
-                    </button>
-                    <button className="text-indigo-600 hover:text-indigo-900 mr-3">
-                      Edit
-                    </button>
-                    <button className="text-red-600 hover:text-red-900">
-                      Delete
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleViewInvoice(invoice)}
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                        title="View details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => openInvoiceDocument(invoice, false)}
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded"
+                        title="Open invoice"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => openInvoiceDocument(invoice, true)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded"
+                        title="Download invoice (Print > Save as PDF)"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      <button className="text-red-600 hover:text-red-900 text-sm ml-1">
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -354,12 +438,12 @@ export default function InvoicesManagement() {
                 <div>
                   <h4 className="font-semibold text-gray-700">Financial Information</h4>
                   <div className="mt-2 space-y-2">
-                    <p><span className="font-medium">Amount:</span> ${selectedInvoice.amount?.toLocaleString()}</p>
+                    <p><span className="font-medium">Amount:</span> {selectedInvoice.currencyCode || 'AED'} {selectedInvoice.amount?.toLocaleString()}</p>
                     <p><span className="font-medium">VAT (%):</span> {selectedInvoice.vat}%</p>
-                    <p><span className="font-medium">Tax Amount:</span> ${selectedInvoice.taxAmt?.toLocaleString()}</p>
-                    <p><span className="font-medium">Total Amount:</span> ${selectedInvoice.totPayAmt?.toLocaleString()}</p>
-                    <p><span className="font-medium">Discount:</span> ${selectedInvoice.discount?.toLocaleString()}</p>
-                    <p><span className="font-medium">Balance:</span> ${selectedInvoice.payBalance?.toLocaleString()}</p>
+                    <p><span className="font-medium">Tax Amount:</span> {selectedInvoice.currencyCode || 'AED'} {selectedInvoice.taxAmt?.toLocaleString()}</p>
+                    <p><span className="font-medium">Total Amount:</span> {selectedInvoice.currencyCode || 'AED'} {selectedInvoice.totPayAmt?.toLocaleString()}</p>
+                    <p><span className="font-medium">Discount:</span> {selectedInvoice.currencyCode || 'AED'} {selectedInvoice.discount?.toLocaleString()}</p>
+                    <p><span className="font-medium">Balance:</span> {selectedInvoice.currencyCode || 'AED'} {selectedInvoice.payBalance?.toLocaleString()}</p>
                     <p><span className="font-medium">Payment Mode:</span> {selectedInvoice.payment_mode}</p>
                     <p><span className="font-medium">Status:</span> {getStatusText(selectedInvoice.status)}</p>
                   </div>
@@ -386,8 +470,17 @@ export default function InvoicesManagement() {
               >
                 Close
               </button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                Edit Invoice
+              <button
+                onClick={() => openInvoiceDocument(selectedInvoice, false)}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+              >
+                <Printer className="w-4 h-4" /> Open
+              </button>
+              <button
+                onClick={() => openInvoiceDocument(selectedInvoice, true)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" /> Download
               </button>
             </div>
           </div>
@@ -467,7 +560,7 @@ export default function InvoicesManagement() {
                   <label htmlFor="paymentMode" className="block text-sm font-medium text-gray-700">
                     Payment Mode
                   </label>
-                  <select
+                  <SearchableSelect
                     id="paymentMode"
                     value={newInvoice.payment_mode}
                     onChange={(e) => setNewInvoice({ ...newInvoice, payment_mode: e.target.value })}
@@ -478,13 +571,13 @@ export default function InvoicesManagement() {
                     <option value="Credit Card">Credit Card</option>
                     <option value="Cash">Cash</option>
                     <option value="Cheque">Cheque</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label htmlFor="region" className="block text-sm font-medium text-gray-700">
                     Region
                   </label>
-                  <select
+                  <SearchableSelect
                     id="region"
                     value={newInvoice.region}
                     onChange={(e) => setNewInvoice({ ...newInvoice, region: parseInt(e.target.value) })}
@@ -493,7 +586,7 @@ export default function InvoicesManagement() {
                     <option value={1}>UAE</option>
                     <option value={2}>Canada</option>
                     <option value={3}>Australia</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
               <div className="mt-4">
@@ -537,11 +630,12 @@ export default function InvoicesManagement() {
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleAddInvoice}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                disabled={isAddingInvoice}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Invoice
+                {isAddingInvoice ? 'Creating...' : 'Create Invoice'}
               </button>
             </div>
           </div>

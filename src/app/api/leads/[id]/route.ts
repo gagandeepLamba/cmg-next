@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { isFoeOrBranchManagerOrCeo, isBranchManagerOrCeo, isCeo } from '@/lib/roleChecks';
+import { logLeadRemark } from '@/lib/leadRemarks';
+import { resolveLeadReferenceId } from '@/lib/leadReferenceResolver';
+import { resolveBranchReference } from '@/lib/branchResolver';
+import { DmcFollowUpReminders } from '@/models/DmcFollowUpReminders';
 
 let dbInitialized = false;
 
@@ -18,6 +24,7 @@ const editableFields = new Set([
   'email',
   'phone',
   'mobile',
+  'whatsapp_number',
   'nationality',
   'address',
   'dob',
@@ -40,14 +47,33 @@ const editableFields = new Set([
   'payBalance',
   'lead_remark',
   'lead_quality',
-  'area'
+  'area',
+  'opportunity_status',
+  'opportunity_stage',
+  'salutation',
+  'suffix',
+  'state',
+  'postal_code',
+  'age',
+  'utm_source',
+  'utm_medium',
+  'gclid',
+  're_enquiry',
+  're_enquiry_counter',
+  'call_attempt_1',
+  'call_back_attempts',
+  'call_attempts_deadline',
+  'watnot_bot',
+  'roundrobin',
+  'whatsapp',
+  'id_number'
 ]);
 
 const aliases: Record<string, string> = {
   firstName: 'fname',
   middleName: 'mname',
   lastName: 'lname',
-  whatsappNumber: 'mobile',
+  whatsappNumber: 'whatsapp_number',
   street: 'address',
   dateOfBirth: 'dob',
   genderIdentity: 'gender',
@@ -55,44 +81,147 @@ const aliases: Record<string, string> = {
   serviceInterest: 'service_interest',
   programCountry: 'country_interest',
   program: 'service_interest',
-  programType: 'service_interest',
   leadSource: 'market_source',
   leadOwner: 'assignTo',
+  branchId: 'branch',
   notes: 'lead_remark',
   leadQuality: 'lead_quality',
-  city: 'area'
+  city: 'area',
+  country: 'nationality',
+  prospectFollowUp: 'followup',
+  postalCode: 'postal_code',
+  utmSource: 'utm_source',
+  utmMedium: 'utm_medium',
+  gclId: 'gclid',
+  reEnquiry: 're_enquiry',
+  reEnquiryCounter: 're_enquiry_counter',
+  callAttempt1: 'call_attempt_1',
+  callBackAttempts: 'call_back_attempts',
+  callAttemptsDeadline: 'call_attempts_deadline',
+  watnotBot: 'watnot_bot',
+  passportNumber: 'id_number'
 };
+
+const nullableUpdateFields = new Set([
+  'dob',
+  'appointment',
+  'feeAgreeDate',
+  'dueDate',
+  'agreeDate',
+  'renDate',
+  'renExpiryDate',
+  'next_followup_date',
+  'conversion_date',
+  'payType',
+  'demdRemark',
+  'renew_type',
+  'opportunity_status',
+  'conversion_reason',
+  'lost_reason',
+  'competitor',
+  'budget_range',
+  'timeline',
+  'decision_maker',
+  'decision_maker_title',
+  'decision_maker_contact',
+  'opportunity_notes',
+  'tags',
+  'salutation',
+  'suffix',
+  'state',
+  'postal_code',
+  'age',
+  'utm_source',
+  'utm_medium',
+  'gclid',
+  'call_attempt_1',
+  'call_attempts_deadline',
+  'assignTo',
+]);
+
+const dateOnlyFields = new Set([
+  'dob',
+  'appointment',
+  'followup',
+  'feeAgreeDate',
+  'dueDate',
+  'agreeDate',
+  'renDate',
+  'renExpiryDate',
+  'next_followup_date',
+  'conversion_date',
+]);
+
+// These come from <input type="datetime-local"> and need the full
+// timestamp preserved (unlike dateOnlyFields above, which are backed by
+// DATE columns and intentionally truncated).
+const dateTimeFields = new Set([
+  'call_attempt_1',
+  'call_attempts_deadline',
+]);
+
+function normalizeLeadUpdateValue(key: string, value: unknown): unknown {
+  if (value === '') {
+    return nullableUpdateFields.has(key) ? null : '';
+  }
+
+  if (typeof value === 'string' && dateOnlyFields.has(key)) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return nullableUpdateFields.has(key) ? null : value;
+    }
+    return date.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === 'string' && dateTimeFields.has(key)) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return nullableUpdateFields.has(key) ? null : value;
+    }
+    return date.toISOString().slice(0, 19).replace('T', ' ');
+  }
+
+  return value;
+}
 
 function validateLeadUpdate(data: Record<string, unknown>): string[] {
   const errors: string[] = [];
 
   const hasIdentityFields = 'firstName' in data || 'fname' in data || 'lastName' in data || 'lname' in data ||
-    'email' in data || 'phone' in data || 'gender' in data || 'genderIdentity' in data;
+    'gender' in data || 'genderIdentity' in data;
 
   if (hasIdentityFields) {
     const namePattern = /^[\p{L}][\p{L}\s.'-]*$/u;
     const firstName = String(data.firstName ?? data.fname ?? '').trim();
     const lastName = String(data.lastName ?? data.lname ?? '').trim();
-    const email = String(data.email ?? '').trim();
-    const phone = String(data.phone ?? '').replace(/\D/g, '');
-    const gender = String(data.genderIdentity ?? data.gender ?? '').trim();
-    const country = String(data.programCountry ?? data.country_interest ?? '').trim();
-    const program = String(data.program ?? data.service_interest ?? '').trim();
-    const programType = String(data.programType ?? '').trim();
 
     if (!namePattern.test(firstName)) errors.push('Enter a valid first name.');
     if (!namePattern.test(lastName)) errors.push('Enter a valid last name.');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Enter a valid email address.');
-    if (phone.length < 7 || phone.length > 15) errors.push('Enter a valid phone number with 7 to 15 digits.');
-    if (!gender || gender === '--None--') errors.push('Select a gender identity.');
-    if (!country || country === '--None--') errors.push('Select a program country.');
-    if (!program) errors.push('Select a program.');
-    if (!programType) errors.push('Select a program type.');
+
+    // Gender identity is intentionally optional here, same as
+    // on creation (see migrations/20260709_nullable_interest_source_on_creation.sql) —
+    // requiring them on every edit (this identity-field bundle is sent on
+    // every save from the Edit Lead form) forced counselors to pick something
+    // just to get past validation, defeating the point of leaving them null
+    // until a real interest is known.
 
     if (data.dateOfBirth ?? data.dob) {
       const dob = new Date(String(data.dateOfBirth ?? data.dob));
       if (Number.isNaN(dob.getTime()) || dob > new Date()) errors.push('Date of birth must be a valid past date.');
     }
+  }
+
+  // Validated independently of the identity-field bundle above and only when
+  // actually present in the request — a counselor's edit omits email/phone
+  // entirely (contact info is Branch Manager/CEO only), and validating a
+  // field that was never sent would incorrectly fail against ''.
+  if ('email' in data) {
+    const email = String(data.email ?? '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Enter a valid email address.');
+  }
+  if ('phone' in data) {
+    const phone = String(data.phone ?? '').replace(/\D/g, '');
+    if (phone.length < 7 || phone.length > 15) errors.push('Enter a valid phone number with 7 to 15 digits.');
   }
 
   return errors;
@@ -104,12 +233,20 @@ const fetchLead = async (id: string) => {
       l.*,
       e1.name as assigned_to_name,
       e2.name as counselor_name,
-      b.name as branch_name,
+      b.branch as branch_name,
+      b.ar_name as branch_name_ar,
       b.address as branch_address,
       b.email as branch_email,
       b.mobile as branch_mobile,
+      b.license_number as branch_license_number,
+      b.vat_gst_percent as branch_vat_gst_percent,
+      b.abbrv as branch_abbrv,
       COALESCE(s.name, pt.type, l.service_interest) as service_interest_label,
-      COALESCE(cp.name, l.country_interest) as country_interest_label
+      s.validity as program_validity,
+      COALESCE(cp.name, l.country_interest) as country_interest_label,
+      (SELECT a.agreementNumber FROM dm_opportunity_agreements a
+       JOIN dmc_opportunities o ON a.opportunityId = o.id
+       WHERE o.leadId = l.id ORDER BY a.createdAt DESC LIMIT 1) AS agreement_number
     FROM dmc_forum_leads l
     LEFT JOIN dm_employee e1 ON l.assignTo = e1.id
     LEFT JOIN dm_employee e2 ON l.Counsilor = e2.id
@@ -134,9 +271,13 @@ const fetchLead = async (id: string) => {
     dmBranch: lead.branch_name ? {
       id: lead.branch,
       name: lead.branch_name,
+      nameAr: lead.branch_name_ar,
       address: lead.branch_address,
       email: lead.branch_email,
-      mobile: lead.branch_mobile
+      mobile: lead.branch_mobile,
+      licenseNumber: lead.branch_license_number,
+      vatGstPercent: lead.branch_vat_gst_percent,
+      abbrv: lead.branch_abbrv
     } : null
   };
 };
@@ -145,6 +286,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireAuth(request, ['leads.view']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureDBConnection();
     const { id } = await params;
@@ -165,6 +308,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireAuth(request, ['leads.update', 'leads.create']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureDBConnection();
     const { id } = await params;
@@ -175,6 +320,44 @@ export async function PUT(
       return NextResponse.json({ error: 'Lead validation failed', errors: validationErrors }, { status: 422 });
     }
 
+    // Assigning/reassigning a lead's owner is restricted to FOE, Branch
+    // Manager, or CEO — everyone else with leads.update can still edit their
+    // own lead's other fields, just not hand it to someone else. The Edit
+    // Lead form posts this field as `leadOwner` (aliased to `assignTo` below),
+    // not `assignTo`/`Counsilor` directly, so it must be checked here too or
+    // this guard never fires for the form's actual requests.
+    const touchesAssignment = data.assignTo !== undefined || data.Counsilor !== undefined || data.leadOwner !== undefined;
+    if (touchesAssignment && !isFoeOrBranchManagerOrCeo(auth)) {
+      return NextResponse.json({ error: 'Only FOE, Branch Manager, or CEO can assign leads' }, { status: 403 });
+    }
+
+    // Branch Manager/FOE may only hand a lead to someone in their own branch —
+    // the assign-modal UI already filters its employee list to the caller's
+    // branch, but that's client-side only. Enforce it here too so it can't be
+    // bypassed by calling this endpoint directly with an out-of-branch employee id.
+    if (touchesAssignment && !isCeo(auth)) {
+      const targetEmployeeId = Number(data.assignTo ?? data.Counsilor ?? data.leadOwner);
+      if (targetEmployeeId) {
+        const [targetRow] = await sequelize.query<{ branch: number | null }>(
+          'SELECT branch FROM dm_employee WHERE id = :id LIMIT 1',
+          { replacements: { id: targetEmployeeId }, type: QueryTypes.SELECT }
+        );
+        const targetBranch = targetRow?.branch ?? null;
+        if (Number(targetBranch) !== Number(auth.branch)) {
+          return NextResponse.json({ error: 'You can only assign leads to employees in your own branch' }, { status: 403 });
+        }
+      }
+    }
+
+    // Once a lead is in the CRM, its contact details are locked to counselors -
+    // only Branch Manager or CEO can change email/phone/WhatsApp number, to
+    // prevent a lead's contact info from being altered after intake.
+    const touchesContactInfo = data.email !== undefined || data.phone !== undefined
+      || data.whatsappNumber !== undefined || data.mobile !== undefined;
+    if (touchesContactInfo && !isBranchManagerOrCeo(auth)) {
+      return NextResponse.json({ error: 'Only Branch Manager or CEO can change a lead\'s email, phone, or WhatsApp number' }, { status: 403 });
+    }
+
     const existingLead = await fetchLead(id);
     if (!existingLead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
@@ -183,16 +366,102 @@ export async function PUT(
     const updateFields: string[] = [];
     const updateValues: unknown[] = [];
 
-    Object.entries(data).forEach(([rawKey, value]) => {
+    for (const [rawKey, value] of Object.entries(data)) {
       const key = aliases[rawKey] || rawKey;
-      if (key === 'id' || !editableFields.has(key) || value === undefined) return;
+      if (key === 'id' || !editableFields.has(key) || value === undefined) continue;
       updateFields.push(`${key} = ?`);
-      updateValues.push(value === '' ? null : value);
-    });
+      const normalizedValue = normalizeLeadUpdateValue(key, value);
+      if (key === 'country_interest' || key === 'service_interest' || key === 'market_source') {
+        try {
+          updateValues.push(await resolveLeadReferenceId(key, normalizedValue));
+        } catch (error) {
+          return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Invalid lead reference value' },
+            { status: 422 }
+          );
+        }
+      } else if (key === 'branch') {
+        const branch = await resolveBranchReference(normalizedValue);
+        if (!branch) {
+          return NextResponse.json(
+            { error: `No matching branch found for "${String(normalizedValue).trim()}"` },
+            { status: 422 }
+          );
+        }
+        updateValues.push(branch.id);
+      } else {
+        updateValues.push(normalizedValue);
+      }
+    }
+
+    // The Edit Lead form's "Prospect Follow-Up" field posts one datetime-local
+    // value as `prospectFollowUp` (aliased to `followup` above), but `followup`
+    // is a DATE column - normalizeLeadUpdateValue already truncates it to a
+    // date for that column, silently dropping the time. Split the same input
+    // onto `folowuptime` (the paired TIME column) too, same as what the "Add
+    // Follow-up" popup sends, so the time the user picked isn't lost.
+    let followUpReminder: { date: string; time: string } | null = null;
+    if (typeof data.prospectFollowUp === 'string' && data.prospectFollowUp.includes('T')) {
+      const [datePart, timePart] = data.prospectFollowUp.split('T');
+      if (datePart && timePart) {
+        const timeWithSeconds = timePart.length === 5 ? `${timePart}:00` : timePart;
+        updateFields.push('folowuptime = ?');
+        updateValues.push(timeWithSeconds);
+        followUpReminder = { date: datePart, time: timeWithSeconds };
+      }
+    }
 
     if (updateFields.length === 0) {
       return NextResponse.json({ error: 'No editable lead fields provided' }, { status: 400 });
     }
+
+    // Only stamp the transfer/assignment date when assignTo actually changes to a
+    // different employee — re-saving the same assignee (e.g. from an unrelated
+    // field edit) must not reset the "assigned since" date. The UI posts this as
+    // `leadOwner` (see aliases above), so that must be checked too, not just the
+    // raw `assignTo`/`Counsilor` field names.
+    const incomingAssignTo = data.assignTo ?? data.leadOwner ?? data.Counsilor;
+    let assignmentChange: { oldAssignTo: number | null; newAssignTo: number | null } | null = null;
+    if (incomingAssignTo !== undefined) {
+      const newAssignTo = incomingAssignTo === '' || incomingAssignTo === null ? null : Number(incomingAssignTo);
+      const existingAssignTo = (existingLead as Record<string, unknown>).assignTo;
+      const oldAssignTo = existingAssignTo !== null && existingAssignTo !== undefined
+        ? Number(existingAssignTo as never)
+        : null;
+      if (newAssignTo !== oldAssignTo) {
+        updateFields.push('transfer_date = ?', 'transfer_time = ?', 'transfered = ?', 'transfered_by = ?');
+        updateValues.push(new Date(), new Date().toTimeString().split(' ')[0], 1, auth.id);
+        assignmentChange = { oldAssignTo, newAssignTo };
+      }
+    }
+
+    const incomingStatus = typeof data.status === 'string' ? data.status : undefined;
+    const existingStatus = (existingLead as Record<string, unknown>).status as string | null;
+    const statusChanged = incomingStatus !== undefined && incomingStatus !== existingStatus;
+
+    // The Edit Lead form's "Notes" field posts as `notes` (aliased to
+    // lead_remark above) and, until now, only ever overwrote that single
+    // column - it never reached dmc_forum_leads_remarks, which is what the
+    // leads list's "latest remark" column and the View Lead remarks history
+    // actually read from. Treat a genuine, changed Notes entry as a real
+    // remark so it shows up in both places, same as the "Add Remark" popup.
+    const incomingNotes = typeof data.notes === 'string' ? data.notes.trim() : undefined;
+    const existingRemark = String((existingLead as Record<string, unknown>).lead_remark || '').trim();
+    const notesChanged = incomingNotes !== undefined && incomingNotes !== '' && incomingNotes !== existingRemark;
+
+    // dmc_forum_leads.followup/folowuptime aren't read by the dashboard's
+    // "Today's Follow-ups" widget or the View Lead popup's Follow-ups panel -
+    // those both read dmc_follow_up_reminders, which only ever got written by
+    // the "Add Follow-up" popup. Create a reminder here too when the Edit Lead
+    // form actually changes the follow-up date/time, so it surfaces there too.
+    const existingFollowupDate = (existingLead as Record<string, unknown>).followup
+      ? String((existingLead as Record<string, unknown>).followup).slice(0, 10)
+      : null;
+    const existingFollowupTime = (existingLead as Record<string, unknown>).folowuptime
+      ? String((existingLead as Record<string, unknown>).folowuptime).slice(0, 8)
+      : null;
+    const followUpChanged = !!followUpReminder
+      && (followUpReminder.date !== existingFollowupDate || followUpReminder.time !== existingFollowupTime);
 
     updateFields.push('last_updated = ?', 'last_updtd_time = ?');
     updateValues.push(new Date().toLocaleDateString(), new Date().toTimeString().split(' ')[0], id);
@@ -206,6 +475,74 @@ export async function PUT(
       type: QueryTypes.UPDATE
     });
 
+    // auth.name isn't encoded in the JWT (see generateToken in lib/auth.ts), so
+    // it's always undefined on the decoded token — look the actor's name up.
+    const [actorRow] = await sequelize.query<{ name: string }>(
+      'SELECT name FROM dm_employee WHERE id = :id LIMIT 1',
+      { replacements: { id: auth.id }, type: QueryTypes.SELECT }
+    );
+    const actorLabel = `${actorRow?.name || `Employee #${auth.id}`} (${auth.roleName || auth.type})`;
+
+    if (notesChanged) {
+      const now = new Date();
+      await sequelize.query(
+        `INSERT INTO dmc_forum_leads_remarks (\`lead\`, \`date\`, remark, emp, created, \`status\`)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        {
+          replacements: [id, now.toISOString().split('T')[0], incomingNotes, auth.id, now.toTimeString().split(' ')[0], 1],
+          type: QueryTypes.INSERT
+        }
+      );
+    }
+
+    if (followUpChanged && followUpReminder) {
+      const existingAssignTo = (existingLead as Record<string, unknown>).assignTo;
+      const targetEmployeeId = Number(data.leadOwner ?? data.assignTo ?? existingAssignTo ?? auth.id);
+      await DmcFollowUpReminders.create({
+        lead_id: Number(id),
+        user_id: targetEmployeeId,
+        reminder_date: new Date(`${followUpReminder.date}T${followUpReminder.time}`),
+        message: incomingNotes || 'Prospect follow-up scheduled',
+        priority: 'medium',
+        status: 'pending',
+      });
+    }
+
+    if (assignmentChange) {
+      const { oldAssignTo, newAssignTo } = assignmentChange;
+      const employeeIds = [oldAssignTo, newAssignTo].filter((v): v is number => v !== null);
+      const employeeNames = employeeIds.length
+        ? await sequelize.query<{ id: number; name: string }>(
+            'SELECT id, name FROM dm_employee WHERE id IN (:ids)',
+            { replacements: { ids: employeeIds }, type: QueryTypes.SELECT }
+          )
+        : [];
+      const nameOf = (empId: number | null) =>
+        empId === null ? 'Unassigned' : employeeNames.find((e) => e.id === empId)?.name || `Employee #${empId}`;
+
+      await logLeadRemark({
+        leadId: Number(id),
+        action: 'lead_assigned',
+        remark: `Lead assigned from ${nameOf(oldAssignTo)} to ${nameOf(newAssignTo)} by ${actorLabel}`,
+        previousValue: nameOf(oldAssignTo),
+        newValue: nameOf(newAssignTo),
+        actorId: auth.id,
+        actorRole: auth.roleName || auth.type,
+      });
+    }
+
+    if (statusChanged) {
+      await logLeadRemark({
+        leadId: Number(id),
+        action: 'status_changed',
+        remark: `Status changed from ${existingStatus || 'New'} to ${incomingStatus} by ${actorLabel}`,
+        previousValue: existingStatus || 'New',
+        newValue: incomingStatus || null,
+        actorId: auth.id,
+        actorRole: auth.roleName || auth.type,
+      });
+    }
+
     const updatedLead = await fetchLead(id);
     return NextResponse.json(updatedLead);
   } catch (error) {
@@ -218,6 +555,11 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireAuth(request, ['leads.delete']);
+  if (isAuthError(auth)) return auth;
+  if (!isCeo(auth)) {
+    return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+  }
   try {
     await ensureDBConnection();
     const { id } = await params;

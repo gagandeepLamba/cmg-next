@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 let dbReady = false;
 const ensureDB = async () => { if (!dbReady) { await connectDB(); dbReady = true; } };
 const n = (v: unknown) => Number(v || 0);
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['counselors.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureDB();
 
@@ -16,7 +19,8 @@ export async function GET(request: NextRequest) {
     const today = new Date().toISOString().slice(0, 10);
 
     const conditions: string[] = [];
-    if (branch) conditions.push(`e.branch = '${branch}'`);
+    const replacements: Record<string, unknown> = { today };
+    if (branch) { conditions.push(`e.branch = :branch`); replacements.branch = Number(branch); }
     if (status === 'active') conditions.push(`e.status = 1`);
     else if (status === 'inactive') conditions.push(`e.status != 1`);
     const where = conditions.length ? `AND ${conditions.join(' AND ')}` : '';
@@ -34,7 +38,7 @@ export async function GET(request: NextRequest) {
         COALESCE(e.mobile,'') AS mobile,
         COALESCE(r.name,'') AS type,
         COALESCE(e.branch,0) AS branch_id,
-        COALESCE(b.name,'N/A') AS branch_name,
+        COALESCE(b.branch,'N/A') AS branch_name,
         COALESCE(reg.name,'N/A') AS region_name,
         COALESCE(d.name,'') AS department_name,
         COALESCE(e.status,0) AS status,
@@ -54,9 +58,9 @@ export async function GET(request: NextRequest) {
       LEFT JOIN dm_department d ON d.id = e.department
       LEFT JOIN dmc_forum_leads l ON (l.assignTo = e.id OR l.Counsilor = e.id)
       WHERE 1=1 ${where}
-      GROUP BY e.id, e.name, e.email, e.mobile, r.name, e.branch, b.name, reg.name, d.name, e.status, e.photo, e.doj, e.wfh
+      GROUP BY e.id, e.name, e.email, e.mobile, r.name, e.branch, b.branch, reg.name, d.name, e.status, e.photo, e.doj, e.wfh
       ORDER BY total_leads DESC, e.name ASC`,
-      { replacements: { today }, type: QueryTypes.SELECT }
+      { replacements, type: QueryTypes.SELECT }
     );
 
     const counselors = rows.map(r => ({

@@ -42,64 +42,69 @@ interface DmEmployeeAttributes {
   work_city: string | null;
   work_site: string | null;
   employment_type: string;
+  manager_id: number | null;
+  must_change_password: number;
 }
 
-type DmEmployeeCreationAttributes = Optional<DmEmployeeAttributes, 'email' | 'cemail' | 'mobile' | 'cmobile' | 'paddress' | 'address' | 'photo' | 'dob' | 'role' | 'branch' | 'region' | 'username' | 'password' | 'status' | 'ppNo' | 'visaExp' | 'department' | 'EID' | 'doj' | 'nationality' | 'dol' | 'remark' | 'labexp' | 'bounce' | 'em_local_name' | 'em_home_name' | 'em_local_number' | 'em_home_number' | 'work_location' | 'work_country' | 'work_city' | 'work_site' | 'employment_type'>;
+type DmEmployeeCreationAttributes = Optional<DmEmployeeAttributes, 'email' | 'cemail' | 'mobile' | 'cmobile' | 'paddress' | 'address' | 'photo' | 'dob' | 'role' | 'branch' | 'region' | 'username' | 'password' | 'status' | 'ppNo' | 'visaExp' | 'department' | 'EID' | 'doj' | 'nationality' | 'dol' | 'remark' | 'labexp' | 'bounce' | 'em_local_name' | 'em_home_name' | 'em_local_number' | 'em_home_number' | 'work_location' | 'work_country' | 'work_city' | 'work_site' | 'employment_type' | 'manager_id' | 'must_change_password'>;
 
 type AssociationModels = {
   DmRole: ModelStatic<Model>;
   DmcForumLeads: ModelStatic<Model>;
   StudentLeadsLogs: ModelStatic<Model>;
   DmOperationAllocations: ModelStatic<Model>;
+  DmEmployee: ModelStatic<Model>;
 };
 
 class DmEmployee extends Model<DmEmployeeAttributes, DmEmployeeCreationAttributes> implements DmEmployeeAttributes {
-  public id!: number;
-  public name!: string;
-  public email!: string | null;
-  public cemail!: string | null;
-  public mobile!: string | null;
-  public cmobile!: string | null;
-  public paddress!: string | null;
-  public address!: string | null;
-  public photo!: string | null;
-  public dob!: Date | null;
-  public role!: number | null;
-  public vendor_id!: number;
-  public branch!: number | null;
-  public region!: number | null;
-  public username!: string | null;
-  public password!: string | null;
-  public status!: number;
-  public ppNo!: string | null;
-  public visaExp!: Date | null;
-  public department!: number | null;
-  public EID!: string | null;
-  public doj!: Date | null;
-  public nationality!: string | null;
-  public dol!: string | null;
-  public remark!: string | null;
-  public labexp!: string | null;
-  public bounce!: number | null;
-  public em_local_name!: string | null;
-  public em_home_name!: string | null;
-  public em_local_number!: string | null;
-  public em_home_number!: string | null;
-  public religion!: string;
-  public gender!: string;
-  public crea!: number;
-  public wfh!: number;
-  public work_location!: string;
-  public work_country!: string | null;
-  public work_city!: string | null;
-  public work_site!: string | null;
-  public employment_type!: string;
+  declare id: number;
+  declare name: string;
+  declare email: string | null;
+  declare cemail: string | null;
+  declare mobile: string | null;
+  declare cmobile: string | null;
+  declare paddress: string | null;
+  declare address: string | null;
+  declare photo: string | null;
+  declare dob: Date | null;
+  declare role: number | null;
+  declare vendor_id: number;
+  declare branch: number | null;
+  declare region: number | null;
+  declare username: string | null;
+  declare password: string | null;
+  declare status: number;
+  declare ppNo: string | null;
+  declare visaExp: Date | null;
+  declare department: number | null;
+  declare EID: string | null;
+  declare doj: Date | null;
+  declare nationality: string | null;
+  declare dol: string | null;
+  declare remark: string | null;
+  declare labexp: string | null;
+  declare bounce: number | null;
+  declare em_local_name: string | null;
+  declare em_home_name: string | null;
+  declare em_local_number: string | null;
+  declare em_home_number: string | null;
+  declare religion: string;
+  declare gender: string;
+  declare crea: number;
+  declare wfh: number;
+  declare work_location: string;
+  declare work_country: string | null;
+  declare work_city: string | null;
+  declare work_site: string | null;
+  declare employment_type: string;
+  declare manager_id: number | null;
+  declare must_change_password: number;
 
   // Association properties
-  public dmcForumLeadssByASSIGNTo?: DmcForumLeads[];
-  public dmcForumLeadssByCASEOFFICER?: DmcForumLeads[];
-  public dmcForumLeadssByCoUNSILOR?: DmcForumLeads[];
-  public studentLeadsLogss?: unknown[];
+  declare dmcForumLeadssByASSIGNTo?: DmcForumLeads[];
+  declare dmcForumLeadssByCASEOFFICER?: DmcForumLeads[];
+  declare dmcForumLeadssByCoUNSILOR?: DmcForumLeads[];
+  declare studentLeadsLogss?: unknown[];
 
   public static associate(models: AssociationModels) {
     DmEmployee.belongsTo(models.DmRole, { foreignKey: 'role', targetKey: 'id', as: 'dmRole' });
@@ -108,6 +113,7 @@ class DmEmployee extends Model<DmEmployeeAttributes, DmEmployeeCreationAttribute
     DmEmployee.hasMany(models.DmcForumLeads, { foreignKey: 'Counsilor', sourceKey: 'id', as: 'dmcForumLeadssByCoUNSILOR' });
     DmEmployee.hasMany(models.StudentLeadsLogs, { foreignKey: 'Counsilor', sourceKey: 'id', as: 'studentLeadsLogss' });
     DmEmployee.hasMany(models.DmOperationAllocations, { foreignKey: 'case_officer', sourceKey: 'id', as: 'operationAllocations' });
+    DmEmployee.belongsTo(models.DmEmployee, { foreignKey: 'manager_id', targetKey: 'id', as: 'manager' });
   }
 }
 
@@ -278,6 +284,15 @@ DmEmployee.init(
       type: DataTypes.ENUM('Full-time', 'Contract', 'Freelance', 'Part-time'),
       allowNull: false,
       defaultValue: 'Full-time'
+    },
+    manager_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    must_change_password: {
+      type: DataTypes.TINYINT,
+      allowNull: false,
+      defaultValue: 0
     },
   },
   {

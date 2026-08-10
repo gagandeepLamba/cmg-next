@@ -10,7 +10,9 @@ interface DmcForumLeadsAttributes {
   email: string;
   phone: string;
   mobile: string;
+  whatsapp_number: string;
   nationality: string;
+  passport_number: string | null;
   address: string;
   dob: Date | null;
   gender: string;
@@ -35,9 +37,9 @@ interface DmcForumLeadsAttributes {
   last_updtd_time: string;
   stepComplete: number;
   payType: string | null;
-  assignTo: number;
-  case_officer: number;
-  Counsilor: number;
+  assignTo: number | null;
+  case_officer: number | null;
+  Counsilor: number | null;
   branch: number;
   region: number;
   payTotal: number;
@@ -111,6 +113,7 @@ interface DmcForumLeadsAttributes {
   nal_count: number;
   campaign_id: number;
   old_branch: number;
+  sf: number;
   // Opportunity conversion fields
   opportunity_status: string | null;
   conversion_date: Date | null;
@@ -128,142 +131,145 @@ interface DmcForumLeadsAttributes {
   tags: string | null;
 }
 
-interface DmcForumLeadsCreationAttributes extends Optional<DmcForumLeadsAttributes, 'id' | 'dob' | 'appointment' | 'followup' | 'folowuptime' | 'followupstat' | 'stepComplete' | 'payType' | 'payTotal' | 'discount' | 'paidYet' | 'payBalance' | 'feeAgreeDate' | 'demandAmt' | 'dueDate' | 'demdRemark' | 'agreeDate' | 'renDate' | 'renExpiryDate' | 'renew_type' | 'status' | 'notf' | 'password' | 'novat' | 'i_p' | 'escalation' | 'transfer_date' | 'transfered' | 'otp_status' | 'otp' | 'otp_date' | 'otp_email' | 'browser' | 'hostname' | 'digital_signature' | 'lead_import_by' | 'lead_import' | 'education' | 'profession'> { }
+interface DmcForumLeadsCreationAttributes extends Optional<DmcForumLeadsAttributes, 'id' | 'dob' | 'appointment' | 'followup' | 'folowuptime' | 'followupstat' | 'stepComplete' | 'payType' | 'payTotal' | 'discount' | 'paidYet' | 'payBalance' | 'feeAgreeDate' | 'demandAmt' | 'dueDate' | 'demdRemark' | 'agreeDate' | 'renDate' | 'renExpiryDate' | 'renew_type' | 'status' | 'notf' | 'password' | 'novat' | 'i_p' | 'escalation' | 'transfer_date' | 'transfered' | 'otp_status' | 'otp' | 'otp_date' | 'otp_email' | 'browser' | 'hostname' | 'digital_signature' | 'lead_import_by' | 'lead_import' | 'education' | 'profession' | 'whatsapp_number' | 'passport_number'> { }
 
 class DmcForumLeads extends Model<DmcForumLeadsAttributes, DmcForumLeadsCreationAttributes> implements DmcForumLeadsAttributes {
-  public id!: number;
-  public fname!: string;
-  public mname!: string;
-  public lname!: string;
-  public email!: string;
-  public phone!: string;
-  public mobile!: string;
-  public nationality!: string;
-  public address!: string;
-  public dob!: Date | null;
-  public gender!: string;
-  public id_number!: string;
-  public id_expiry!: Date;
-  public id_issue_date!: Date;
-  public country_interest!: string;
-  public sub_country_interest!: number;
-  public service_interest!: string;
-  public market_source!: string;
-  public sub_market_source!: number;
-  public appointment!: Date | null;
-  public followup!: Date;
-  public folowuptime!: Date;
-  public followupstat!: number;
-  public enquiry!: string;
-  public convet!: string;
-  public priority!: string;
-  public regdate!: Date;
-  public regtime!: Date;
-  public last_updated!: string;
-  public last_updtd_time!: string;
-  public stepComplete!: number;
-  public payType!: string | null;
-  public assignTo!: number;
-  public case_officer!: number;
-  public Counsilor!: number;
-  public branch!: number;
-  public region!: number;
-  public payTotal!: number;
-  public discount!: number;
-  public paidYet!: number | null;
-  public payBalance!: number;
-  public feeAgreeDate!: Date | null;
-  public demandAmt!: number;
-  public dueDate!: Date | null;
-  public demdRemark!: string | null;
-  public agreeDate!: Date | null;
-  public renDate!: Date | null;
-  public renExpiryDate!: Date | null;
-  public renew_type!: string | null;
-  public status!: string | null;
-  public status_date!: Date;
-  public notf!: number;
-  public type!: string;
-  public password!: string | null;
-  public novat!: number | null;
-  public i_p!: string | null;
-  public escalation!: string | null;
-  public transfer_date!: Date | null;
-  public transfer_time!: string;
-  public transfered!: number | null;
-  public transfered_by!: number;
-  public otp_status!: number | null;
-  public otp!: number | null;
-  public otp_date!: Date | null;
-  public otp_email!: string | null;
-  public browser!: string | null;
-  public hostname!: string | null;
-  public digital_signature!: string | null;
-  public lead_import_by!: number | null;
-  public lead_import!: number | null;
-  public education!: string | null;
-  public profession!: string | null;
-  public exist!: number;
-  public no_of_applicants!: number;
-  public advanced!: number;
-  public do_status!: number;
-  public arm_status!: number;
-  public gm_status!: number;
-  public discount_status!: number;
-  public discount_remarks!: string;
-  public discount_by!: number;
-  public discount_date!: Date;
-  public campaign!: string;
-  public campaign_group!: string;
-  public pa_fname!: string;
-  public pa_lname!: string;
-  public lead_remark!: string;
-  public created!: Date;
-  public created_by!: number;
-  public alert!: number;
-  public area!: string;
-  public lead_quality!: string;
-  public transferred_remark_update!: number;
-  public untouch_transfer!: number;
-  public lead_nq_reason!: string;
-  public tele_caller_alert!: number;
-  public tele_caller_remark!: string;
-  public tele_caller_remark_by!: number;
-  public tele_date!: Date;
-  public lead_date!: Date;
-  public duplicate!: number;
-  public duplicate_count!: number;
-  public ref_remark!: string;
-  public na_record!: number;
-  public old_assgined!: number;
-  public nal_count!: number;
-  public campaign_id!: number;
-  public old_branch!: number;
+  declare id: number;
+  declare fname: string;
+  declare mname: string;
+  declare lname: string;
+  declare email: string;
+  declare phone: string;
+  declare mobile: string;
+  declare whatsapp_number: string;
+  declare nationality: string;
+  declare passport_number: string | null;
+  declare address: string;
+  declare dob: Date | null;
+  declare gender: string;
+  declare id_number: string;
+  declare id_expiry: Date;
+  declare id_issue_date: Date;
+  declare country_interest: string;
+  declare sub_country_interest: number;
+  declare service_interest: string;
+  declare market_source: string;
+  declare sub_market_source: number;
+  declare appointment: Date | null;
+  declare followup: Date;
+  declare folowuptime: Date;
+  declare followupstat: number;
+  declare enquiry: string;
+  declare convet: string;
+  declare priority: string;
+  declare regdate: Date;
+  declare regtime: Date;
+  declare last_updated: string;
+  declare last_updtd_time: string;
+  declare stepComplete: number;
+  declare payType: string | null;
+  declare assignTo: number | null;
+  declare case_officer: number | null;
+  declare Counsilor: number | null;
+  declare branch: number;
+  declare region: number;
+  declare payTotal: number;
+  declare discount: number;
+  declare paidYet: number | null;
+  declare payBalance: number;
+  declare feeAgreeDate: Date | null;
+  declare demandAmt: number;
+  declare dueDate: Date | null;
+  declare demdRemark: string | null;
+  declare agreeDate: Date | null;
+  declare renDate: Date | null;
+  declare renExpiryDate: Date | null;
+  declare renew_type: string | null;
+  declare status: string | null;
+  declare status_date: Date;
+  declare notf: number;
+  declare type: string;
+  declare password: string | null;
+  declare novat: number | null;
+  declare i_p: string | null;
+  declare escalation: string | null;
+  declare transfer_date: Date | null;
+  declare transfer_time: string;
+  declare transfered: number | null;
+  declare transfered_by: number;
+  declare otp_status: number | null;
+  declare otp: number | null;
+  declare otp_date: Date | null;
+  declare otp_email: string | null;
+  declare browser: string | null;
+  declare hostname: string | null;
+  declare digital_signature: string | null;
+  declare lead_import_by: number | null;
+  declare lead_import: number | null;
+  declare education: string | null;
+  declare profession: string | null;
+  declare exist: number;
+  declare no_of_applicants: number;
+  declare advanced: number;
+  declare do_status: number;
+  declare arm_status: number;
+  declare gm_status: number;
+  declare discount_status: number;
+  declare discount_remarks: string;
+  declare discount_by: number;
+  declare discount_date: Date;
+  declare campaign: string;
+  declare campaign_group: string;
+  declare pa_fname: string;
+  declare pa_lname: string;
+  declare lead_remark: string;
+  declare created: Date;
+  declare created_by: number;
+  declare alert: number;
+  declare area: string;
+  declare lead_quality: string;
+  declare transferred_remark_update: number;
+  declare untouch_transfer: number;
+  declare lead_nq_reason: string;
+  declare tele_caller_alert: number;
+  declare tele_caller_remark: string;
+  declare tele_caller_remark_by: number;
+  declare tele_date: Date;
+  declare lead_date: Date;
+  declare duplicate: number;
+  declare duplicate_count: number;
+  declare ref_remark: string;
+  declare na_record: number;
+  declare old_assgined: number;
+  declare nal_count: number;
+  declare campaign_id: number;
+  declare old_branch: number;
+  declare sf: number;
   // Opportunity conversion fields
-  public opportunity_status!: string | null;
-  public conversion_date!: Date | null;
-  public conversion_reason!: string | null;
-  public lost_reason!: string | null;
-  public competitor!: string | null;
-  public qualification_score!: number | null;
-  public budget_range!: string | null;
-  public timeline!: string | null;
-  public decision_maker!: string | null;
-  public decision_maker_title!: string | null;
-  public decision_maker_contact!: string | null;
-  public next_followup_date!: Date | null;
-  public opportunity_notes!: string | null;
-  public tags!: string | null;
+  declare opportunity_status: string | null;
+  declare conversion_date: Date | null;
+  declare conversion_reason: string | null;
+  declare lost_reason: string | null;
+  declare competitor: string | null;
+  declare qualification_score: number | null;
+  declare budget_range: string | null;
+  declare timeline: string | null;
+  declare decision_maker: string | null;
+  declare decision_maker_title: string | null;
+  declare decision_maker_contact: string | null;
+  declare next_followup_date: Date | null;
+  declare opportunity_notes: string | null;
+  declare tags: string | null;
 
   // Associations
-  public dmEmployeeByASSIGNTo?: DmEmployee;
-  public dmEmployeeByCASEOFFICER?: DmEmployee;
-  public dmEmployeeByCoUNSILOR?: DmEmployee;
-  public dmBranch?: any;
-  public dmRegion?: any;
-  public dmcNotifications?: any[];
-  public dmcFollowUpReminders?: any[];
-  public dmcMeetingSchedules?: any[];
+  declare dmEmployeeByASSIGNTo?: DmEmployee;
+  declare dmEmployeeByCASEOFFICER?: DmEmployee;
+  declare dmEmployeeByCoUNSILOR?: DmEmployee;
+  declare dmBranch?: any;
+  declare dmRegion?: any;
+  declare dmcNotifications?: any[];
+  declare dmcFollowUpReminders?: any[];
+  declare dmcMeetingSchedules?: any[];
 
   public static associate(models: any) {
     // Core working associations
@@ -335,9 +341,17 @@ DmcForumLeads.init(
       type: DataTypes.STRING(555),
       allowNull: false
     },
+    whatsapp_number: {
+      type: DataTypes.STRING(50),
+      allowNull: true
+    },
     nationality: {
       type: DataTypes.STRING(555),
       allowNull: false
+    },
+    passport_number: {
+      type: DataTypes.STRING(50),
+      allowNull: true
     },
     address: {
       type: DataTypes.TEXT,
@@ -364,20 +378,20 @@ DmcForumLeads.init(
       allowNull: false
     },
     country_interest: {
-      type: DataTypes.STRING(555),
-      allowNull: false
+      type: DataTypes.INTEGER,
+      allowNull: true
     },
     sub_country_interest: {
       type: DataTypes.INTEGER,
       allowNull: false
     },
     service_interest: {
-      type: DataTypes.STRING(555),
-      allowNull: false
+      type: DataTypes.INTEGER,
+      allowNull: true
     },
     market_source: {
-      type: DataTypes.STRING(555),
-      allowNull: false
+      type: DataTypes.INTEGER,
+      allowNull: true
     },
     sub_market_source: {
       type: DataTypes.INTEGER,
@@ -439,15 +453,15 @@ DmcForumLeads.init(
     },
     assignTo: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: true
     },
     case_officer: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: true
     },
     Counsilor: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: true
     },
     branch: {
       type: DataTypes.INTEGER,
@@ -746,6 +760,11 @@ DmcForumLeads.init(
     old_branch: {
       type: DataTypes.INTEGER,
       allowNull: false
+    },
+    sf: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0
     },
     // Opportunity conversion fields
     opportunity_status: {

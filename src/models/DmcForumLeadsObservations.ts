@@ -16,16 +16,16 @@ interface DmcForumLeadsObservationsAttributes {
 interface DmcForumLeadsObservationsCreationAttributes extends Optional<DmcForumLeadsObservationsAttributes, never> {}
 
 class DmcForumLeadsObservations extends Model<DmcForumLeadsObservationsAttributes, DmcForumLeadsObservationsCreationAttributes> implements DmcForumLeadsObservationsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public sheet!: string;
-  public emirateId!: string;
-  public document!: string;
-  public remark!: string;
-  public os_visit_sheet!: string;
-  public visit_obs_type!: string;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare leadId: number;
+  declare sheet: string;
+  declare emirateId: string;
+  declare document: string;
+  declare remark: string;
+  declare os_visit_sheet: string;
+  declare visit_obs_type: string;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
     DmcForumLeadsObservations.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLeads' });

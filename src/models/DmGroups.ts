@@ -9,9 +9,9 @@ interface DmGroupsAttributes {
 interface DmGroupsCreationAttributes extends Optional<DmGroupsAttributes, never> {}
 
 class DmGroups extends Model<DmGroupsAttributes, DmGroupsCreationAttributes> implements DmGroupsAttributes {
-  public id!: number;
-  public team_id!: number;
-  public desgination_id!: number;
+  declare id: number;
+  declare team_id: number;
+  declare desgination_id: number;
 
   public static associate(models: any) {
   }

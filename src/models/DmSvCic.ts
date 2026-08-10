@@ -16,16 +16,16 @@ interface DmSvCicAttributes {
 interface DmSvCicCreationAttributes extends Optional<DmSvCicAttributes, never> {}
 
 class DmSvCic extends Model<DmSvCicAttributes, DmSvCicCreationAttributes> implements DmSvCicAttributes {
-  public id!: number;
-  public leadId!: number;
-  public tab!: number;
-  public doc_rec_date!: Date;
-  public docs_status!: string;
-  public nationality!: string;
-  public application_sub_date!: Date;
-  public status!: string;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare leadId: number;
+  declare tab: number;
+  declare doc_rec_date: Date;
+  declare docs_status: string;
+  declare nationality: string;
+  declare application_sub_date: Date;
+  declare status: string;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

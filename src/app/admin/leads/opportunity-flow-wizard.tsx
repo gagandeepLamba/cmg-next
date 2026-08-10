@@ -1,21 +1,30 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lead } from '@/types/lead';
 import { useAuth } from '@/contexts/AuthContext';
-import { renderBilingualAgreementWithPdfFirstPage } from '@/lib/bilingualAgreementTemplate';
+import { isCeo, isBranchManagerOrCeo } from '@/lib/roleChecks';
+import { BANK_PAYMENT_OPTIONS, CARD_PAYMENT_OPTIONS } from '@/lib/paymentOptions';
+import { renderAgreementForBranch } from '@/lib/renderAgreementForBranch';
+import { uploadFileToBlob } from '@/lib/uploadToBlob';
+import { getBranchTaxInfo } from '@/lib/branchTax';
+import { getLeadBranchDetails, printReceipt } from '@/lib/receiptTemplate';
 import {
   Search, Plus, Edit, Trash2, Download, Upload, CheckCircle, XCircle, Clock,
   AlertCircle, FileText, Send, Eye, User, Calendar, DollarSign, FileSignature,
-  Shield, X, ChevronRight, ChevronLeft, Save, Mail, Phone, MapPin, Globe,
+  Shield, X, ChevronRight, ChevronLeft, Save, Mail, Phone, Globe,
   Target, TrendingUp, Users, Briefcase, Flag, MessageSquare, FileCheck,
-  Receipt, FolderOpen, PenTool, ThumbsUp, ThumbsDown, Lock, BookOpen, Plane, RefreshCw
+  Receipt, FolderOpen, PenTool, Lock, RefreshCw, KeyRound
 } from 'lucide-react';
 
 interface OpportunityFlowWizardProps {
   leadId: number;
   onFlowComplete?: () => void;
+  /** Deep-link straight to a stage id (e.g. 'payment') instead of always starting at 'prospect'. */
+  initialStage?: string;
+  initialOpportunityId?: number;
 }
 
 interface FlowStage {
@@ -62,17 +71,21 @@ interface PaymentData {
   paymentDate: string;
   proofOfPayment: File | null;
   proofOfPaymentUrl: string | null;
+  dueDate: string;
+  remark: string;
 }
 
 interface DocumentData {
   idProof: File | null;
   passportCopy: File | null;
+  passportNumber: string;
   additionalInfo: string;
   allMandatoryDocsUploaded: boolean;
 }
 
 interface AgreementData {
   agreementId?: number | null;
+  agreementNumber?: string | null;
   agreementType: string;
   agreementTitle: string;
   duration: string;
@@ -113,12 +126,37 @@ const stepVariants = {
   exit: { opacity: 0, x: -50 }
 };
 
-export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardProps) {
-  const { user } = useAuth();
-  const [activeStage, setActiveStage] = useState<string>('prospect');
+const FLOW_STAGE_IDS = ['prospect', 'quotation', 'payment', 'accounts', 'documents', 'agreement', 'signed-agreement', 'retained', 'retention-rejected', 'closed'];
+const COUNSELOR_SUMMARY_MIN_CHARS = 100;
+
+// Agreement expiry is the service's own validity period (dm_service.validity,
+// e.g. "18 Months" for Canada/Australia vs "6 Months" for a visit visa)
+// counted from the start date, instead of a flat one-year default that
+// under-counts the longer immigration programs.
+const computeAgreementEndDate = (startDate: string, programValidity?: string | null): string => {
+  const validityMonths = parseInt(String(programValidity || ''), 10) || 12;
+  const endDateObj = startDate ? new Date(`${startDate}T00:00:00`) : new Date();
+  endDateObj.setMonth(endDateObj.getMonth() + validityMonths);
+  return endDateObj.toISOString().split('T')[0];
+};
+
+export default function OpportunityFlowWizard({ leadId, initialStage, initialOpportunityId }: OpportunityFlowWizardProps) {
+  const resolvedInitialStage = initialStage && FLOW_STAGE_IDS.includes(initialStage) ? initialStage : 'prospect';
+  const { user, currencyCode } = useAuth();
+  const [activeStage, setActiveStage] = useState<string>(resolvedInitialStage);
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
-  const [completedOpportunityId, setCompletedOpportunityId] = useState<number | null>(null);
+  const [completedOpportunityId, setCompletedOpportunityId] = useState<number | null>(initialOpportunityId || null);
+  // Opportunity flow is always editable, even once a deal is marked
+  // won/retained — locking it to view-only for non-CEO/BM roles blocked
+  // counselors from a deal they'd just closed, before Finance/Compliance
+  // had even reviewed it.
+  const isReadOnly = false;
+  const getComplianceApprovalsUrl = (opportunityId?: number | null) => {
+    const params = new URLSearchParams({ leadId: String(leadId) });
+    if (opportunityId) params.set('opportunityId', String(opportunityId));
+    return `/api/opportunity-compliance-approvals?${params.toString()}`;
+  };
 
   // State for each stage
   const [prospectData, setProspectData] = useState<ProspectData>({
@@ -184,11 +222,14 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
     paymentDate: new Date().toISOString().split('T')[0],
     proofOfPayment: null,
     proofOfPaymentUrl: null,
+    dueDate: '',
+    remark: '',
   });
 
   const [documentData, setDocumentData] = useState<DocumentData>({
     idProof: null,
     passportCopy: null,
+    passportNumber: '',
     additionalInfo: '',
     allMandatoryDocsUploaded: false
   });
@@ -197,7 +238,7 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
     agreementId: null,
     agreementType: 'service_agreement',
     agreementTitle: '',
-    duration: '12',
+    duration: '',
     startDate: '',
     endDate: '',
     amount: '',
@@ -228,19 +269,64 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
     reassignmentId: null,
     notes: ''
   });
+  const [requestingDiscount, setRequestingDiscount] = useState(false);
+  const [closingWon, setClosingWon] = useState(false);
 
-  const [stages, setStages] = useState<FlowStage[]>([
-    { id: 'prospect', name: 'Prospect', description: 'Initial opportunity identification', icon: Target, status: 'current' },
-    { id: 'quotation', name: 'Quotation', description: 'Generate and send quotation', icon: FileText, status: 'pending' },
-    { id: 'payment', name: 'Payment', description: 'Process payment', icon: DollarSign, status: 'pending' },
-    { id: 'documents', name: 'Documents', description: 'Upload required documents', icon: FolderOpen, status: 'pending' },
-    { id: 'agreement', name: 'Agreement', description: 'Generate agreement', icon: PenTool, status: 'pending' },
-    { id: 'signed-agreement', name: 'Signed Agreement', description: 'Upload signed agreement', icon: FileSignature, status: 'pending' },
-    { id: 'accounts', name: 'Accounts', description: 'Payment verification', icon: Receipt, status: 'pending' },
-    { id: 'retained', name: 'Retained', description: 'Compliance review', icon: Shield, status: 'pending' },
-    { id: 'retention-rejected', name: 'Retention Review', description: 'Retention status', icon: Lock, status: 'pending' },
-    { id: 'closed', name: 'Closed', description: 'Opportunity closed', icon: CheckCircle, status: 'pending' }
-  ]);
+  const [stages, setStages] = useState<FlowStage[]>(() => {
+    const baseStages: FlowStage[] = [
+      { id: 'prospect', name: 'Prospect', description: 'Initial opportunity identification', icon: Target, status: 'pending' },
+      { id: 'quotation', name: 'Quotation', description: 'Generate and send quotation', icon: FileText, status: 'pending' },
+      { id: 'payment', name: 'Payment', description: 'Process payment', icon: DollarSign, status: 'pending' },
+      { id: 'accounts', name: 'Accounts', description: 'Payment verification', icon: Receipt, status: 'pending' },
+      { id: 'documents', name: 'Documents', description: 'Upload required documents', icon: FolderOpen, status: 'pending' },
+      { id: 'agreement', name: 'Agreement', description: 'Generate agreement', icon: PenTool, status: 'pending' },
+      { id: 'signed-agreement', name: 'Signed Agreement', description: 'Upload signed agreement', icon: FileSignature, status: 'pending' },
+      { id: 'retained', name: 'Retained', description: 'Compliance review', icon: Shield, status: 'pending' },
+      { id: 'retention-rejected', name: 'Retention Review', description: 'Retention status', icon: Lock, status: 'pending' },
+      { id: 'closed', name: 'Closed', description: 'Opportunity closed', icon: CheckCircle, status: 'pending' }
+    ];
+    // Deep-linking (e.g. from Balance Payments' "Make Payment" button) can land
+    // on a stage past 'prospect' — mark everything before it as completed so
+    // the stage nav doesn't look like earlier steps were skipped/broken.
+    const targetIndex = baseStages.findIndex((s) => s.id === resolvedInitialStage);
+    return baseStages.map((s, idx) => ({
+      ...s,
+      status: idx < targetIndex ? 'completed' : idx === targetIndex ? 'current' : 'pending',
+    }));
+  });
+
+  // Jumps the stage nav straight to `stageId`, marking everything before it
+  // completed — used both for the initialStage deep-link case above and to
+  // resume at the lead's persisted opportunity_stage on load (see fetchLeadData).
+  const applyStageProgress = (stageId: string) => {
+    const targetIndex = FLOW_STAGE_IDS.indexOf(stageId);
+    if (targetIndex < 0) return;
+    setStages(prev => prev.map((s, idx) => ({
+      ...s,
+      status: idx < targetIndex ? 'completed' : idx === targetIndex ? 'current' : 'pending',
+    })));
+    setActiveStage(stageId);
+  };
+
+  const applyComplianceStatusToStages = (status: RetentionData['agreementComplianceStatus']) => {
+    if (status === 'approved') {
+      setStages(prev => prev.map(stage => {
+        if (stage.id === 'retained') return { ...stage, status: 'current' as const };
+        if (stage.id === 'retention-rejected') return { ...stage, status: 'pending' as const };
+        return stage;
+      }));
+      return;
+    }
+
+    if (status === 'rejected') {
+      setStages(prev => prev.map(stage => {
+        if (stage.id === 'retained') return { ...stage, status: 'rejected' as const };
+        if (stage.id === 'retention-rejected') return { ...stage, status: 'current' as const };
+        return stage;
+      }));
+      setActiveStage('retention-rejected');
+    }
+  };
 
   useEffect(() => {
     const fetchLeadData = async () => {
@@ -251,16 +337,41 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         const leadData = await response.json();
         setLead(leadData);
         hydrateFlowFromLead(leadData);
-        if (leadData.opportunity_id) {
+        // Resume on whichever stage this lead was last left on, rather than
+        // always reopening at Prospect, so counselor/Branch Manager/CEO all
+        // see the same current stage. An explicit initialStage prop (deep
+        // link) takes priority over the persisted one.
+        if (!initialStage && leadData.opportunity_stage && FLOW_STAGE_IDS.includes(leadData.opportunity_stage)) {
+          applyStageProgress(leadData.opportunity_stage);
+        }
+        if (leadData.opportunity_id && !initialOpportunityId) {
           setCompletedOpportunityId(Number(leadData.opportunity_id));
         }
 
+        let latestOpportunity: any = null;
         const opportunitiesResponse = await fetch(`/api/opportunities?leadId=${leadId}`);
         if (opportunitiesResponse.ok) {
           const opportunities = await opportunitiesResponse.json();
-          const latestOpportunity = Array.isArray(opportunities) ? opportunities[0] : null;
-          if (latestOpportunity?.id) {
+          latestOpportunity = Array.isArray(opportunities) ? opportunities[0] : null;
+          if (latestOpportunity?.id && !initialOpportunityId) {
             setCompletedOpportunityId(Number(latestOpportunity.id));
+            // The opportunity's own saved product/amount/details are authoritative
+            // once it exists — hydrateFlowFromLead (above) only fills blanks from
+            // the lead's *current* fields, which can drift from what was actually
+            // saved on the opportunity (e.g. the lead's service_interest or payTotal
+            // changed after conversion). Force these fields to match the saved
+            // opportunity record so reopening the draft doesn't show stale/wrong
+            // product details.
+            setProspectData(prev => ({
+              ...prev,
+              opportunityName: latestOpportunity.opportunityName || prev.opportunityName,
+              estimatedValue: latestOpportunity.estimatedValue !== undefined && latestOpportunity.estimatedValue !== null
+                ? String(latestOpportunity.estimatedValue)
+                : prev.estimatedValue,
+              priority: normalizePriorityForWizard(latestOpportunity.priority || prev.priority),
+              description: latestOpportunity.description || prev.description,
+              serviceRequired: latestOpportunity.serviceRequired || latestOpportunity.serviceType || prev.serviceRequired,
+            }));
           }
         }
 
@@ -274,23 +385,41 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
               discountApprovalId: latestDiscount.id,
               discountStatus: latestDiscount.status || 'pending',
             }));
+            // Restore the approved/pending discount amount into the quotation so
+            // reopening this stage doesn't silently reset it to 0 while the
+            // status pill still reads "approved" (the amount otherwise only
+            // ever lived in local quotationData state, lost on remount).
+            const approvedAmount = Number(latestDiscount.discountAmount);
+            if ((latestDiscount.status === 'approved' || latestDiscount.status === 'pending') && Number.isFinite(approvedAmount) && approvedAmount > 0) {
+              setQuotationData(prev => {
+                const discount = Math.min(approvedAmount, prev.subtotal);
+                const inferredTaxRate = prev.subtotal > 0 ? Number(prev.tax || 0) / prev.subtotal : 0;
+                const taxableAmount = Math.max(0, prev.subtotal - discount);
+                const tax = taxableAmount * inferredTaxRate;
+                const total = taxableAmount + tax;
+                return { ...prev, discount, tax, total };
+              });
+            }
           }
         }
 
-        const complianceResponse = await fetch(`/api/opportunity-compliance-approvals?leadId=${leadId}`);
+        const complianceOpportunityId = initialOpportunityId || completedOpportunityId || Number((leadData as any)?.opportunity_id) || Number(latestOpportunity?.id);
+        const complianceResponse = await fetch(getComplianceApprovalsUrl(complianceOpportunityId));
         if (complianceResponse.ok) {
           const complianceData = await complianceResponse.json();
           const latestCompliance = complianceData.data?.[0];
           if (latestCompliance) {
+            const status = latestCompliance.status || 'pending';
             setRetentionData(prev => ({
               ...prev,
               complianceApprovalId: latestCompliance.id,
-              agreementComplianceStatus: latestCompliance.status || 'pending',
-              retentionStatus: latestCompliance.status === 'approved' ? 'approved' : latestCompliance.status === 'rejected' ? 'rejected' : 'pending',
+              agreementComplianceStatus: status,
+              retentionStatus: status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'pending',
               complianceManager: latestCompliance.reviewedBy || prev.complianceManager,
               reviewNotes: latestCompliance.reviewNotes || prev.reviewNotes,
               reviewDate: latestCompliance.reviewedAt ? latestCompliance.reviewedAt.split('T')[0] : prev.reviewDate,
             }));
+            applyComplianceStatusToStages(status);
           }
         }
       } catch (error) {
@@ -308,9 +437,9 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
 
   // ── Helper: compute package totals from a fee record ──
   const getFeePackageTotals = (fee: FeeRecord) => {
-    const upfrontTotal  = Number(fee.upfront) + Number(fee.prof_fee);
-    const monthlyTotal  = upfrontTotal + Number(fee.firstMonth) + Number(fee.secondMonth) + Number(fee.thirdMonth) + Number(fee.prof_fee_month);
-    const stageTotal    = upfrontTotal + Number(fee.firstStage) + Number(fee.secondStage) + Number(fee.thirdStage) + Number(fee.forthStage) + Number(fee.fifthStage) + Number(fee.prof_fee_stage);
+    const upfrontTotal  = Number(fee.upfront);
+    const monthlyTotal  = Number(fee.firstMonth) + Number(fee.secondMonth) + Number(fee.thirdMonth);
+    const stageTotal    = Number(fee.firstStage) + Number(fee.secondStage) + Number(fee.thirdStage) + Number(fee.forthStage) + Number(fee.fifthStage);
     return { upfrontTotal, monthlyTotal, stageTotal };
   };
 
@@ -322,7 +451,7 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
     const countryId = Number(leadAny?.country_interest || 0);
     const branchId  = Number(leadAny?.branch || leadAny?.dmBranch?.id || 0);
 
-    if (!serviceId || !countryId) {
+    if (!serviceId) {
       setFeeData(null);
       return;
     }
@@ -332,14 +461,28 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       setFeeLoading(true);
       try {
         // First try: service + country + branch (most specific)
-        if (branchId) {
+        if (branchId && countryId) {
           const params = new URLSearchParams({ service: String(serviceId), country: String(countryId), branch: String(branchId) });
           const res  = await fetch(`/api/admin/fees/lookup?${params}`);
           const json = await res.json();
           if (!cancelled && json.data) { setFeeData(json.data); return; }
         }
+        // Next: service + branch (catches branch-priced services with no country match, e.g. common-price services)
+        if (branchId) {
+          const params = new URLSearchParams({ service: String(serviceId), branch: String(branchId) });
+          const res  = await fetch(`/api/admin/fees/lookup?${params}`);
+          const json = await res.json();
+          if (!cancelled && json.data) { setFeeData(json.data); return; }
+        }
         // Fallback: service + country only (as set when creating the lead)
-        const params = new URLSearchParams({ service: String(serviceId), country: String(countryId) });
+        if (countryId) {
+          const params = new URLSearchParams({ service: String(serviceId), country: String(countryId) });
+          const res  = await fetch(`/api/admin/fees/lookup?${params}`);
+          const json = await res.json();
+          if (!cancelled && json.data) { setFeeData(json.data); return; }
+        }
+        // Last resort: service only
+        const params = new URLSearchParams({ service: String(serviceId) });
         const res  = await fetch(`/api/admin/fees/lookup?${params}`);
         const json = await res.json();
         if (!cancelled) setFeeData(json.data || null);
@@ -356,6 +499,72 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prospectData.serviceId, (lead as any)?.service_interest, (lead as any)?.country_interest, (lead as any)?.branch]);
 
+  // ── Pick up an agreement already generated elsewhere in this flow ──
+  // The Payment stage's first save silently creates the opportunity (and a
+  // "generated" agreement with a real number) via /api/lead-to-opportunity,
+  // but this wizard's local agreementData state has no idea that happened —
+  // without this, the Agreement stage would show blank defaults even though
+  // a real agreement already exists, and the user couldn't see/download it
+  // until they clicked Save again. Fetch it as soon as the opportunity id is
+  // known, but don't clobber an agreement already loaded/edited locally.
+  useEffect(() => {
+    if (!completedOpportunityId || agreementData.agreementId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/opportunity-agreements?opportunityId=${completedOpportunityId}`);
+        if (!res.ok) return;
+        const agreements = await res.json();
+        const existing = Array.isArray(agreements) ? agreements[0] : agreements?.data?.[0];
+        if (!existing || cancelled) return;
+        setAgreementData((prev) => ({
+          ...prev,
+          agreementId: existing.id ?? prev.agreementId,
+          agreementNumber: existing.agreementNumber ?? prev.agreementNumber,
+          agreementType: existing.agreementType ?? prev.agreementType,
+          agreementTitle: existing.title ?? existing.agreementTitle ?? prev.agreementTitle,
+          terms: existing.termsAndConditions ?? existing.terms ?? prev.terms,
+          startDate: existing.startDate ? String(existing.startDate).split('T')[0] : prev.startDate,
+          endDate: existing.endDate ? String(existing.endDate).split('T')[0] : prev.endDate,
+          amount: existing.totalAmount ? String(existing.totalAmount) : prev.amount,
+          companyName: existing.companyName ?? prev.companyName,
+          companyAddress: existing.companyAddress ?? prev.companyAddress,
+          status: existing.status ?? prev.status,
+        }));
+      } catch (err) {
+        console.error('Error fetching existing agreement:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [completedOpportunityId, agreementData.agreementId]);
+
+  // ── Pick up mandatory documents already uploaded in an earlier session ──
+  // idProof/passportCopy only ever live as in-memory File objects, which are
+  // gone after any remount (navigating away and back, or a page reload) -
+  // without this, allMandatoryDocsUploaded silently resets to false and the
+  // Documents stage blocks "Save & Continue", pushing the user to re-upload
+  // documents that are already saved server-side.
+  useEffect(() => {
+    if (!completedOpportunityId || documentData.allMandatoryDocsUploaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/opportunity-documents?opportunityId=${completedOpportunityId}&status=uploaded`);
+        if (!res.ok) return;
+        const documents = await res.json();
+        const list: any[] = Array.isArray(documents) ? documents : documents?.data || [];
+        const categories = new Set(list.map((doc) => doc.category || doc.documentType));
+        const hasAllMandatory = ['id_proof', 'passport', 'counsellor_sheet'].every((category) => categories.has(category));
+        if (hasAllMandatory && !cancelled) {
+          setDocumentData((prev) => ({ ...prev, allMandatoryDocsUploaded: true }));
+        }
+      } catch (err) {
+        console.error('Error fetching existing documents:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [completedOpportunityId, documentData.allMandatoryDocsUploaded]);
+
   const hydrateFlowFromLead = (leadData: Lead & Record<string, any>) => {
     const clientName = `${leadData.fname || ''} ${leadData.lname || ''}`.trim() || `Lead #${leadData.id}`;
     const service = String((leadData as Record<string, unknown>).service_interest_label || leadData.service_interest || '');
@@ -365,7 +574,12 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
     const opportunityName = `${clientName}${service ? ` - ${service}` : ''}`;
     const today = new Date().toISOString().split('T')[0];
     const validUntil = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Program validity comes from the lead's dm_service.validity (joined in
+    // GET /api/leads/[id]) and drives both the agreement's duration and its
+    // end date.
+    const programValidityMonths = parseInt(String(leadData.program_validity || ''), 10) || 12;
+    const endDate = computeAgreementEndDate(today, leadData.program_validity);
+    const branchDetails = getLeadBranchDetails(leadData);
 
     setProspectData(prev => ({
       ...prev,
@@ -407,14 +621,26 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       ...prev,
       agreementTitle: prev.agreementTitle || `Service Agreement - ${clientName}`,
       amount: prev.amount || String(totalAmount || ''),
+      duration: prev.duration || String(programValidityMonths),
       startDate: prev.startDate || today,
       endDate: prev.endDate || endDate,
-      companyAddress: prev.companyAddress || leadData.address || '',
+      companyName: prev.companyName || branchDetails.companyName,
+      companyAddress: prev.companyAddress || branchDetails.branchAddress || '',
       terms: prev.terms || 'Standard service agreement terms apply.',
+    }));
+
+    setDocumentData(prev => ({
+      ...prev,
+      passportNumber: prev.passportNumber || leadData.id_number || '',
     }));
   };
 
   const moveToNextStage = async () => {
+    if (isReadOnly) {
+      window.toast.info('This won client opportunity flow is view-only for your role.');
+      return;
+    }
+
     const validationError = validateStage(activeStage, {
       prospectData,
       quotationData,
@@ -424,30 +650,30 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       signedAgreementData,
     });
     if (validationError) {
-      alert(validationError);
+      window.toast.error(validationError);
       return;
     }
 
-    if (activeStage === 'quotation' && quotationData.discount > 0 && retentionData.discountStatus !== 'approved') {
-      alert('Discount approval is required before continuing. The request must be approved by the Director of Sales or Super Admin.');
+    if ((activeStage === 'quotation' || activeStage === 'payment') && quotationData.discount > 0 && retentionData.discountStatus !== 'approved') {
+      window.toast.error('Discount approval is required before continuing. Discounts over 20% must be approved in Discount Management (Branch Manager or CEO for 20-30%, CEO only above 30%).');
       return;
     }
 
     if (activeStage === 'signed-agreement') {
       if (!signedAgreementData.documentUrl || !signedAgreementData.uploadedTocrm) {
-        alert('Upload the signed agreement before submitting it for compliance approval.');
+        window.toast.warning('Upload the signed agreement before submitting it for compliance approval.');
         return;
       }
 
       // Block compliance submission until accounts team has verified a payment via Finance > Payment Verification
       try {
-        const pvRes = await fetch(`/api/admin/opportunity-payments?leadId=${leadId}`);
+        const pvRes = await fetch(`/api/admin/payment-verification?leadId=${leadId}`);
         if (pvRes.ok) {
           const pvData = await pvRes.json();
           const paymentsArr: Array<{ accountantStatus?: string }> = pvData.data ?? pvData.payments ?? [];
           const hasVerified = paymentsArr.some((p) => p.accountantStatus === 'verified');
           if (!hasVerified) {
-            alert('Payment must be verified by the accounts team before submitting for compliance approval.\n\nGo to Finance → Payment Verification to verify this client\'s payment.');
+            window.toast.warning('Payment must be verified by the accounts team before submitting for compliance approval.\n\nGo to Finance → Payment Verification to verify this client\'s payment.');
             return;
           }
         }
@@ -459,7 +685,7 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
     }
 
     if (activeStage === 'retained' && retentionData.agreementComplianceStatus !== 'approved') {
-      alert('Compliance officer approval is required before closing or marking the opportunity as won.');
+      window.toast.error('Compliance officer approval is required before closing or marking the opportunity as won.');
       return;
     }
 
@@ -468,25 +694,39 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       // Save current stage data
       await saveStageData(activeStage);
 
-      // When moving from payment → accounts, ensure opportunity + payment record exist
-      if (stages[currentIndex].id === 'payment') {
-        try {
-          await ensureOpportunityForClient();
-        } catch (err) {
-          console.error('Error ensuring opportunity before accounts:', err);
-        }
-      }
-
       // Mark current as completed
       const newStages = [...stages];
       newStages[currentIndex].status = 'completed';
       newStages[currentIndex + 1].status = 'current';
       setStages(newStages);
-      setActiveStage(newStages[currentIndex + 1].id);
+      const nextStageId = newStages[currentIndex + 1].id;
+      setActiveStage(nextStageId);
+      persistCurrentStage(nextStageId);
+    }
+  };
+
+  // Records how far this lead has progressed through the flow so anyone who
+  // reopens it (counselor, Branch Manager, CEO) resumes on the same stage
+  // instead of restarting at Prospect. Fire-and-forget: a failed write here
+  // shouldn't block the counselor from continuing the flow itself.
+  const persistCurrentStage = async (stageId: string) => {
+    try {
+      await fetch(`/api/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunity_stage: stageId }),
+      });
+    } catch (error) {
+      console.error('Error persisting opportunity stage:', error);
     }
   };
 
   const saveStageData = async (stageId: string) => {
+    if (isReadOnly) {
+      window.toast.info('This won client opportunity flow is view-only for your role.');
+      return;
+    }
+
     try {
       const stageDataMap: Record<string, any> = {
         prospect: prospectData,
@@ -521,11 +761,15 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       console.log('Stage data saved successfully:', result);
     } catch (error) {
       console.error('Error saving stage data:', error);
-      alert('Failed to save data. Please try again.');
+      window.toast.error('Failed to save data. Please try again.');
     }
   };
 
   const moveToPreviousStage = () => {
+    if (isReadOnly) {
+      return;
+    }
+
     const currentIndex = stages.findIndex(s => s.id === activeStage);
     if (currentIndex > 0) {
       const newStages = [...stages];
@@ -537,10 +781,17 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
   };
 
   const handleStageClick = (stageId: string) => {
+    // Stages must be completed one at a time via each stage's own Next/Continue
+    // button — a stage that's still 'pending' hasn't been reached yet, so
+    // clicking its tab directly (e.g. skipping straight to Documents) is a no-op.
+    const targetStage = stages.find(stage => stage.id === stageId);
+    const isApprovedRetentionReviewTab = stageId === 'retention-rejected' && retentionData.agreementComplianceStatus === 'approved';
+    if (!targetStage || (targetStage.status === 'pending' && !isApprovedRetentionReviewTab)) return;
+
     const quotationIndex = stages.findIndex(stage => stage.id === 'quotation');
     const targetIndex = stages.findIndex(stage => stage.id === stageId);
     if (quotationData.discount > 0 && retentionData.discountStatus !== 'approved' && targetIndex > quotationIndex) {
-      alert('Discount approval is required before moving past quotation. Please request approval and wait for Director of Sales / Super Admin approval in Discount Management.');
+      window.toast.error('Discount approval is required before moving past quotation. Please request approval and wait for CEO approval in Discount Management.');
       setActiveStage('quotation');
       return;
     }
@@ -577,10 +828,12 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
   };
 
   const handleRequestDiscount = async () => {
+    if (requestingDiscount) return;
+    setRequestingDiscount(true);
     try {
       const originalAmount = quotationData.subtotal || parseFloat(prospectData.estimatedValue);
       if (!originalAmount || originalAmount <= 0 || quotationData.discount <= 0) {
-        alert('Please enter quotation line items and a valid discount amount before requesting approval');
+        window.toast.warning('Please enter quotation line items and a valid discount amount before requesting approval');
         return;
       }
 
@@ -591,7 +844,7 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         discountAmount: quotationData.discount,
         originalAmount,
         discountedAmount: originalAmount - quotationData.discount,
-        currency: 'AED',
+        currency: currencyCode,
         reason: `Discount requested for ${prospectData.opportunityName}`,
         requestedBy: user?.id || 1,
         status: 'pending'
@@ -605,18 +858,30 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
 
       if (response.ok) {
         const discount = await response.json();
+        // 0-20% discounts are auto-approved server-side (see /api/discount-approvals
+        // POST) — the server tells us which via data.status, so the flow isn't
+        // blocked waiting on an approval that was never actually required.
+        const resolvedStatus: 'pending' | 'approved' = discount.data?.status === 'approved' ? 'approved' : 'pending';
         setRetentionData(prev => ({
           ...prev,
           discountApprovalId: discount.data?.id || discount.id,
-          discountStatus: 'pending'
+          discountStatus: resolvedStatus
         }));
-        alert('Discount request submitted successfully. The Director of Sales or Super Admin must approve it before the payment stage is available.');
+        window.toast.success(
+          resolvedStatus === 'approved'
+            ? 'Discount applied — 0-20% discounts are auto-approved, no sign-off needed.'
+            : discount.data?.tier === 'ceo_only'
+              ? 'Discount request submitted. This is over 30%, so only the CEO can approve it in Discount Management.'
+              : 'Discount request submitted. Branch Manager or CEO must approve it in Discount Management before you can continue past the payment stage.'
+        );
       } else {
-        alert('Failed to submit discount request');
+        window.toast.error('Failed to submit discount request');
       }
     } catch (error) {
       console.error('Error requesting discount:', error);
-      alert('Error requesting discount');
+      window.toast.error('Error requesting discount');
+    } finally {
+      setRequestingDiscount(false);
     }
   };
 
@@ -642,18 +907,18 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       if (response.ok) {
         const reassignment = await response.json();
         setRetentionData(prev => ({ ...prev, reassignmentId: reassignment.id }));
-        alert('Lead reassignment submitted successfully!');
+        window.toast.success('Lead reassignment submitted successfully!');
       } else {
-        alert('Failed to submit lead reassignment');
+        window.toast.error('Failed to submit lead reassignment');
       }
     } catch (error) {
       console.error('Error processing reassignment:', error);
-      alert('Error processing reassignment');
+      window.toast.error('Error processing reassignment');
     }
   };
 
   const submitComplianceApproval = async () => {
-    if (retentionData.agreementComplianceStatus === 'approved') return;
+    if (retentionData.agreementComplianceStatus === 'approved' || retentionData.agreementComplianceStatus === 'pending') return;
 
     const response = await fetch('/api/opportunity-compliance-approvals', {
       method: 'POST',
@@ -664,7 +929,12 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         signedAgreementUrl: signedAgreementData.documentUrl,
         clientSignature: signedAgreementData.clientSignature,
         signatureDate: signedAgreementData.signatureDate,
-        submittedBy: 1,
+        // ensureOpportunityForClient() only records the handover note once, at
+        // the Payment stage — before this Counselor Conversation Summary field
+        // (entered later, on the Agreement stage) has any value. Send it again
+        // here so compliance actually sees what the counselor wrote.
+        conversationSummary: agreementData.counselorConversationSummary,
+        submittedBy: user?.id || lead?.assignTo || 1,
         status: 'pending'
       })
     });
@@ -683,91 +953,51 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
     }));
   };
 
-  const handleApproveCompliance = async () => {
+  const handleRefreshComplianceStatus = async () => {
     try {
-      if (!retentionData.complianceApprovalId) {
-        alert('Submit the signed agreement for compliance approval first.');
-        return;
-      }
-
-      const response = await fetch(`/api/opportunity-compliance-approvals?id=${retentionData.complianceApprovalId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'approved',
-          reviewedBy: retentionData.complianceManager || 'Compliance Officer',
-          reviewerRole: 'compliance_officer',
-          reviewNotes: retentionData.reviewNotes,
-          reviewedAt: new Date()
-        })
-      });
-
+      const response = await fetch(getComplianceApprovalsUrl(initialOpportunityId || completedOpportunityId || Number((lead as any)?.opportunity_id)));
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        alert(error.error || 'Failed to approve compliance review');
+        window.toast.error('Failed to refresh compliance status');
         return;
       }
 
+      const complianceData = await response.json();
+      const latestCompliance = complianceData.data?.[0];
+      if (!latestCompliance) {
+        window.toast.warning('No compliance review found yet.');
+        return;
+      }
+
+      const status = latestCompliance.status || 'pending';
       setRetentionData(prev => ({
         ...prev,
-        agreementComplianceStatus: 'approved',
-        retentionStatus: 'approved',
-        reviewDate: new Date().toISOString().split('T')[0],
+        complianceApprovalId: latestCompliance.id,
+        agreementComplianceStatus: status,
+        retentionStatus: status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'pending',
+        complianceManager: latestCompliance.reviewedBy || prev.complianceManager,
+        reviewNotes: latestCompliance.reviewNotes || prev.reviewNotes,
+        reviewDate: latestCompliance.reviewedAt ? latestCompliance.reviewedAt.split('T')[0] : prev.reviewDate,
       }));
-      alert('Compliance officer approved the signed agreement. The opportunity can now be closed or marked won.');
+      applyComplianceStatusToStages(status);
+
+      if (status === 'approved') {
+        window.toast.success('Compliance manager approved the agreement. You can now mark the opportunity as won.');
+      } else if (status === 'rejected') {
+        window.toast.error('Compliance manager rejected the agreement.');
+      } else {
+        window.toast.warning('Compliance review is still pending.');
+      }
     } catch (error) {
-      console.error('Error approving compliance review:', error);
-      alert('Error approving compliance review');
+      console.error('Error refreshing compliance status:', error);
+      window.toast.error('Error refreshing compliance status');
     }
   };
 
-  const handleRejectCompliance = async () => {
-    try {
-      if (!retentionData.complianceApprovalId) {
-        alert('Submit the signed agreement for compliance approval first.');
-        return;
-      }
-
-      const response = await fetch(`/api/opportunity-compliance-approvals?id=${retentionData.complianceApprovalId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'rejected',
-          reviewedBy: retentionData.complianceManager || 'Compliance Officer',
-          reviewerRole: 'compliance_officer',
-          reviewNotes: retentionData.reviewNotes,
-          reviewedAt: new Date()
-        })
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        alert(error.error || 'Failed to reject compliance review');
-        return;
-      }
-
-      setRetentionData(prev => ({
-        ...prev,
-        agreementComplianceStatus: 'rejected',
-        retentionStatus: 'rejected',
-        reviewDate: new Date().toISOString().split('T')[0],
-      }));
-      const updatedStages = stages.map(stage =>
-        stage.id === 'retained' ? { ...stage, status: 'rejected' as const } :
-          stage.id === 'retention-rejected' ? { ...stage, status: 'current' as const } : stage
-      );
-      setStages(updatedStages);
-      setActiveStage('retention-rejected');
-      alert('Compliance review rejected. The opportunity cannot be closed until the signed agreement is corrected and approved.');
-    } catch (error) {
-      console.error('Error rejecting compliance review:', error);
-      alert('Error rejecting compliance review');
-    }
-  };
-
-  const ensureOpportunityForClient = async () => {
+  const ensureOpportunityForClient = async (paymentOverride: Partial<PaymentData> = {}) => {
+    const effectivePaymentData = { ...paymentData, ...paymentOverride };
     const existingOpportunityId = completedOpportunityId || Number((lead as any)?.opportunity_id);
     if (existingOpportunityId) return existingOpportunityId;
+    const branchDetails = getLeadBranchDetails(lead as any);
 
     const existingResponse = await fetch(`/api/opportunities?leadId=${leadId}`);
     if (existingResponse.ok) {
@@ -782,8 +1012,16 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
     const createResponse = await fetch('/api/lead-to-opportunity', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: JSON.stringify((() => {
+        const totalAmount = Number(quotationData.total || effectivePaymentData.totalAmount || 0);
+        const paidAmount = Math.min(Math.max(0, Number(effectivePaymentData.paidAmount || 0)), totalAmount);
+        const remainingBalance = Math.max(totalAmount - paidAmount, 0);
+
+        return {
         leadId,
+        // Client creation happens only after Accounts + Compliance approval
+        // when the counselor closes/marks the opportunity won.
+        createClient: false,
         opportunityData: {
           opportunityName: prospectData.opportunityName || `${lead?.fname || ''} ${lead?.lname || ''} - ${lead?.service_interest || prospectData.serviceRequired}`,
           description: prospectData.description || `Opportunity created for ${lead?.fname || ''} ${lead?.lname || ''}`,
@@ -793,16 +1031,16 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
           serviceRequired: prospectData.serviceRequired || (lead as any)?.service_interest || 'Consulting Service',
         },
         paymentData: {
-          totalAmount: quotationData.total || paymentData.totalAmount || 0,
-          amount: paymentData.paidAmount || paymentData.totalAmount || quotationData.total || 0,
-          paidAmount: paymentData.paidAmount || 0,
-          paymentMethod: paymentData.paymentMethod || 'cash',
-          paymentDate: paymentData.paymentDate,
-          transactionId: paymentData.transactionId,
+          totalAmount,
+          amount: paidAmount,
+          paidAmount,
+          paymentMethod: effectivePaymentData.paymentMethod || 'cash',
+          paymentDate: effectivePaymentData.paymentDate,
+          transactionId: effectivePaymentData.transactionId,
           discountAmount: quotationData.discount || 0,
-          proofOfPaymentUrl: (paymentData.proofOfPayment instanceof File && paymentData.proofOfPaymentUrl)
-            ? paymentData.proofOfPaymentUrl
-            : null,
+          proofOfPaymentUrl: effectivePaymentData.proofOfPaymentUrl || null,
+          dueDate: effectivePaymentData.dueDate || undefined,
+          remark: effectivePaymentData.remark || undefined,
         },
         agreementData: {
           title: agreementData.agreementTitle || `Service Agreement - ${lead?.fname || ''} ${lead?.lname || ''}`,
@@ -813,6 +1051,8 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
           totalAmount: quotationData.total || parseFloat(prospectData.estimatedValue) || 0,
           terms: agreementData.terms,
           specialConditions: agreementData.specialConditions,
+          companyName: agreementData.companyName || branchDetails.companyName,
+          companyAddress: agreementData.companyAddress || branchDetails.branchAddress,
           status: signedAgreementData.uploadedTocrm ? 'uploaded' : 'generated',
           documentUrl: signedAgreementData.documentUrl,
           clientSignature: signedAgreementData.clientSignature,
@@ -821,20 +1061,22 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         invoiceData: {
           purpose: prospectData.serviceRequired || lead?.service_interest || '',
           discount: quotationData.discount || 0,
-          amount: paymentData.paidAmount || 0,
-          totPayAmt: quotationData.total || paymentData.totalAmount || 0,
-          payBalance: paymentData.remainingBalance || 0,
-          payment_mode: paymentData.paymentMethod || 'cash'
+          amount: paidAmount,
+          totPayAmt: totalAmount,
+          payBalance: remainingBalance,
+          payment_mode: effectivePaymentData.paymentMethod || 'cash'
         },
         counselorHandover: {
           summary: agreementData.counselorConversationSummary
         }
-      })
+      };
+      })())
     });
 
     if (!createResponse.ok) {
       const error = await createResponse.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to create opportunity for operations');
+      const details = Array.isArray(error.errors) ? `: ${error.errors.join(', ')}` : error.details ? `: ${error.details}` : '';
+      throw new Error(`${error.error || 'Failed to create opportunity for operations'}${details}`);
     }
 
     const result = await createResponse.json();
@@ -849,14 +1091,22 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
   const saveAgreement = async () => {
     const opportunityId = await ensureOpportunityForClient();
     let agreementId = agreementData.agreementId;
+    let existingAgreementNumber: string | null = null;
 
     if (!agreementId) {
       const response = await fetch(`/api/opportunity-agreements?opportunityId=${opportunityId}`);
       if (response.ok) {
         const agreements = await response.json();
         agreementId = Number(agreements?.[0]?.id || 0) || null;
+        existingAgreementNumber = agreements?.[0]?.agreementNumber || null;
       }
     }
+
+    // Reserve the number once so the value saved to the database and the value
+    // shown on the downloaded PDF (downloadAgreementPdf, below) are always the
+    // same agreement number instead of two independently-generated timestamps.
+    const newAgreementNumber = `AGR-${Date.now()}`;
+    const branchDetails = getLeadBranchDetails(lead as any);
 
     const payload = {
       agreementType: agreementData.agreementType,
@@ -864,14 +1114,17 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       title: agreementData.agreementTitle,
       duration: agreementData.duration,
       startDate: agreementData.startDate || new Date().toISOString().split('T')[0],
-      endDate: agreementData.endDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: agreementData.endDate || computeAgreementEndDate(
+        agreementData.startDate || new Date().toISOString().split('T')[0],
+        (lead as any)?.program_validity,
+      ),
       amount: Number(agreementData.amount || quotationData.total || 0),
       totalAmount: Number(agreementData.amount || quotationData.total || 0),
       terms: agreementData.terms,
       termsAndConditions: agreementData.terms,
       specialConditions: agreementData.specialConditions,
-      companyName: agreementData.companyName,
-      companyAddress: agreementData.companyAddress,
+      companyName: agreementData.companyName || branchDetails.companyName,
+      companyAddress: agreementData.companyAddress || branchDetails.branchAddress,
     };
 
     const response = await fetch(
@@ -882,7 +1135,7 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         body: JSON.stringify(agreementId ? payload : {
           ...payload,
           opportunityId,
-          agreementNumber: `AGR-${Date.now()}`,
+          agreementNumber: newAgreementNumber,
           status: 'generated',
           createdBy: user?.id || lead?.assignTo || 1,
           uploadedBy: user?.id || lead?.assignTo || 1,
@@ -893,7 +1146,18 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
     if (!response.ok) throw new Error(result.error || 'Failed to save agreement');
 
     const savedId = Number(result.data?.id || result.id || agreementId || 0);
-    setAgreementData((current) => ({ ...current, agreementId: savedId || current.agreementId, status: 'generated' }));
+    // On create, the server assigns the real AG/{branch}/{product}/{date}/{seq}
+    // number from the new row's own id (it can't be predicted client-side
+    // before that id exists) — always prefer whatever it echoes back.
+    const savedAgreementNumber = agreementId
+      ? (existingAgreementNumber || result.data?.agreementNumber || agreementData.agreementNumber || null)
+      : (result.data?.agreementNumber || result.agreementNumber || newAgreementNumber);
+    setAgreementData((current) => ({
+      ...current,
+      agreementId: savedId || current.agreementId,
+      agreementNumber: savedAgreementNumber || current.agreementNumber,
+      status: 'generated',
+    }));
     return savedId;
   };
 
@@ -907,13 +1171,16 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
   };
 
   const handleCompleteRetention = async () => {
+    if (closingWon) return;
+    setClosingWon(true);
     try {
       if (retentionData.agreementComplianceStatus !== 'approved') {
-        alert('Compliance officer approval is required before this opportunity can be closed or won.');
+        window.toast.error('Compliance officer approval is required before this opportunity can be closed or won.');
         return;
       }
 
       const opportunityId = await ensureOpportunityForClient();
+      const branchDetails = getLeadBranchDetails(lead as any);
 
       let agreementResult: any = null;
       const existingAgreementResponse = await fetch(`/api/agreement-generation?opportunityId=${opportunityId}`);
@@ -921,13 +1188,66 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         const existingAgreementData = await existingAgreementResponse.json();
         const latestAgreement = Array.isArray(existingAgreementData.data) ? existingAgreementData.data[0] : null;
         if (latestAgreement) {
+          const clientName = `${lead?.fname || ''} ${lead?.lname || ''}`.trim() || 'Client';
+          // A not-yet-signed agreement's stored HTML can predate a later fix to its
+          // branch's legal text (branchAgreementProfiles.ts) — regenerate it fresh
+          // before finalizing to "won" so the client doesn't get stale branch details.
+          // An already-signed/uploaded agreement is a real executed document and must
+          // never be silently rewritten.
+          const isAlreadySigned = Boolean(latestAgreement.uploadedToCrm) || Boolean(latestAgreement.documentUrl);
+          let content = latestAgreement.content;
+          if (!isAlreadySigned) {
+            const destinationCountry = (lead as any)?.country_interest_label || (lead as any)?.country_interest || 'Not specified';
+            const serviceProgram = (lead as any)?.service_interest_label || (lead as any)?.service_interest || agreementData.agreementType || 'Consulting Service';
+            const totalAmountForAgreement = quotationData?.total || agreementData.amount || (lead as any)?.payTotal || (lead as any)?.demandAmt || '0';
+            const initialPaymentForAgreement = quotationData?.subtotal ? String(quotationData.subtotal) : String(Math.round(Number(totalAmountForAgreement) / 2));
+            const secondPaymentForAgreement = quotationData?.total ? String(Math.max(0, Number(quotationData.total) - Number(initialPaymentForAgreement))) : String(Math.round(Number(totalAmountForAgreement) / 2));
+
+            content = renderAgreementForBranch(branchDetails.branchAbbrv, {
+              agreementNumber: latestAgreement.agreementNumber,
+              agreementDate: new Date().toLocaleDateString('en-GB'),
+              agreementExpiry: agreementData.endDate ? new Date(agreementData.endDate).toLocaleDateString('en-GB') : '',
+              clientName,
+              clientEmail: (lead as any)?.email || '',
+              clientPhone: (lead as any)?.phone || (lead as any)?.mobile || '',
+              clientAddress: (lead as any)?.address || '',
+              nationality: (lead as any)?.nationality || '',
+              passportNumber: (lead as any)?.id_number || '',
+              idNumber: (lead as any)?.emirates_id || (lead as any)?.id_number || '',
+              serviceProgram,
+              programCode: agreementData.agreementType || '',
+              programTermSchedule: (lead as any)?.program_validity
+                || (agreementData.startDate && agreementData.endDate
+                ? `${agreementData.startDate} to ${agreementData.endDate}`
+                : ''),
+              destinationCountry,
+              totalAmount: String(totalAmountForAgreement),
+              initialPayment: initialPaymentForAgreement,
+              secondPayment: secondPaymentForAgreement,
+              clientId: String((lead as any)?.id || ''),
+              includedDeliverables: agreementData.agreementTitle || '',
+              expressExclusions: '',
+              specialTerms: agreementData.terms || '',
+            });
+
+            // Persist the refreshed content so the standalone agreement page and any
+            // later lookup also see it, not just this in-memory value. Best-effort:
+            // if this save fails, "Won" can still proceed with the stale content
+            // (same as before this fix), rather than blocking retention on it.
+            fetch(`/api/opportunity-agreements?id=${latestAgreement.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content }),
+            }).catch((err) => console.error('Failed to persist refreshed agreement content:', err));
+          }
+
           agreementResult = {
             data: {
               agreementId: latestAgreement.id,
               agreementNumber: latestAgreement.agreementNumber,
-              content: latestAgreement.content,
+              content,
               opportunity: {
-                clientName: latestAgreement.clientName || `${lead?.fname || ''} ${lead?.lname || ''}`.trim(),
+                clientName: latestAgreement.clientName || clientName,
                 serviceType: prospectData.serviceRequired || lead?.service_interest || 'Service'
               }
             }
@@ -936,6 +1256,14 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       }
 
       if (!agreementResult) {
+        // Same "amount the client actually agreed to" computation used when
+        // refreshing an existing agreement above — the fixed amount after
+        // the approved discount (and tax), not the opportunity's original
+        // pre-discount package/estimated value.
+        const firstGenTotalAmount = quotationData?.total || agreementData.amount || (lead as any)?.payTotal || (lead as any)?.demandAmt || 0;
+        const firstGenInitialPayment = quotationData?.subtotal ? String(quotationData.subtotal) : String(Math.round(Number(firstGenTotalAmount) / 2));
+        const firstGenSecondPayment = quotationData?.total ? String(Math.max(0, Number(quotationData.total) - Number(firstGenInitialPayment))) : String(Math.round(Number(firstGenTotalAmount) / 2));
+
         const agreementResponse = await fetch('/api/agreement-generation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -947,13 +1275,19 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
             description: `Service agreement for ${prospectData.serviceRequired || lead?.service_interest}`,
             terms: generateDefaultTerms(prospectData),
             startDate: agreementData.startDate || new Date().toISOString().split('T')[0],
-            endDate: agreementData.endDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            endDate: agreementData.endDate || computeAgreementEndDate(
+              agreementData.startDate || new Date().toISOString().split('T')[0],
+              (lead as any)?.program_validity,
+            ),
             paymentMethod: 'Bank Transfer',
-            paymentSchedule: 'As per agreed schedule'
+            paymentSchedule: 'As per agreed schedule',
+            totalAmount: firstGenTotalAmount,
+            initialPayment: firstGenInitialPayment,
+            secondPayment: firstGenSecondPayment,
           },
           clientData: {
-            companyName: agreementData.companyName || '',
-            companyAddress: agreementData.companyAddress || lead?.address
+            companyName: agreementData.companyName || branchDetails.companyName,
+            companyAddress: agreementData.companyAddress || branchDetails.branchAddress
           },
           templateId: null
         })
@@ -966,7 +1300,7 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
 
         agreementResult = await agreementResponse.json();
       }
-      
+
       // Update opportunity status to won
       const opportunityStatusResponse = await fetch(`/api/opportunities/${opportunityId}`, {
         method: 'PUT',
@@ -997,7 +1331,10 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'retained',
+          convet: 'Client',
           opportunity_status: 'won',
+          opportunity_stage: 'closed',
+          opportunity_id: opportunityId,
           conversion_date: new Date().toISOString().split('T')[0],
           conversion_reason: 'Successfully converted and retained client'
         })
@@ -1015,29 +1352,23 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       );
       setStages(updatedStages);
       setActiveStage('closed');
+      setLead((current: any) => current ? {
+        ...current,
+        status: 'retained',
+        convet: 'Client',
+        opportunity_status: 'won',
+        opportunity_stage: 'closed',
+        opportunity_id: opportunityId,
+      } : current);
 
-      alert(`🎉 Opportunity completed and retained successfully!\n\nAgreement generated: ${agreementResult.data.agreementNumber}\nClient: ${agreementResult.data.opportunity.clientName}\nService: ${agreementResult.data.opportunity.serviceType}`);
-      
-      // Show agreement preview
-      if (confirm('Would you like to preview the generated agreement?')) {
-        // Open agreement in new window
-        const agreementWindow = window.open('', '_blank');
-        if (agreementWindow) {
-          agreementWindow.document.write(agreementResult.data.content);
-          agreementWindow.document.close();
-        } else {
-          alert('Popup blocked! Please disable popup blocker to preview the agreement.');
-        }
-      }
+      window.toast.success(`🎉 Opportunity completed and retained successfully!\n\nAgreement generated: ${agreementResult.data.agreementNumber}\nClient: ${agreementResult.data.opportunity.clientName}\nService: ${agreementResult.data.opportunity.serviceType}`);
 
-      // Redirect to leads page
-      setTimeout(() => {
-        window.location.href = '/admin/leads';
-      }, 3000);
     } catch (error) {
       console.error('Error completing retention:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert('Error completing retention: ' + errorMessage);
+      window.toast.error('Error completing retention: ' + errorMessage);
+    } finally {
+      setClosingWon(false);
     }
   };
 
@@ -1111,6 +1442,7 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
           feeData={feeData}
           feeLoading={feeLoading}
           retentionData={retentionData}
+          requestingDiscount={requestingDiscount}
           onRequestDiscount={handleRequestDiscount}
           onRefreshDiscount={refreshDiscountApproval}
           onDiscountChanged={handleDiscountChanged}
@@ -1125,6 +1457,12 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
           data={paymentData}
           setData={setPaymentData}
           quotationTotal={quotationData.total}
+          quotationTax={quotationData.tax}
+          quotationDiscount={quotationData.discount}
+          opportunityId={completedOpportunityId}
+          onEnsureOpportunity={ensureOpportunityForClient}
+          discountPending={quotationData.discount > 0 && retentionData.discountStatus !== 'approved'}
+          discountStatus={retentionData.discountStatus}
           onNext={moveToNextStage}
           onPrevious={moveToPreviousStage}
         />;
@@ -1132,12 +1470,15 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         return <AccountsStage
           lead={lead}
           leadId={leadId}
+          opportunityId={completedOpportunityId}
           onNext={moveToNextStage}
           onPrevious={moveToPreviousStage}
         />;
       case 'documents':
         return <DocumentsStage
           lead={lead}
+          leadId={leadId}
+          onLeadUpdated={setLead}
           data={documentData}
           setData={setDocumentData}
           opportunityId={completedOpportunityId}
@@ -1153,6 +1494,8 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
           data={agreementData}
           setData={setAgreementData}
           quotationData={quotationData}
+          programValidity={(lead as any)?.program_validity || ''}
+          opportunityId={completedOpportunityId || (lead as any)?.resolved_opportunity_id || (lead as any)?.opportunity_id}
           onSaveAgreement={saveAgreement}
           onDeleteAgreement={deleteAgreement}
           onNext={moveToNextStage}
@@ -1166,6 +1509,7 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
           opportunityId={completedOpportunityId}
           uploadedBy={user?.id || 1}
           complianceStatus={retentionData.agreementComplianceStatus}
+          onSubmitCompliance={submitComplianceApproval}
           onNext={moveToNextStage}
           onPrevious={moveToPreviousStage}
         />;
@@ -1174,9 +1518,9 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
           lead={lead}
           data={retentionData}
           setData={setRetentionData}
-          onApproveCompliance={handleApproveCompliance}
-          onRejectCompliance={handleRejectCompliance}
+          onRefreshCompliance={handleRefreshComplianceStatus}
           onCloseWon={handleCompleteRetention}
+          closingWon={closingWon}
           onPrevious={moveToPreviousStage}
           onReject={() => {
             const newStages = [...stages];
@@ -1191,6 +1535,7 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       case 'retention-rejected':
         return <RetentionRejectedStage
           lead={lead}
+          leadId={leadId}
           data={retentionData}
           onResubmit={() => {
             const newStages = [...stages];
@@ -1205,10 +1550,10 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
       case 'closed':
         return <ClosedStage
           lead={lead}
+          leadId={leadId}
           prospectData={prospectData}
           quotationData={quotationData}
           paymentData={paymentData}
-          opportunityId={completedOpportunityId}
           currencyCode={feeData?.currencyCode || 'AED'}
         />;
       default:
@@ -1233,14 +1578,14 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         {/* Header with Lead Info */}
         <div className="p-6 border-b border-gray-200 bg-white shadow-sm">
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Opportunity Flow Management</h1>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+              <div className="min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Opportunity Flow Management</h1>
                 <p className="text-gray-600 mt-1">Convert lead to opportunity through the complete workflow</p>
               </div>
               <button
                 onClick={() => window.history.back()}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex items-center"
+                className="self-start sm:self-auto px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex items-center"
               >
                 <ChevronLeft className="mr-1" size={20} />
                 Back to Leads
@@ -1249,27 +1594,27 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
 
             {lead && (
               <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                <div className="flex items-center mb-2">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
                   <User className="mr-2 text-blue-600" size={18} />
                   <span className="font-semibold text-gray-900">{lead.fname} {lead.lname}</span>
-                  <span className="ml-4 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded">ID: #{lead.id}</span>
+                  <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded">ID: #{lead.id}</span>
                 </div>
-                <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div className="flex items-center text-gray-700">
-                    <Mail className="mr-2 text-gray-400" size={14} />
-                    <span>{lead.email}</span>
+                <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="flex min-w-0 items-center text-gray-700">
+                    <Mail className="mr-2 flex-shrink-0 text-gray-400" size={14} />
+                    <span className="truncate">{lead.email}</span>
                   </div>
-                  <div className="flex items-center text-gray-700">
-                    <Phone className="mr-2 text-gray-400" size={14} />
-                    <span>{lead.phone}</span>
+                  <div className="flex min-w-0 items-center text-gray-700">
+                    <Phone className="mr-2 flex-shrink-0 text-gray-400" size={14} />
+                    <span className="truncate">{lead.phone}</span>
                   </div>
-                  <div className="flex items-center text-gray-700">
-                    <Globe className="mr-2 text-gray-400" size={14} />
-                    <span>{lead.nationality}</span>
+                  <div className="flex min-w-0 items-center text-gray-700">
+                    <Globe className="mr-2 flex-shrink-0 text-gray-400" size={14} />
+                    <span className="truncate">{lead.nationality}</span>
                   </div>
-                  <div className="flex items-center text-gray-700">
-                    <Briefcase className="mr-2 text-gray-400" size={14} />
-                    <span>{lead.service_interest}</span>
+                  <div className="flex min-w-0 items-center text-gray-700">
+                    <Briefcase className="mr-2 flex-shrink-0 text-gray-400" size={14} />
+                    <span className="truncate">{lead.service_interest}</span>
                   </div>
                 </div>
               </div>
@@ -1278,18 +1623,26 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         </div>
 
         {/* Progress Path */}
-        <div className="p-6 border-b border-gray-200 bg-white">
+        <div className="p-4 sm:p-6 border-b border-gray-200 bg-white">
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between">
+            <div className="flex max-w-full flex-wrap items-center gap-2">
               {stages.map((stage, index) => {
                 const Icon = stage.icon;
                 const isActive = stage.id === activeStage;
+                // A stage the flow hasn't reached yet can't be jumped to directly —
+                // only stages already completed/current (or rejected, a past state)
+                // are navigable. Forward progress only happens one stage at a time
+                // via the stage's own "Next"/"Continue" button.
+                const isApprovedRetentionReviewTab = stage.id === 'retention-rejected' && retentionData.agreementComplianceStatus === 'approved';
+                const isLocked = stage.status === 'pending' && !isApprovedRetentionReviewTab;
 
                 return (
-                  <div key={stage.id} className="flex items-center">
+                  <div key={stage.id} className="flex flex-none items-center">
                     <button
                       onClick={() => handleStageClick(stage.id)}
-                      className={`flex items-center px-4 py-2 rounded-lg transition-all ${isActive
+                      disabled={isLocked}
+                      title={isLocked ? 'Complete the earlier stages first' : undefined}
+                      className={`flex flex-none items-center whitespace-nowrap px-3 py-2 sm:px-4 rounded-lg transition-all ${isActive
                         ? stage.status === 'completed'
                           ? 'bg-green-600 text-white shadow-md'
                           : stage.status === 'rejected'
@@ -1297,25 +1650,27 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
                             : 'bg-blue-600 text-white shadow-md'
                         : stage.status === 'completed'
                           ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : isApprovedRetentionReviewTab
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
                           : stage.status === 'rejected'
                             ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
                     >
-                      <Icon size={16} className="mr-2" />
-                      <span className="text-sm font-medium">{stage.name}</span>
+                      <Icon size={16} className="mr-2 flex-shrink-0" />
+                      <span className="text-xs font-medium sm:text-sm">{stage.name}</span>
                       {stage.status === 'completed' && (
-                        <CheckCircle size={14} className="ml-2" />
+                        <CheckCircle size={14} className="ml-2 flex-shrink-0" />
                       )}
                       {stage.status === 'rejected' && (
-                        <XCircle size={14} className="ml-2" />
+                        <XCircle size={14} className="ml-2 flex-shrink-0" />
                       )}
                     </button>
 
                     {index < stages.length - 1 && (
                       <ChevronRight
                         size={16}
-                        className={`mx-1 ${stage.status === 'completed' ? 'text-green-600' : 'text-gray-300'
+                        className={`mx-1 hidden flex-shrink-0 2xl:block ${stage.status === 'completed' ? 'text-green-600' : 'text-gray-300'
                           }`}
                       />
                     )}
@@ -1329,6 +1684,11 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
         {/* Stage Content */}
         <div className="p-6 bg-gray-50 min-h-screen">
           <div className="max-w-7xl mx-auto">
+            {isReadOnly && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                View-only mode: this deal is already marked won. Only CEO and Branch Manager can edit the opportunity flow from the client list.
+              </div>
+            )}
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeStage}
@@ -1338,7 +1698,11 @@ export default function OpportunityFlowWizard({ leadId }: OpportunityFlowWizardP
                 variants={stepVariants}
                 transition={{ duration: 0.3 }}
               >
-                {renderStageContent()}
+                {isReadOnly && activeStage !== 'closed' ? (
+                  <fieldset disabled className="contents">
+                    {renderStageContent()}
+                  </fieldset>
+                ) : renderStageContent()}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -1375,12 +1739,13 @@ function validateStage(
   }
 
   if (stage === 'payment') {
-    if (!Number.isFinite(paymentData.totalAmount) || paymentData.totalAmount <= 0) return 'Payment total must be greater than zero.';
-    if (!Number.isFinite(paymentData.paidAmount) || paymentData.paidAmount < 0 || paymentData.paidAmount > paymentData.totalAmount) return 'Paid amount must be between zero and the payment total.';
+    const paymentTotal = Number(paymentData.totalAmount || quotationData.total);
+    if (!Number.isFinite(paymentTotal) || paymentTotal <= 0) return 'Payment total must be greater than zero.';
+    if (!Number.isFinite(paymentData.paidAmount) || paymentData.paidAmount < 0 || paymentData.paidAmount > paymentTotal) return 'Paid amount must be between zero and the payment total.';
     if (!paymentData.paymentDate || Number.isNaN(new Date(paymentData.paymentDate).getTime())) return 'Enter a valid payment date.';
   }
 
-  if (stage === 'documents' && !documentData.allMandatoryDocsUploaded) return 'Upload ID proof and passport copy before continuing.';
+  if (stage === 'documents' && !documentData.allMandatoryDocsUploaded) return 'Upload ID proof, passport copy, and enter the passport number before continuing.';
 
   if (stage === 'agreement') {
     if (!agreementData.agreementTitle.trim()) return 'Enter an agreement title before continuing.';
@@ -1388,6 +1753,7 @@ function validateStage(
     if (!Number.isFinite(Number(agreementData.amount)) || Number(agreementData.amount) <= 0) return 'Agreement amount must be greater than zero.';
     if (!agreementData.terms.trim()) return 'Enter the agreement terms before continuing.';
     if (!agreementData.counselorConversationSummary.trim()) return 'Counselor conversation summary is required before continuing.';
+    if (agreementData.counselorConversationSummary.trim().length < COUNSELOR_SUMMARY_MIN_CHARS) return `Counselor conversation summary must be at least ${COUNSELOR_SUMMARY_MIN_CHARS} characters.`;
   }
 
   if (stage === 'signed-agreement') {
@@ -1400,32 +1766,96 @@ function validateStage(
 
 // Stage Components
 function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onNext, feeData, feeLoading, paymentType, setPaymentType, getFeePackageTotals }: any) {
+  const { user } = useAuth();
+  // Same rule as the Edit Lead page and the PUT /api/leads/[id] server-side
+  // check: once a lead is in the CRM, only Branch Manager/CEO may change its
+  // contact details. This workspace previously let anyone edit email/mobile/
+  // phone here regardless of role — the save would silently 403 for a
+  // counselor since the server already enforces this, so disable it in the UI too.
+  const canEditContactInfo = isBranchManagerOrCeo(user as any);
   const [saving, setSaving] = useState(false);
   const [editingLeadField, setEditingLeadField] = useState<string | null>(null);
   const [leadDraft, setLeadDraft] = useState<Record<string, any>>({});
-  const [programs, setPrograms] = useState<Array<{ id: number | string; name: string }>>([]);
-  const [loadingPrograms, setLoadingPrograms] = useState(false);
+  const [programs, setPrograms] = useState<Array<{ id: number | string; name: string; validity?: string | null }>>([]);
   const [countries, setCountries] = useState<Array<{ id: number; name: string }>>([]);
+  const REMARKS_PAGE_SIZE = 5;
+  const [remarksLog, setRemarksLog] = useState<Array<{ id: number; action: string; remark: string; actorName?: string; created_at: string }>>([]);
+  const [remarksTotal, setRemarksTotal] = useState(0);
+  const [loadingRemarks, setLoadingRemarks] = useState(false);
+  const [loadingMoreRemarks, setLoadingMoreRemarks] = useState(false);
 
   useEffect(() => {
     if (lead) setLeadDraft(lead);
   }, [lead]);
 
+  // The opportunity's service is just whatever's set as "Service interest" in
+  // the Counselor workspace above — there's no separate program picker for
+  // it anymore, so keep it synced here instead (including when the workspace
+  // field is edited after the initial load, which the one-time hydration on
+  // fetch wouldn't otherwise pick up).
+  useEffect(() => {
+    const currentServiceId = leadDraft.service_interest ?? lead?.service_interest ?? '';
+    if (!currentServiceId) return;
+    const currentServiceName = lead?.service_interest_label
+      || programs.find((p) => String(p.id) === String(currentServiceId))?.name
+      || String(currentServiceId);
+    if (String(data.serviceId) === String(currentServiceId) && data.serviceRequired === currentServiceName) return;
+    setData((prev: any) => ({ ...prev, serviceRequired: currentServiceName, serviceId: String(currentServiceId) }));
+  }, [leadDraft.service_interest, lead?.service_interest_label, programs]);
+
+  // Replaces the free-text opportunity "Description" box — shows the lead's
+  // actual activity history from dm_remarks instead. Only fetches this lead's
+  // remarks (sections=activityLog skips the appointments/followUps/legacy-remarks
+  // queries this page doesn't use) and only the first page, to keep page load light.
+  useEffect(() => {
+    if (!lead?.id) return;
+    let cancelled = false;
+    setLoadingRemarks(true);
+    fetch(`/api/leads/${lead.id}/activity?sections=activityLog&remarksLimit=${REMARKS_PAGE_SIZE}&remarksOffset=0`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (cancelled) return;
+        setRemarksLog(json.activityLog || []);
+        setRemarksTotal(Number(json.activityLogTotal) || 0);
+      })
+      .catch(() => { if (!cancelled) { setRemarksLog([]); setRemarksTotal(0); } })
+      .finally(() => { if (!cancelled) setLoadingRemarks(false); });
+    return () => { cancelled = true; };
+  }, [lead?.id]);
+
+  const loadMoreRemarks = async () => {
+    if (!lead?.id || loadingMoreRemarks) return;
+    setLoadingMoreRemarks(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/activity?sections=activityLog&remarksLimit=${REMARKS_PAGE_SIZE}&remarksOffset=${remarksLog.length}`);
+      const json = await res.json();
+      setRemarksLog((prev) => [...prev, ...(json.activityLog || [])]);
+      setRemarksTotal(Number(json.activityLogTotal) || 0);
+    } catch (error) {
+      console.error('Error loading more remarks:', error);
+    } finally {
+      setLoadingMoreRemarks(false);
+    }
+  };
+
+  // Service interest is scoped to the selected country interest — e.g.
+  // picking Canada should only offer Canada-based programs, same as the Add
+  // Lead form's Program Country -> Program dependency. Falls back to every
+  // active service when no country is selected yet.
   useEffect(() => {
     const loadPrograms = async () => {
-      setLoadingPrograms(true);
       try {
-        const response = await fetch('/api/services');
+        const countryId = leadDraft.country_interest;
+        const url = countryId ? `/api/country-programs?countryId=${countryId}` : '/api/services';
+        const response = await fetch(url);
         setPrograms(response.ok ? await response.json() : []);
       } catch (error) {
         console.error('Error loading programs:', error);
         setPrograms([]);
-      } finally {
-        setLoadingPrograms(false);
       }
     };
     loadPrograms();
-  }, []);
+  }, [leadDraft.country_interest]);
 
   useEffect(() => {
     fetch('/api/admin/lookup')
@@ -1447,18 +1877,18 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
       onLeadUpdated(updatedLead);
       setEditingLeadField(null);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to save field');
+      window.toast.error(error instanceof Error ? error.message : 'Failed to save field');
     }
   };
 
-  const leadField = (field: string, label: string, type = 'text') => {
-    const editing = editingLeadField === field;
+  const leadField = (field: string, label: string, type = 'text', editable = true) => {
+    const editing = editable && editingLeadField === field;
     const value = leadDraft[field] ?? '';
     return (
       <div className="rounded-lg border border-gray-200 p-3">
         <div className="mb-1 flex items-center justify-between gap-2">
           <label className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</label>
-          {!editing && (
+          {!editing && editable && (
             <button onClick={() => setEditingLeadField(field)} className="text-xs font-medium text-blue-600 hover:text-blue-800">
               Edit
             </button>
@@ -1479,6 +1909,9 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
         ) : (
           <p className="min-h-5 break-words text-sm text-gray-900">{value || '—'}</p>
         )}
+        {!editable && (
+          <p className="mt-1 text-[11px] text-gray-400">Branch Manager/CEO only</p>
+        )}
       </div>
     );
   };
@@ -1498,13 +1931,36 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
         });
       }
       await onSaveProspect();
-      alert('Prospect data saved successfully.');
+      window.toast.success('Prospect data saved successfully.');
     } catch (error) {
       console.error('Error saving:', error);
-      alert('Failed to save data');
+      window.toast.error('Failed to save data');
     } finally {
       setSaving(false);
     }
+  };
+
+  // "Continue to Quotation" must actually persist the Lead Status/Priority
+  // picked in Lead Progression, not just move the wizard forward — the button
+  // used to call onNext directly, so a status/priority chosen here was only
+  // ever saved if the person separately clicked "Save Draft" first, and the
+  // lead record could silently keep its old status/priority even after the
+  // wizard had moved on to Quotation.
+  const handleContinueToQuotation = async () => {
+    if (lead?.id) {
+      try {
+        await fetch(`/api/leads/${lead.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: leadDraft.status, priority: leadDraft.priority }),
+        });
+      } catch (error) {
+        console.error('Error saving lead status/priority before continuing:', error);
+        window.toast.error('Failed to save lead status/priority. Please try again.');
+        return;
+      }
+    }
+    onNext();
   };
 
   return (
@@ -1528,9 +1984,9 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {leadField('fname', 'First name')}
           {leadField('lname', 'Last name')}
-          {leadField('email', 'Email', 'email')}
-          {leadField('mobile', 'Mobile')}
-          {leadField('phone', 'Phone')}
+          {leadField('email', 'Email', 'email', canEditContactInfo)}
+          {leadField('mobile', 'Mobile', 'text', canEditContactInfo)}
+          {leadField('phone', 'Phone', 'text', canEditContactInfo)}
           {leadField('nationality', 'Nationality')}
           {/* Country interest — dropdown */}
           <div className="rounded-lg border border-gray-200 p-3">
@@ -1542,7 +1998,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
             </div>
             {editingLeadField === 'country_interest' ? (
               <div className="flex gap-2">
-                <select
+                <SearchableSelect
                   value={leadDraft.country_interest ?? ''}
                   onChange={e => setLeadDraft(cur => ({ ...cur, country_interest: e.target.value }))}
                   className="min-w-0 flex-1 rounded border border-blue-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500"
@@ -1552,7 +2008,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
                   {countries.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
-                </select>
+                </SearchableSelect>
                 <button onClick={() => saveLeadField('country_interest')} className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700">Save</button>
                 <button onClick={() => { setLeadDraft(lead); setEditingLeadField(null); }} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200">Cancel</button>
               </div>
@@ -1573,7 +2029,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
             </div>
             {editingLeadField === 'service_interest' ? (
               <div className="flex gap-2">
-                <select
+                <SearchableSelect
                   value={leadDraft.service_interest ?? ''}
                   onChange={e => setLeadDraft(cur => ({ ...cur, service_interest: e.target.value }))}
                   className="min-w-0 flex-1 rounded border border-blue-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500"
@@ -1583,7 +2039,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
                   {programs.map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
-                </select>
+                </SearchableSelect>
                 <button onClick={() => saveLeadField('service_interest')} className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700">Save</button>
                 <button onClick={() => { setLeadDraft(lead); setEditingLeadField(null); }} className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200">Cancel</button>
               </div>
@@ -1616,7 +2072,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Lead Status *</label>
-            <select
+            <SearchableSelect
               value={leadDraft.status || ''}
               onChange={(e) => setLeadDraft((prev) => ({ ...prev, status: e.target.value }))}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -1629,11 +2085,13 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
               <option value="Could Not Connect">Could Not Connect</option>
               <option value="Call Back">Call Back</option>
               <option value="Abroad Lead">Abroad Lead</option>
-            </select>
+              <option value="Junk">Junk</option>
+              <option value="Duplicate">Duplicate</option>
+            </SearchableSelect>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Lead Priority *</label>
-            <select
+            <SearchableSelect
               value={leadDraft.priority || ''}
               onChange={(e) => setLeadDraft((prev) => ({ ...prev, priority: e.target.value }))}
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -1643,7 +2101,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
               <option value="P2">P2 - Discussions going on can close by Month End</option>
               <option value="P3">P3 - Developing Interest</option>
               <option value="P4">P4 - Not sure when to start / Future Interest</option>
-            </select>
+            </SearchableSelect>
           </div>
         </div>
       </div>
@@ -1664,7 +2122,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Opportunity Type *</label>
-              <select
+              <SearchableSelect
                 value={data.opportunityType}
                 onChange={(e) => setData({ ...data, opportunityType: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -1673,7 +2131,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
                 <option value="upsell">Upsell</option>
                 <option value="renewal">Renewal</option>
                 <option value="referral">Referral</option>
-              </select>
+              </SearchableSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Value *</label>
@@ -1687,7 +2145,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Priority *</label>
-              <select
+              <SearchableSelect
                 value={data.priority}
                 onChange={(e) => setData({ ...data, priority: e.target.value })}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -1696,7 +2154,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
                 <option value="critical">Critical</option>
-              </select>
+              </SearchableSelect>
             </div>
           </div>
         </div>
@@ -1704,40 +2162,41 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <h4 className="font-semibold text-lg mb-4 text-gray-900">Service Requirements</h4>
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Service Required *</label>
-              <select
-                value={JSON.stringify({ name: data.serviceRequired, id: data.serviceId })}
-                onChange={(e) => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    setData({ ...data, serviceRequired: parsed.name, serviceId: parsed.id });
-                  } catch {
-                    setData({ ...data, serviceRequired: e.target.value, serviceId: '' });
-                  }
-                }}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                disabled={loadingPrograms}
-              >
-                <option value={JSON.stringify({ name: '', id: '' })}>{loadingPrograms ? 'Loading programs...' : 'Select a program'}</option>
-                {data.serviceRequired && !programs.some((p) => p.name === data.serviceRequired) && (
-                  <option value={JSON.stringify({ name: data.serviceRequired, id: data.serviceId })}>{data.serviceRequired}</option>
-                )}
-                {programs.map((program) => (
-                  <option key={program.id} value={JSON.stringify({ name: program.name, id: String(program.id) })}>{program.name}</option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">Programs are loaded from the active services in CRM.</p>
+            {/* Service Required dropdown removed — the program is already
+                set via "Service interest" in the Counselor workspace above;
+                data.serviceRequired/serviceId stay in sync with it via the
+                effect above instead of a second, duplicate picker here. */}
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <span className="block text-xs font-medium uppercase tracking-wide text-gray-500">Service Required</span>
+              <p className="mt-1 text-sm text-gray-900">{data.serviceRequired || 'Set "Service interest" in the Counselor workspace above.'}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-              <textarea
-                value={data.description}
-                onChange={(e) => setData({ ...data, description: e.target.value })}
-                rows={8}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Describe the opportunity requirements..."
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-2">Remarks (dm_remarks)</label>
+              <div className="space-y-2 rounded-lg border border-gray-300 p-3">
+                {loadingRemarks && <p className="text-sm text-gray-400">Loading remarks…</p>}
+                {!loadingRemarks && remarksLog.length === 0 && (
+                  <p className="text-sm text-gray-400">No remarks recorded for this lead yet.</p>
+                )}
+                {remarksLog.map((entry) => (
+                  <div key={entry.id} className="rounded border border-gray-100 bg-gray-50 p-2">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span className="font-medium text-gray-700">{entry.actorName || 'System'}</span>
+                      <span>{new Date(entry.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-900">{entry.remark}</p>
+                  </div>
+                ))}
+                {!loadingRemarks && remarksLog.length < remarksTotal && (
+                  <button
+                    type="button"
+                    onClick={loadMoreRemarks}
+                    disabled={loadingMoreRemarks}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                  >
+                    {loadingMoreRemarks ? 'Loading…' : `Read more (${remarksTotal - remarksLog.length} more)`}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1755,6 +2214,14 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
         const cur = feeData.currencyCode || 'AED';
         const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+        // A package is only a real, distinct option when dm_fee actually has
+        // data for that structure — not just whenever the shared upfront/prof
+        // fee rows are non-zero (otherwise stage/monthly buttons show up as
+        // fake duplicates of the upfront total for the ~90% of fee records
+        // that never populate a monthly or stage breakdown).
+        const stageExtra = Number(feeData.firstStage) + Number(feeData.secondStage) + Number(feeData.thirdStage) + Number(feeData.forthStage) + Number(feeData.fifthStage);
+        const monthlyExtra = Number(feeData.firstMonth) + Number(feeData.secondMonth) + Number(feeData.thirdMonth);
+
         const packages: Array<{ key: 'upfront' | 'monthly' | 'stage'; label: string; total: number; rows: Array<{ label: string; amount: number }> }> = ([
           {
             key: 'upfront' as const,
@@ -1762,38 +2229,34 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
             total: upfrontTotal,
             rows: [
               { label: 'Upfront Fee', amount: Number(feeData.upfront) },
-              { label: 'Professional Fee', amount: Number(feeData.prof_fee) },
             ].filter(r => r.amount > 0),
+            include: upfrontTotal > 0,
           },
           {
             key: 'stage' as const,
             label: 'Stage-wise Package',
             total: stageTotal,
             rows: [
-              { label: 'Upfront Fee', amount: Number(feeData.upfront) },
-              { label: 'Professional Fee', amount: Number(feeData.prof_fee) },
               { label: 'Stage 1', amount: Number(feeData.firstStage) },
               { label: 'Stage 2', amount: Number(feeData.secondStage) },
               { label: 'Stage 3', amount: Number(feeData.thirdStage) },
               { label: 'Stage 4', amount: Number(feeData.forthStage) },
               { label: 'Stage 5', amount: Number(feeData.fifthStage) },
-              { label: 'Prof. Fee (Stage)', amount: Number(feeData.prof_fee_stage) },
             ].filter(r => r.amount > 0),
+            include: stageExtra > 0,
           },
           {
             key: 'monthly' as const,
             label: 'Monthly Package',
             total: monthlyTotal,
             rows: [
-              { label: 'Upfront Fee', amount: Number(feeData.upfront) },
-              { label: 'Professional Fee', amount: Number(feeData.prof_fee) },
               { label: 'Month 1', amount: Number(feeData.firstMonth) },
               { label: 'Month 2', amount: Number(feeData.secondMonth) },
               { label: 'Month 3', amount: Number(feeData.thirdMonth) },
-              { label: 'Prof. Fee (Monthly)', amount: Number(feeData.prof_fee_month) },
             ].filter(r => r.amount > 0),
+            include: monthlyExtra > 0,
           },
-        ] as Array<{ key: 'upfront' | 'monthly' | 'stage'; label: string; total: number; rows: Array<{ label: string; amount: number }> }>).filter(pkg => pkg.rows.length > 0);
+        ] as Array<{ key: 'upfront' | 'monthly' | 'stage'; label: string; total: number; rows: Array<{ label: string; amount: number }>; include: boolean }>).filter(pkg => pkg.include);
 
         return (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
@@ -1862,7 +2325,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center">
           <AlertCircle className="mr-2 text-blue-600" size={20} />
-          <span className="text-sm text-blue-800">Complete all required fields including Lead Status and Lead Priority before proceeding.</span>
+          <span className="text-sm text-blue-800">Lead Status must be set to "Prospect" and Lead Priority to "P1" before continuing to Quotation.</span>
         </div>
       </div>
 
@@ -1876,8 +2339,8 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
           {saving ? 'Saving...' : 'Save Draft'}
         </button>
         <button
-          onClick={onNext}
-          disabled={!data.opportunityName || !data.estimatedValue || !data.serviceRequired || !leadDraft.status || !leadDraft.priority}
+          onClick={handleContinueToQuotation}
+          disabled={!data.opportunityName || !data.estimatedValue || !data.serviceRequired || leadDraft.status !== 'Prospect' || leadDraft.priority !== 'P1'}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center font-medium"
         >
           Continue to Quotation
@@ -1888,35 +2351,49 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
   );
 }
 
-function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionData, onRequestDiscount, onRefreshDiscount, onDiscountChanged, onNext, onPrevious, paymentType, setPaymentType }: any) {
+function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionData, requestingDiscount, onRequestDiscount, onRefreshDiscount, onDiscountChanged, onNext, onPrevious, paymentType, setPaymentType }: any) {
   const [saving, setSaving] = useState(false);
   const [appliedFeeKey, setAppliedFeeKey] = useState<string | null>(null);
   const currencyCode = feeData?.currencyCode || 'AED';
+  // Tax treatment depends on the lead's own branch, not the fee's billing
+  // currency: Dubai/Abu Dhabi charge 5% VAT, India charges 18% GST, Qatar and
+  // Kuwait charge nothing.
+  const branchDetails = getLeadBranchDetails(lead);
+  const nameBasedVatInfo = getBranchTaxInfo(`${branchDetails.branchName} ${branchDetails.branchAddress}`);
+  // Prefer the branch's own configured VAT/GST % (set in Admin > Branches) once
+  // it's been entered; fall back to the name-based guess for branches nobody
+  // has configured yet so tax doesn't just go to 0/undefined for them.
+  const vatInfo = branchDetails.vatGstPercent !== null
+    ? { rate: branchDetails.vatGstPercent / 100, label: nameBasedVatInfo.label }
+    : nameBasedVatInfo;
+  const vatRate = vatInfo.rate;
+  const calculateQuotationTotals = (subtotal: number, discount: number) => {
+    const safeSubtotal = Math.max(0, subtotal);
+    const safeDiscount = Math.min(Math.max(0, discount || 0), safeSubtotal);
+    const taxableAmount = Math.max(0, safeSubtotal - safeDiscount);
+    const tax = taxableAmount * vatRate;
+    return {
+      subtotal: safeSubtotal,
+      discount: safeDiscount,
+      tax,
+      total: taxableAmount + tax,
+    };
+  };
+  // Manual line items are disabled for now — see the button below.
+  const SHOW_ADD_ITEM_BUTTON = false;
 
   // ── Build fee items for the selected payment type ──
+  // A quotation line item is the program the client is buying, not our
+  // internal fee-tier breakdown — so this collapses upfront/prof/monthly or
+  // stage amounts into a single item described by the selected program
+  // (dm_service.name, via feeData.serviceName), priced at the full package total.
   const buildFeeItems = (fee: any, type: 'upfront' | 'monthly' | 'stage') => {
-    const base = [
-      { description: 'Upfront Fee',        amount: Number(fee.upfront)   },
-      { description: 'Professional Fee',   amount: Number(fee.prof_fee)  },
-    ];
-    const monthly = [
-      { description: 'Month 1',              amount: Number(fee.firstMonth)     },
-      { description: 'Month 2',              amount: Number(fee.secondMonth)    },
-      { description: 'Month 3',              amount: Number(fee.thirdMonth)     },
-      { description: 'Prof. Fee (Monthly)', amount: Number(fee.prof_fee_month) },
-    ];
-    const stages = [
-      { description: 'Stage 1',              amount: Number(fee.firstStage)    },
-      { description: 'Stage 2',              amount: Number(fee.secondStage)   },
-      { description: 'Stage 3',              amount: Number(fee.thirdStage)    },
-      { description: 'Stage 4',              amount: Number(fee.forthStage)    },
-      { description: 'Stage 5',              amount: Number(fee.fifthStage)    },
-      { description: 'Prof. Fee (Stage)',   amount: Number(fee.prof_fee_stage) },
-    ];
-    const pool = type === 'upfront' ? base : type === 'monthly' ? [...base, ...monthly] : [...base, ...stages];
-    return pool
-      .filter(r => r.amount > 0)
-      .map(r => ({ description: r.description, quantity: 1, unitPrice: String(r.amount), total: String(r.amount) }));
+    const upfrontBase = Number(fee.upfront);
+    const monthlyExtra = Number(fee.firstMonth) + Number(fee.secondMonth) + Number(fee.thirdMonth);
+    const stageExtra = Number(fee.firstStage) + Number(fee.secondStage) + Number(fee.thirdStage) + Number(fee.forthStage) + Number(fee.fifthStage);
+    const total = type === 'upfront' ? upfrontBase : type === 'monthly' ? monthlyExtra : stageExtra;
+    if (total <= 0) return [];
+    return [{ description: fee.serviceName || 'Program Fee', quantity: 1, unitPrice: String(total), total: String(total) }];
   };
 
   // ── Auto-populate line items when fee data or payment type changes ──
@@ -1928,11 +2405,12 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
     const items = buildFeeItems(feeData, paymentType);
     if (items.length === 0) return;
 
-    const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
-    const tax = subtotal * 0.05;
-    const total = subtotal + tax - (data.discount || 0);
+    const totals = calculateQuotationTotals(
+      items.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0),
+      data.discount || 0
+    );
 
-    setData({ ...data, items, subtotal, tax, total });
+    setData({ ...data, items, ...totals });
     setAppliedFeeKey(key);
   }, [feeData, paymentType]);
 
@@ -1941,10 +2419,10 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
     try {
       console.log('Saving quotation data:', data);
       await new Promise(resolve => setTimeout(resolve, 500));
-      alert('Quotation saved successfully!');
+      window.toast.success('Quotation saved successfully!');
     } catch (error) {
       console.error('Error saving:', error);
-      alert('Failed to save data');
+      window.toast.error('Failed to save data');
     } finally {
       setSaving(false);
     }
@@ -1968,18 +2446,23 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
     }
 
     // Calculate totals
-    const subtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
-    const tax = subtotal * 0.05;
-    const total = subtotal + tax - data.discount;
+    const totals = calculateQuotationTotals(
+      newItems.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0),
+      data.discount
+    );
 
-    setData({ ...data, items: newItems, subtotal, tax, total });
+    setData({ ...data, items: newItems, ...totals });
   };
 
   const updateDiscount = (value: string) => {
-    const discount = Math.max(0, parseFloat(value) || 0);
-    const total = data.subtotal + data.tax - discount;
-    setData({ ...data, discount, total: Math.max(0, total) });
-    onDiscountChanged?.(discount);
+    const requested = Math.max(0, parseFloat(value) || 0);
+    // A discount can never exceed the package's own amount — matches the
+    // validateStage check that already blocks "Continue" for this same
+    // reason, but catches it immediately as it's typed instead of only when
+    // advancing to the next stage.
+    const totals = calculateQuotationTotals(data.subtotal, requested);
+    setData({ ...data, ...totals });
+    onDiscountChanged?.(totals.discount);
   };
 
   const requiresDiscountApproval = data.discount > 0;
@@ -1987,6 +2470,10 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
   const discountStatusLabel = requiresDiscountApproval
     ? retentionData.discountStatus.replace('_', ' ')
     : 'not required';
+  // Once a discount is approved (or a request is in flight), lock the amount so
+  // it can't be silently changed - the approval was granted for a specific
+  // figure, and discountApproved above only checks status, not the amount.
+  const discountLocked = retentionData.discountStatus === 'pending' || retentionData.discountStatus === 'approved';
 
   return (
     <div className="space-y-6">
@@ -2014,11 +2501,19 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
               </span>
             </div>
             <div className="flex gap-2">
-              {([
-                { key: 'upfront', label: 'Upfront Only', total: Number(feeData.upfront) + Number(feeData.prof_fee) },
-                { key: 'stage',   label: 'Stage-wise',   total: Number(feeData.upfront) + Number(feeData.prof_fee) + Number(feeData.firstStage) + Number(feeData.secondStage) + Number(feeData.thirdStage) + Number(feeData.forthStage) + Number(feeData.fifthStage) + Number(feeData.prof_fee_stage) },
-                { key: 'monthly', label: 'Monthly',       total: Number(feeData.upfront) + Number(feeData.prof_fee) + Number(feeData.firstMonth) + Number(feeData.secondMonth) + Number(feeData.thirdMonth) + Number(feeData.prof_fee_month) },
-              ] as const).filter(p => p.total > 0).map(pkg => (
+              {(() => {
+                const upfrontBase = Number(feeData.upfront);
+                const stageExtra = Number(feeData.firstStage) + Number(feeData.secondStage) + Number(feeData.thirdStage) + Number(feeData.forthStage) + Number(feeData.fifthStage);
+                const monthlyExtra = Number(feeData.firstMonth) + Number(feeData.secondMonth) + Number(feeData.thirdMonth);
+                // Only offer a package when dm_fee actually has data for that
+                // structure — otherwise stage/monthly would just duplicate the
+                // upfront-only total as a fake extra option.
+                return [
+                  { key: 'upfront', label: 'Upfront Only', total: upfrontBase, include: upfrontBase > 0 },
+                  { key: 'stage',   label: 'Stage-wise',   total: stageExtra, include: stageExtra > 0 },
+                  { key: 'monthly', label: 'Monthly',       total: monthlyExtra, include: monthlyExtra > 0 },
+                ] as const;
+              })().filter(p => p.include).map(pkg => (
                 <button
                   key={pkg.key}
                   type="button"
@@ -2084,9 +2579,14 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
             </div>
           ))}
         </div>
-        <button onClick={addItem} className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-          + Add Item
-        </button>
+        {/* Hidden for now — line items are auto-populated as a single entry
+            from the selected program's fee package; re-enable if/when manual
+            extra line items are needed again. */}
+        {SHOW_ADD_ITEM_BUTTON && (
+          <button onClick={addItem} className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+            + Add Item
+          </button>
+        )}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -2106,11 +2606,27 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
               <input
                 type="number"
                 min="0"
-                value={data.discount}
+                max={data.subtotal}
+                // Render blank instead of a literal 0 so typing doesn't require
+                // deleting a pre-filled zero first — the underlying value stays
+                // 0 for calculations until the user actually enters a number.
+                value={data.discount || ''}
                 onChange={(e) => updateDiscount(e.target.value)}
-                className="w-full p-2 border rounded-lg"
+                disabled={discountLocked}
+                className="w-full p-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
                 placeholder="0.00"
               />
+              {discountLocked ? (
+                <p className="text-xs text-gray-500 mt-1">
+                  {retentionData.discountStatus === 'approved'
+                    ? 'Discount approved and locked. Changing the amount requires a new approval.'
+                    : 'A discount request is pending approval and can\'t be changed until reviewed.'}
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">
+                  Cannot exceed the package amount ({currencyCode} {data.subtotal.toFixed(2)}).
+                </p>
+              )}
             </div>
             <div className="flex items-end gap-3">
               <span className={`px-3 py-2 rounded-lg text-sm font-medium capitalize ${
@@ -2123,10 +2639,11 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
               {requiresDiscountApproval && retentionData.discountStatus !== 'approved' && retentionData.discountStatus !== 'pending' && (
                 <button
                   onClick={onRequestDiscount}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center"
+                  disabled={requestingDiscount}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="mr-2" size={16} />
-                  Request Approval
+                  {requestingDiscount ? 'Submitting...' : 'Request Approval'}
                 </button>
               )}
               {requiresDiscountApproval && retentionData.discountStatus === 'pending' && (
@@ -2141,19 +2658,12 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
                     <RefreshCw className="mr-2" size={16} />
                     Refresh Status
                   </button>
-                  <button
-                    onClick={() => window.open('/admin/discount-approvals?status=pending', '_blank')}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
-                  >
-                    <Shield className="mr-2" size={16} />
-                    Open Management
-                  </button>
                 </div>
               )}
             </div>
           </div>
           <div className="flex justify-between">
-            <span>Tax (5%):</span>
+            <span>Tax ({(vatInfo.rate * 100).toFixed(0)}% {vatInfo.label}):</span>
             <span className="font-medium">{currencyCode} {data.tax.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-lg font-bold border-t pt-2">
@@ -2194,120 +2704,227 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
   );
 }
 
-function PaymentStage({ lead, data, setData, quotationTotal, onNext, onPrevious }: any) {
+function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quotationDiscount, opportunityId, onEnsureOpportunity, discountPending, discountStatus, onNext, onPrevious }: any) {
+  const { user, currencyCode } = useAuth();
   const [saving, setSaving] = useState(false);
   const [receipt, setReceipt] = useState<any>(null);
   const [printingReceipt, setPrintingReceipt] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  // Once a receipt has been generated, only Branch Manager/CEO may still
+  // change the payment details — a counselor's view of that receipt becomes
+  // read-only so they can't alter what's already been issued to the client.
+  const canEditAfterReceipt = isBranchManagerOrCeo(user as any);
+  const receiptLocked = Boolean(receipt) && !canEditAfterReceipt;
+
+  const normalizeReceiptForUi = (payment: any) => ({
+    ...payment,
+    accountantStatus: payment.accountantStatus || (payment.status === 'verified' || payment.status === 'rejected' ? payment.status : 'pending'),
+    receiptNumber: payment.receiptNumber || payment.paymentNumber,
+    paidAmount: payment.paidAmount ?? payment.amount ?? 0,
+    remainingBalance: payment.remainingBalance ?? payment.balanceAmount ?? 0,
+  });
+
+  const syncPaymentDataFromReceipt = (payment: any) => {
+    setData((current: PaymentData) => {
+      const totalAmount = Number(payment?.totalAmount || current.totalAmount || quotationTotal || payment?.amount || current.paidAmount || 0);
+      const paidAmount = Number(payment?.paidAmount ?? payment?.amount ?? current.paidAmount ?? 0);
+      const remainingBalance = Number(payment?.remainingBalance ?? payment?.balanceAmount ?? Math.max(totalAmount - paidAmount, 0));
+
+      return {
+        ...current,
+        totalAmount,
+        paidAmount,
+        remainingBalance,
+        paymentMethod: payment?.paymentMethod || current.paymentMethod,
+        transactionId: payment?.transactionId || current.transactionId,
+        paymentDate: payment?.paymentDate ? new Date(payment.paymentDate).toISOString().slice(0, 10) : current.paymentDate,
+      };
+    });
+  };
 
   useEffect(() => {
     const total = Number(quotationTotal);
     if (Number.isFinite(total) && total > 0 && data.totalAmount !== total) {
-      setData({ ...data, totalAmount: total, remainingBalance: total - (data.paidAmount || 0) });
+      const paidAmount = Math.min(Number(data.paidAmount || 0), total);
+      setData({ ...data, totalAmount: total, paidAmount, remainingBalance: Math.max(total - paidAmount, 0) });
     }
   }, [quotationTotal]);
 
+  // Re-hydrate the receipt banner when this stage remounts (e.g. navigating away
+  // to Documents/Agreement and back, or reloading mid-flow). Without this, a
+  // receipt that was already created on an earlier visit silently disappears
+  // from view, and the user can be misled into clicking Save again - which
+  // takes the "opportunity already exists" branch below and POSTs /api/receipts
+  // unconditionally, creating a genuine duplicate payment/receipt.
+  useEffect(() => {
+    if (!opportunityId || receipt) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/opportunity-payments?opportunityId=${opportunityId}&_=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const payments = await res.json();
+        const latestPayment = Array.isArray(payments) ? payments[0] : payments?.data?.[0];
+        if (latestPayment && !cancelled) {
+          const normalizedPayment = normalizeReceiptForUi(latestPayment);
+          setReceipt(normalizedPayment);
+          syncPaymentDataFromReceipt(normalizedPayment);
+        }
+      } catch (error) {
+        console.error('Error re-hydrating receipt:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [opportunityId]);
+
+  // The re-hydration effect above only runs once (it bails out once `receipt`
+  // is set), so a receipt that gets verified by Accounts *after* it was
+  // loaded here never updates on its own — the Download Receipt button stays
+  // hidden even once approved. This lets the counselor pull the latest
+  // accountantStatus/remarks on demand instead of reloading the whole page.
+  const refreshVerificationStatus = async () => {
+    if (!opportunityId) return;
+    setCheckingStatus(true);
+    try {
+      const res = await fetch(`/api/opportunity-payments?opportunityId=${opportunityId}&_=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Failed to check verification status');
+      const payments = await res.json();
+      const list = Array.isArray(payments) ? payments : payments?.data || [];
+      const latestPayment = receipt
+        ? list.find((p: any) => p.id === receipt.id || p.paymentNumber === receipt.paymentNumber) || list[0]
+        : list[0];
+      if (latestPayment) {
+        const normalizedPayment = normalizeReceiptForUi(latestPayment);
+        setReceipt(normalizedPayment);
+        syncPaymentDataFromReceipt(normalizedPayment);
+      }
+    } catch (error) {
+      console.error('Error refreshing verification status:', error);
+      window.toast.error('Failed to refresh verification status');
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
+
+  const hasProofOfPayment = data.proofOfPayment instanceof File || Boolean(data.proofOfPaymentUrl || receipt?.proofOfPaymentUrl);
+
+  const ensureProofOfPaymentUrl = async () => {
+    if (data.proofOfPaymentUrl) return data.proofOfPaymentUrl;
+    if (!(data.proofOfPayment instanceof File)) return '';
+
+    const safeName = data.proofOfPayment.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const blob = await uploadFileToBlob(
+      data.proofOfPayment,
+      `payment-proofs/lead-${lead.id}/${Date.now()}_${safeName}`
+    );
+    setData({ ...data, proofOfPaymentUrl: blob.url });
+    return blob.url;
+  };
+
   const handleSave = async () => {
-    if (!lead?.id) { alert('Lead data not loaded.'); return; }
+    if (!lead?.id) { window.toast.error('Lead data not loaded.'); return; }
+    if (!hasProofOfPayment) { window.toast.warning('Upload proof of payment before creating the receipt.'); return; }
     setSaving(true);
     try {
-      const res = await fetch('/api/receipts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadId: lead.id,
-          opportunityId: null,
-          paymentData: {
-            paymentStructure: data.paymentStructure,
-            paymentMethod: data.paymentMethod,
-            transactionId: data.transactionId,
-            paymentDate: data.paymentDate,
-            paidAmount: data.paidAmount,
-            totalAmount: data.totalAmount,
-            amount: data.paidAmount,
-          },
-          receiptData: {
-            description: `Payment receipt for ${lead.fname} ${lead.lname}`,
-            receiptType: 'payment',
-            taxAmount: 0,
-            discountAmount: 0,
-            notes: '',
-          },
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to create receipt');
-      setReceipt(json.data?.receipt || json.data || json);
-      alert(`Receipt ${json.data?.receipt?.receiptNumber || ''} created successfully!`);
+      const proofOfPaymentUrl = await ensureProofOfPaymentUrl();
+      if (!proofOfPaymentUrl) throw new Error('Proof of payment upload failed');
+      const totalAmount = Number(quotationTotal || data.totalAmount || 0);
+      const paidAmount = Math.min(Math.max(0, Number(data.paidAmount || 0)), totalAmount);
+      const remainingBalance = Math.max(totalAmount - paidAmount, 0);
+      // The opportunity may not exist yet at this stage (Payment comes before
+      // Documents/Agreement in the flow). Ensuring it here — rather than
+      // leaving opportunityId hardcoded to null — is what lets this payment
+      // actually count toward the opportunity: Accounts verification, the
+      // Invoices & Payments receipt, and the agreement-number lookup all key
+      // off dm_opportunity_payments.opportunityId, so a null value made this
+      // payment invisible everywhere except this wizard's own local state.
+      const hadOpportunityAlready = Boolean(opportunityId);
+      const ensuredOpportunityId = await onEnsureOpportunity({ proofOfPaymentUrl, totalAmount, paidAmount, remainingBalance });
+
+      if (!hadOpportunityAlready) {
+        // ensureOpportunityForClient() just created the opportunity via
+        // /api/lead-to-opportunity, which already recorded this exact payment
+        // (it reads the same paymentData this stage holds) — fetch that
+        // record back instead of submitting a second, duplicate payment.
+        const payRes = await fetch(`/api/opportunity-payments?opportunityId=${ensuredOpportunityId}`);
+        const payments = await payRes.json();
+        const latestPayment = Array.isArray(payments) ? payments[0] : null;
+        const normalizedPayment = latestPayment ? normalizeReceiptForUi(latestPayment) : null;
+        setReceipt(normalizedPayment);
+        if (normalizedPayment) syncPaymentDataFromReceipt(normalizedPayment);
+        window.toast.success(`Receipt ${normalizedPayment?.paymentNumber || ''} created successfully!`);
+      } else {
+        const res = await fetch('/api/receipts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: lead.id,
+            opportunityId: ensuredOpportunityId,
+            paymentData: {
+              paymentStructure: data.paymentStructure,
+              paymentMethod: data.paymentMethod,
+              transactionId: data.transactionId,
+              paymentDate: data.paymentDate,
+              paidAmount,
+              totalAmount,
+              amount: paidAmount,
+              proofOfPaymentUrl,
+              dueDate: data.dueDate || undefined,
+              remark: data.remark || undefined,
+            },
+            receiptData: {
+              description: `Payment receipt for ${lead.fname} ${lead.lname}`,
+              receiptType: 'payment',
+              taxAmount: Number(quotationTax) || 0,
+              discountAmount: Number(quotationDiscount) || 0,
+              notes: '',
+            },
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed to create receipt');
+        const normalizedPayment = normalizeReceiptForUi(json.data?.receipt || json.data || json);
+        setReceipt(normalizedPayment);
+        syncPaymentDataFromReceipt(normalizedPayment);
+        window.toast.success(`Receipt ${json.data?.receipt?.receiptNumber || ''} created successfully!`);
+      }
     } catch (error: any) {
       console.error('Error saving payment:', error);
-      alert(error.message || 'Failed to save payment');
+      window.toast.error(error.message || 'Failed to save payment');
     } finally {
       setSaving(false);
     }
   };
 
   const downloadReceiptPDF = async () => {
-    if (!receipt && !data.paidAmount) { alert('Save the payment first to generate a receipt.'); return; }
+    if (!receipt && !data.paidAmount) { window.toast.warning('Save the payment first to generate a receipt.'); return; }
     setPrintingReceipt(true);
     const r = receipt || {};
-    const clientName = r.clientName || `${lead?.fname || ''} ${lead?.lname || ''}`.trim() || 'Client';
-    const currency = r.currency || 'AED';
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
-<title>Payment Receipt</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;color:#222;font-size:11pt;padding:50px 60px 80px}
-  .header{border-bottom:3px solid #003399;padding-bottom:14px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
-  .brand{font-size:15pt;font-weight:700;color:#002266}
-  .sub{font-size:9pt;color:#666;margin-top:3px}
-  .badge{background:#003399;color:#fff;padding:6px 16px;border-radius:4px;font-weight:700;font-size:10pt}
-  table{width:100%;border-collapse:collapse;margin:16px 0}
-  td{padding:9px 12px;font-size:10.5pt}
-  tr:nth-child(even) td:first-child{background:#0044B3;color:#fff;font-weight:600}
-  tr:nth-child(odd)  td:first-child{background:#002266;color:#fff;font-weight:600}
-  tr:nth-child(even) td:last-child{background:#E8EEFB}
-  tr:nth-child(odd)  td:last-child{background:#fff}
-  .total-row td:first-child{background:#001A4D!important;font-size:11.5pt}
-  .total-row td:last-child{background:#DCE6F9!important;font-weight:700;font-size:12pt;color:#001A4D}
-  .footer{margin-top:30px;border-top:2px solid #003399;padding-top:10px;text-align:center;color:#666;font-size:9pt}
-  @media print{@page{size:A4;margin:0}body{padding:40px 50px 60px}}
-</style></head><body>
-<div class="header">
-  <div>
-    <div class="brand">DM IMMIGRATION CONSULTANTS DMCC</div>
-    <div class="sub">Dubai Branch · 3703, Latifa Tower, Sheikh Zayed Road, Dubai UAE</div>
-    <div class="sub">Ph: +971 04 344 7757 · info@dm-consultant.com</div>
-  </div>
-  <div class="badge">OFFICIAL RECEIPT</div>
-</div>
-<div style="margin-bottom:18px;">
-  <div style="font-size:10pt;color:#666;">Receipt No: <strong>${r.receiptNumber || r.paymentNumber || 'N/A'}</strong></div>
-  <div style="font-size:10pt;color:#666;margin-top:4px;">Date: <strong>${r.paymentDate ? new Date(r.paymentDate).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}</strong></div>
-</div>
-<table>
-  <tr><td>Client Name</td><td>${clientName}</td></tr>
-  <tr><td>Service</td><td>${r.serviceName || (lead?.service_interest || 'Consulting Service')}</td></tr>
-  <tr><td>Consultant</td><td>${r.consultantName || 'DM Immigration Consultants DMCC'}</td></tr>
-  <tr><td>Branch</td><td>${r.branchName || 'Dubai Branch'}</td></tr>
-  <tr><td>Payment Method</td><td>${(data.paymentMethod || 'Cash').replace('_',' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}</td></tr>
-  ${data.transactionId ? `<tr><td>Transaction ID</td><td>${data.transactionId}</td></tr>` : ''}
-  <tr><td>Total Amount</td><td>${currency} ${Number(data.totalAmount || r.totalAmount || 0).toLocaleString()}</td></tr>
-  <tr><td>Amount Paid</td><td>${currency} ${Number(data.paidAmount || r.paidAmount || r.amount || 0).toLocaleString()}</td></tr>
-  <tr class="total-row"><td>Balance Due</td><td>${currency} ${Number(data.remainingBalance ?? Math.max(0, Number(data.totalAmount) - Number(data.paidAmount))).toLocaleString()}</td></tr>
-</table>
-<p style="margin-top:16px;font-size:10pt;color:#444;">This receipt confirms payment received by DM Immigration Consultants DMCC. Please retain for your records.</p>
-<div style="margin-top:40px;display:flex;justify-content:space-between;font-size:10pt;">
-  <div>Client Signature: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
-  <div>Authorised Signatory: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
-</div>
-<div class="footer">DM Immigration Consultants DMCC · Registered in Dubai · DMCC License · www.dm-consultant.com</div>
-</body></html>`;
-    const win = window.open('', '_blank', 'width=860,height=1100');
-    if (!win) { alert('Allow pop-ups to view the receipt.'); setPrintingReceipt(false); return; }
-    win.document.write(html);
-    win.document.close();
-    win.addEventListener('load', () => setTimeout(() => win.print(), 300));
-    if (win.document.readyState === 'complete') setTimeout(() => win.print(), 500);
+    const branchDetails = getLeadBranchDetails(lead as any);
+    printReceipt({
+      receiptNumber: r.receiptNumber,
+      paymentNumber: r.paymentNumber,
+      paymentDate: r.paymentDate,
+      clientName: r.clientName || `${lead?.fname || ''} ${lead?.lname || ''}`.trim() || 'Client',
+      passportNumber: (lead as any)?.id_number || '',
+      agreementNumber: r.agreementNumber,
+      opportunityId,
+      serviceName: r.serviceName || lead?.service_interest,
+      consultantName: r.consultantName,
+      companyName: r.companyName || branchDetails.companyName,
+      branchName: r.branchName || branchDetails.branchName,
+      branchAddress: r.branchAddress || branchDetails.branchAddress,
+      branchEmail: r.branchEmail || branchDetails.branchEmail,
+      branchPhone: r.branchPhone || branchDetails.branchPhone,
+      licenseNumber: branchDetails.licenseNumber,
+      vatGstPercent: branchDetails.vatGstPercent,
+      paymentMethod: data.paymentMethod,
+      transactionId: data.transactionId,
+      currency: r.currency || currencyCode,
+      totalAmount: data.totalAmount || r.totalAmount,
+      paidAmount: data.paidAmount || r.paidAmount || r.amount,
+      remainingBalance: data.remainingBalance,
+    });
     setPrintingReceipt(false);
   };
 
@@ -2327,15 +2944,16 @@ function PaymentStage({ lead, data, setData, quotationTotal, onNext, onPrevious 
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Payment Type</label>
-              <select
+              <SearchableSelect
                 value={data.paymentStructure}
                 onChange={(e) => setData({ ...data, paymentStructure: e.target.value })}
-                className="w-full p-3 border rounded-lg"
+                disabled={receiptLocked}
+                className="w-full p-3 border rounded-lg disabled:bg-gray-50 disabled:text-gray-500"
               >
                 <option value="full">Full Payment</option>
                 <option value="installment">Installment</option>
                 <option value="milestone">Milestone Based</option>
-              </select>
+              </SearchableSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Total Amount</label>
@@ -2350,12 +2968,14 @@ function PaymentStage({ lead, data, setData, quotationTotal, onNext, onPrevious 
               <label className="block text-sm font-medium text-gray-700 mb-2">Amount Paid</label>
               <input
                 type="number"
-                value={data.paidAmount}
+                value={data.paidAmount || ''}
                 onChange={(e) => {
                   const paid = parseFloat(e.target.value) || 0;
                   setData({ ...data, paidAmount: paid, remainingBalance: quotationTotal - paid });
                 }}
-                className="w-full p-3 border rounded-lg"
+                disabled={receiptLocked}
+                placeholder="0"
+                className="w-full p-3 border rounded-lg disabled:bg-gray-50 disabled:text-gray-500"
               />
             </div>
             <div>
@@ -2375,16 +2995,27 @@ function PaymentStage({ lead, data, setData, quotationTotal, onNext, onPrevious 
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-              <select
+              <SearchableSelect
                 value={data.paymentMethod}
                 onChange={(e) => setData({ ...data, paymentMethod: e.target.value })}
-                className="w-full p-3 border rounded-lg"
+                disabled={receiptLocked}
+                className="w-full p-3 border rounded-lg disabled:bg-gray-50 disabled:text-gray-500"
               >
                 <option value="cash">Cash</option>
                 <option value="credit_card">Credit Card</option>
                 <option value="bank_transfer">Bank Transfer</option>
                 <option value="cheque">Cheque</option>
-              </select>
+                <optgroup label="Bank">
+                  {BANK_PAYMENT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Card / POS">
+                  {CARD_PAYMENT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </optgroup>
+              </SearchableSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Transaction ID</label>
@@ -2392,7 +3023,8 @@ function PaymentStage({ lead, data, setData, quotationTotal, onNext, onPrevious 
                 type="text"
                 value={data.transactionId}
                 onChange={(e) => setData({ ...data, transactionId: e.target.value })}
-                className="w-full p-3 border rounded-lg"
+                disabled={receiptLocked}
+                className="w-full p-3 border rounded-lg disabled:bg-gray-50 disabled:text-gray-500"
                 placeholder="Enter transaction reference"
               />
             </div>
@@ -2402,34 +3034,49 @@ function PaymentStage({ lead, data, setData, quotationTotal, onNext, onPrevious 
                 type="date"
                 value={data.paymentDate}
                 onChange={(e) => setData({ ...data, paymentDate: e.target.value })}
-                className="w-full p-3 border rounded-lg"
+                disabled={receiptLocked}
+                className="w-full p-3 border rounded-lg disabled:bg-gray-50 disabled:text-gray-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Proof of Payment</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Balance Due Date</label>
+              <input
+                type="date"
+                value={data.dueDate}
+                onChange={(e) => setData({ ...data, dueDate: e.target.value })}
+                disabled={receiptLocked}
+                className="w-full p-3 border rounded-lg disabled:bg-gray-50 disabled:text-gray-500"
+                placeholder="When the remaining balance is due"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Proof of Payment <span className="text-red-500">*</span></label>
               {data.proofOfPayment instanceof File ? (
                 <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
                   <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
                   <span className="text-sm text-green-800 truncate flex-1">{data.proofOfPayment.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setData({ ...data, proofOfPayment: null })}
-                    className="text-red-500 hover:text-red-700 text-xs shrink-0"
-                  >
-                    Remove
-                  </button>
+                  {!receiptLocked && (
+                    <button
+                      type="button"
+                      onClick={() => setData({ ...data, proofOfPayment: null, proofOfPaymentUrl: null })}
+                      className="text-red-500 hover:text-red-700 text-xs shrink-0"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
               ) : (
-                <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                <label className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-lg transition-colors ${receiptLocked ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 'border-gray-300 cursor-pointer hover:border-blue-400 hover:bg-blue-50'}`}>
                   <Upload className="w-4 h-4 text-gray-500" />
                   <span className="text-sm text-gray-600">Choose file</span>
                   <input
                     type="file"
                     accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                     className="hidden"
+                    disabled={receiptLocked}
                     onChange={(e) => {
                       const file = e.target.files?.[0] || null;
-                      setData({ ...data, proofOfPayment: file });
+                      setData({ ...data, proofOfPayment: file, proofOfPaymentUrl: null });
                     }}
                   />
                 </label>
@@ -2439,16 +3086,56 @@ function PaymentStage({ lead, data, setData, quotationTotal, onNext, onPrevious 
         </div>
       </div>
 
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Remark</label>
+        <textarea
+          value={data.remark}
+          onChange={(e) => setData({ ...data, remark: e.target.value })}
+          rows={3}
+          disabled={receiptLocked}
+          className="w-full p-3 border rounded-lg disabled:bg-gray-50 disabled:text-gray-500"
+          placeholder="Notes about this payment or the remaining balance..."
+        />
+      </div>
+
       {receipt && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
           <div>
             <div className="font-semibold text-green-800">Receipt Created: {receipt.receiptNumber || receipt.paymentNumber}</div>
-            <div className="text-sm text-green-700">Amount: {receipt.currency || 'AED'} {Number(receipt.paidAmount || receipt.amount || 0).toLocaleString()}</div>
+            <div className="text-sm text-green-700">Amount: {receipt.currency || currencyCode} {Number(receipt.paidAmount || receipt.amount || 0).toLocaleString()}</div>
+            {receipt.agreementNumber && (
+              <div className="text-sm text-green-700">Agreement Number: <span className="font-medium">{receipt.agreementNumber}</span></div>
+            )}
+            {receiptLocked && (
+              <div className="text-xs text-amber-700 mt-1 flex items-center gap-1">
+                <Lock size={12} /> Locked — only Branch Manager or CEO can edit a receipt after it's generated.
+              </div>
+            )}
           </div>
-          <button onClick={downloadReceiptPDF} disabled={printingReceipt}
-            className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800 flex items-center gap-2 disabled:opacity-60">
-            <Download size={16}/> {printingReceipt ? 'Opening…' : 'Download Receipt PDF'}
-          </button>
+          {receipt.accountantStatus === 'verified' ? (
+            <div className="flex items-center gap-2">
+              <button onClick={downloadReceiptPDF} disabled={printingReceipt}
+                className="px-4 py-2 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800 flex items-center gap-2 disabled:opacity-60">
+                <Download size={16}/> {printingReceipt ? 'Opening…' : 'Download Receipt PDF'}
+              </button>
+              {opportunityId && (
+                <button onClick={() => window.open(`/admin/leads/receipt/${opportunityId}`, '_blank')}
+                  className="px-4 py-2 border border-green-700 text-green-700 rounded-lg text-sm hover:bg-green-50 flex items-center gap-2">
+                  <FileText size={16}/> Open Receipt Page
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-amber-700 bg-amber-100 border border-amber-200 rounded-full px-3 py-1.5">
+                Awaiting accounts verification
+              </span>
+              <button onClick={refreshVerificationStatus} disabled={checkingStatus}
+                className="px-3 py-1.5 border border-amber-300 text-amber-800 rounded-lg text-xs hover:bg-amber-100 flex items-center gap-1.5 disabled:opacity-60">
+                <RefreshCw size={13} className={checkingStatus ? 'animate-spin' : ''}/> {checkingStatus ? 'Checking…' : 'Check Status'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -2461,82 +3148,125 @@ function PaymentStage({ lead, data, setData, quotationTotal, onNext, onPrevious 
           Back to Quotation
         </button>
         <div className="flex gap-3">
-          <button
-            onClick={downloadReceiptPDF}
-            disabled={printingReceipt}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center font-medium"
-          >
-            <Receipt className="mr-2" size={20} />
-            {printingReceipt ? 'Opening…' : 'Print Receipt'}
-          </button>
+          {receipt?.accountantStatus === 'verified' && (
+            <button
+              onClick={downloadReceiptPDF}
+              disabled={printingReceipt}
+              className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center font-medium"
+            >
+              <Receipt className="mr-2" size={20} />
+              {printingReceipt ? 'Opening…' : 'Print Receipt'}
+            </button>
+          )}
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || receiptLocked || !hasProofOfPayment}
+            title={receiptLocked ? 'Only Branch Manager or CEO can edit a receipt after it\'s generated.' : !hasProofOfPayment ? 'Upload proof of payment before creating the receipt.' : undefined}
             className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 flex items-center font-medium"
           >
-            <Save className="mr-2" size={20} />
-            {saving ? 'Saving…' : 'Save & Create Receipt'}
+            {receiptLocked ? <Lock className="mr-2" size={20} /> : <Save className="mr-2" size={20} />}
+            {saving ? 'Saving…' : receiptLocked ? 'Receipt Locked' : 'Save & Create Receipt'}
           </button>
           <button
-            onClick={onNext}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
+            onClick={() => {
+              if (receipt) syncPaymentDataFromReceipt(receipt);
+              onNext();
+            }}
+            disabled={discountPending || !receipt}
+            title={discountPending ? 'Waiting on discount approval in Discount Management' : !receipt ? 'Save & Create Receipt before continuing' : undefined}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center font-medium"
           >
-            Continue to Accounts
+            Move to Accounts
             <ChevronRight className="ml-2" size={20} />
           </button>
         </div>
+        {discountPending && (
+          <div className="mt-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <AlertCircle size={18} />
+            A discount was applied to this opportunity and is {discountStatus === 'pending' ? 'still pending' : 'not yet'} approved in Discount Management (Branch Manager or CEO for 20-30%, CEO only above 30%). This flow can't continue until it's approved.
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function AccountsStage({ lead, leadId, onNext, onPrevious }: any) {
+function AccountsStage({ lead, leadId, opportunityId, onNext, onPrevious }: any) {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [verifyPayment, setVerifyPayment] = useState<any>(null);
-  const [verifyRemarks, setVerifyRemarks] = useState('');
-  const [verifying, setVerifying] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [printingId, setPrintingId] = useState<number | null>(null);
 
-  useEffect(() => {
-    const fetchPayments = async () => {
-      try {
-        const oppRes = await fetch(`/api/opportunities?leadId=${leadId}`);
+  const fetchPayments = async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    try {
+      let resolvedOpportunityId = Number(opportunityId || lead?.opportunity_id || 0) || null;
+      if (!resolvedOpportunityId) {
+        const oppRes = await fetch(`/api/opportunities?leadId=${leadId}&_=${Date.now()}`, { cache: 'no-store' });
         const opps = await oppRes.json();
         const opp = Array.isArray(opps) ? opps[0] : null;
-        if (opp?.id) {
-          const payRes = await fetch(`/api/opportunity-payments?opportunityId=${opp.id}`);
-          const pays = await payRes.json();
-          setPayments(Array.isArray(pays) ? pays : pays.data || []);
-        }
-      } catch (err) {
-        console.error('Error fetching payments:', err);
-      } finally {
-        setLoading(false);
+        resolvedOpportunityId = opp?.id ? Number(opp.id) : null;
       }
-    };
-    fetchPayments();
-  }, [leadId]);
+      if (!resolvedOpportunityId) {
+        setPayments([]);
+        return;
+      }
 
-  const handleVerify = async (paymentId: number, status: 'verified' | 'rejected') => {
-    setVerifying(true);
-    try {
-      const res = await fetch('/api/admin/opportunity-payments/verify', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentId, status, remarks: verifyRemarks })
-      });
-      if (!res.ok) throw new Error('Failed');
-      alert(`Payment ${status} successfully`);
-      setVerifyPayment(null);
-      setVerifyRemarks('');
-      const updated = await fetch(`/api/opportunity-payments?opportunityId=${payments[0]?.opportunityId}`);
-      const json = await updated.json();
-      setPayments(Array.isArray(json) ? json : json.data || []);
-    } catch {
-      alert('Failed to update payment');
+      const payRes = await fetch(`/api/opportunity-payments?opportunityId=${resolvedOpportunityId}&_=${Date.now()}`, { cache: 'no-store' });
+      const pays = await payRes.json();
+      const list = Array.isArray(pays) ? pays : pays.data || [];
+
+      // Keep the wizard in sync with the Accounts team's verification screen:
+      // both `accountantStatus` and `status` have been used historically for
+      // review state, and receiptNumber is often stored as paymentNumber.
+      setPayments(list.map((p: any) => ({
+        ...p,
+        accountantStatus: p.accountantStatus || (p.status === 'verified' || p.status === 'rejected' ? p.status : 'pending'),
+        receiptNumber: p.receiptNumber || p.paymentNumber,
+        paidAmount: p.paidAmount ?? p.amount ?? 0,
+        remainingBalance: p.remainingBalance ?? p.balanceAmount ?? 0,
+      })));
+    } catch (err) {
+      console.error('Error fetching payments:', err);
     } finally {
-      setVerifying(false);
+      setLoading(false);
+      if (isManualRefresh) setRefreshing(false);
     }
+  };
+
+  useEffect(() => {
+    fetchPayments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadId, opportunityId]);
+
+  const printReceiptPDF = (p: any) => {
+    setPrintingId(p.id);
+    const branchDetails = getLeadBranchDetails(lead as any);
+    printReceipt({
+      receiptNumber: p.receiptNumber,
+      paymentNumber: p.paymentNumber,
+      paymentDate: p.paymentDate,
+      clientName: p.clientName || `${lead?.fname || ''} ${lead?.lname || ''}`.trim(),
+      passportNumber: (lead as any)?.id_number || '',
+      agreementNumber: p.agreementNumber,
+      opportunityId,
+      serviceName: p.serviceName || lead?.service_interest,
+      consultantName: p.consultantName,
+      companyName: p.companyName || branchDetails.companyName,
+      branchName: p.branchName || branchDetails.branchName,
+      branchAddress: p.branchAddress || branchDetails.branchAddress,
+      branchEmail: p.branchEmail || branchDetails.branchEmail,
+      branchPhone: p.branchPhone || branchDetails.branchPhone,
+      licenseNumber: branchDetails.licenseNumber,
+      vatGstPercent: branchDetails.vatGstPercent,
+      paymentMethod: p.paymentMethod,
+      transactionId: p.transactionId,
+      currency: p.currency,
+      totalAmount: p.totalAmount,
+      paidAmount: p.paidAmount,
+      remainingBalance: p.remainingBalance ?? p.balanceAmount,
+    });
+    setPrintingId(null);
   };
 
   if (loading) {
@@ -2550,11 +3280,22 @@ function AccountsStage({ lead, leadId, onNext, onPrevious }: any) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center mb-6">
-        <Receipt className="mr-3 text-blue-600" size={28} />
-        <div>
-          <h3 className="text-2xl font-bold text-gray-900">Accounts Verification</h3>
-          <p className="text-gray-600 text-sm">Payment verification status and accountant review</p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center">
+          <Receipt className="mr-3 text-blue-600" size={28} />
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900">Accounts Verification</h3>
+            <p className="text-gray-600 text-sm">Read-only status — reviewed by the Accounts team, not from this wizard</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchPayments(true)}
+            disabled={refreshing}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2 font-medium disabled:opacity-60"
+          >
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} /> {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
         </div>
       </div>
 
@@ -2573,16 +3314,35 @@ function AccountsStage({ lead, leadId, onNext, onPrevious }: any) {
                   <h4 className="font-semibold text-lg text-gray-900">{p.paymentNumber || `Payment #${p.id}`}</h4>
                   <p className="text-sm text-gray-500">{p.clientName || lead?.fname + ' ' + lead?.lname || 'N/A'} — {p.serviceName || 'Service'}</p>
                 </div>
-                <span className={`inline-flex px-3 py-1.5 text-sm font-medium rounded-full ${
-                  p.accountantStatus === 'verified' ? 'bg-green-100 text-green-800 border border-green-300' :
-                  p.accountantStatus === 'rejected' ? 'bg-red-100 text-red-800 border border-red-300' :
-                  'bg-yellow-100 text-yellow-800 border border-yellow-300'
-                }`}>
-                  {p.accountantStatus === 'verified' && <CheckCircle className="w-4 h-4 mr-1" />}
-                  {p.accountantStatus === 'rejected' && <XCircle className="w-4 h-4 mr-1" />}
-                  {(p.accountantStatus === 'pending' || !p.accountantStatus) && <Clock className="w-4 h-4 mr-1" />}
-                  {(p.accountantStatus || 'pending').charAt(0).toUpperCase() + (p.accountantStatus || 'pending').slice(1)}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex px-3 py-1.5 text-sm font-medium rounded-full ${
+                    p.accountantStatus === 'verified' ? 'bg-green-100 text-green-800 border border-green-300' :
+                    p.accountantStatus === 'rejected' ? 'bg-red-100 text-red-800 border border-red-300' :
+                    'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                  }`}>
+                    {p.accountantStatus === 'verified' && <CheckCircle className="w-4 h-4 mr-1" />}
+                    {p.accountantStatus === 'rejected' && <XCircle className="w-4 h-4 mr-1" />}
+                    {(p.accountantStatus === 'pending' || !p.accountantStatus) && <Clock className="w-4 h-4 mr-1" />}
+                    {(p.accountantStatus || 'pending').charAt(0).toUpperCase() + (p.accountantStatus || 'pending').slice(1)}
+                  </span>
+                  {p.accountantStatus === 'verified' && (
+                    <button
+                      onClick={() => printReceiptPDF(p)}
+                      disabled={printingId === p.id}
+                      className="px-3 py-1.5 bg-green-700 text-white rounded-lg text-xs hover:bg-green-800 flex items-center gap-1.5 disabled:opacity-60"
+                    >
+                      <Download size={13} /> {printingId === p.id ? 'Opening…' : 'Download Receipt PDF'}
+                    </button>
+                  )}
+                  {p.accountantStatus === 'verified' && p.opportunityId && (
+                    <button
+                      onClick={() => window.open(`/admin/leads/receipt/${p.opportunityId}`, '_blank')}
+                      className="px-3 py-1.5 border border-green-700 text-green-700 rounded-lg text-xs hover:bg-green-50 flex items-center gap-1.5"
+                    >
+                      <FileText size={13} /> Open Receipt Page
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -2619,116 +3379,15 @@ function AccountsStage({ lead, leadId, onNext, onPrevious }: any) {
                   <p className="text-sm text-blue-800 mt-1">{p.accountantRemarks}</p>
                 </div>
               )}
-
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => {
-                    const clientName = p.clientName || (lead ? `${lead.fname} ${lead.lname}` : 'Client');
-                    const currency = p.currency || 'AED';
-                    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Receipt</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:50px 60px 80px;color:#222}
-.hdr{border-bottom:3px solid #003399;padding-bottom:12px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center}
-.brand{font-size:15pt;font-weight:700;color:#002266}.sub{font-size:9pt;color:#666;margin-top:3px}
-.badge{background:#003399;color:#fff;padding:6px 18px;border-radius:4px;font-weight:700}
-table{width:100%;border-collapse:collapse;margin:14px 0}
-td{padding:9px 12px;font-size:10.5pt}
-tr:nth-child(odd) td:first-child{background:#002266;color:#fff;font-weight:600}
-tr:nth-child(even) td:first-child{background:#0044B3;color:#fff;font-weight:600}
-tr:nth-child(odd) td:last-child{background:#fff}
-tr:nth-child(even) td:last-child{background:#E8EEFB}
-.total td:first-child{background:#001A4D!important;font-size:11pt}
-.total td:last-child{background:#DCE6F9!important;font-weight:700;color:#001A4D;font-size:12pt}
-.footer{margin-top:28px;border-top:2px solid #003399;padding-top:8px;text-align:center;font-size:9pt;color:#666}
-@media print{@page{size:A4;margin:0}body{padding:40px 50px 60px}}</style></head><body>
-<div class="hdr"><div><div class="brand">DM IMMIGRATION CONSULTANTS DMCC</div>
-<div class="sub">Dubai Branch · 3703, Latifa Tower, Sheikh Zayed Road, Dubai UAE</div>
-<div class="sub">Ph: +971 04 344 7757 · info@dm-consultant.com</div></div>
-<div class="badge">OFFICIAL RECEIPT</div></div>
-<div style="margin-bottom:16px;font-size:10pt;color:#444;">
-Receipt No: <strong>${p.paymentNumber || p.id}</strong> &nbsp;|&nbsp;
-Date: <strong>${p.paymentDate ? new Date(p.paymentDate).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}</strong>
-</div>
-<table>
-<tr><td>Client</td><td>${clientName}</td></tr>
-<tr><td>Service</td><td>${p.serviceName || 'Consulting Service'}</td></tr>
-<tr><td>Branch</td><td>${p.branchName || 'Dubai Branch'}</td></tr>
-<tr><td>Payment Method</td><td>${(p.paymentMethod || 'Cash').replace('_',' ')}</td></tr>
-${p.transactionId ? `<tr><td>Transaction ID</td><td>${p.transactionId}</td></tr>` : ''}
-<tr><td>Total Amount</td><td>${currency} ${Number(p.totalAmount || 0).toLocaleString()}</td></tr>
-<tr><td>Amount Paid</td><td>${currency} ${Number(p.paidAmount || p.amount || 0).toLocaleString()}</td></tr>
-<tr class="total"><td>Balance Due</td><td>${currency} ${Number(p.remainingBalance || p.balanceAmount || 0).toLocaleString()}</td></tr>
-</table>
-<p style="margin-top:14px;font-size:10pt;color:#444;">This receipt confirms payment received by DM Immigration Consultants DMCC.</p>
-<div style="margin-top:40px;display:flex;justify-content:space-between;font-size:10pt;">
-<div>Client Signature: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
-<div>Authorised Signatory: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
-</div>
-<div class="footer">DM Immigration Consultants DMCC · DMCC Licensed · www.dm-consultant.com</div>
-</body></html>`;
-                    const win = window.open('', '_blank', 'width=860,height=1100');
-                    if (win) { win.document.write(html); win.document.close(); setTimeout(() => win.print(), 400); }
-                  }}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" /> Receipt PDF
-                </button>
-                <button
-                  onClick={() => { setVerifyPayment(p); setVerifyRemarks(p.accountantRemarks || ''); }}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 flex items-center gap-2"
-                >
-                  <CheckCircle className="w-4 h-4" /> Review Payment
-                </button>
-              </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {verifyPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
-            <div className="flex items-center justify-between border-b px-6 py-4">
-              <h2 className="text-lg font-bold text-gray-900">Accountant Review</h2>
-              <button onClick={() => { setVerifyPayment(null); setVerifyRemarks(''); }} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-gray-500">Payment #:</span> <span className="font-medium">{verifyPayment.paymentNumber || verifyPayment.id}</span></div>
-                  <div><span className="text-gray-500">Client:</span> <span className="font-medium">{verifyPayment.clientName || lead?.fname + ' ' + lead?.lname || 'N/A'}</span></div>
-                  <div><span className="text-gray-500">Amount:</span> <span className="font-medium">{verifyPayment.currency || 'AED'} {(verifyPayment.totalAmount || 0).toLocaleString()}</span></div>
-                  <div><span className="text-gray-500">Paid:</span> <span className="font-medium text-green-700">{verifyPayment.currency || 'AED'} {(verifyPayment.paidAmount || 0).toLocaleString()}</span></div>
-                  {verifyPayment.proofOfPaymentUrl && <div className="col-span-2"><span className="text-gray-500">Proof:</span> <span className="font-medium text-green-700">{verifyPayment.proofOfPaymentUrl.split('/').pop()}</span></div>}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Accountant Remarks</label>
-                <textarea
-                  value={verifyRemarks}
-                  onChange={e => setVerifyRemarks(e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter remarks (optional for verify, recommended for reject)..."
-                />
-              </div>
-            </div>
-            <div className="border-t px-6 py-3 flex justify-end gap-3">
-              <button onClick={() => { setVerifyPayment(null); setVerifyRemarks(''); }} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
-              <button onClick={() => handleVerify(verifyPayment.id, 'rejected')} disabled={verifying} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:bg-red-400 flex items-center gap-2">
-                <XCircle className="w-4 h-4" /> Reject
-              </button>
-              <button onClick={() => handleVerify(verifyPayment.id, 'verified')} disabled={verifying} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:bg-green-400 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" /> Verify & Continue
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center">
           <AlertCircle className="mr-2 text-blue-600" size={20} />
-          <span className="text-sm text-blue-800">Accountant must verify or reject payment before proceeding to compliance review.</span>
+          <span className="text-sm text-blue-800">The Accounts team must verify or reject the payment (via Accounts Verification) before this can proceed to compliance review.</span>
         </div>
       </div>
 
@@ -2750,18 +3409,24 @@ ${p.transactionId ? `<tr><td>Transaction ID</td><td>${p.transactionId}</td></tr>
   );
 }
 
-function DocumentsStage({ lead, data, setData, opportunityId: initialOpportunityId, onEnsureOpportunity, uploadedBy, paymentProofFile, onNext, onPrevious }: any) {
+function DocumentsStage({ lead, leadId, onLeadUpdated, data, setData, opportunityId: initialOpportunityId, onEnsureOpportunity, uploadedBy, paymentProofFile, onNext, onPrevious }: any) {
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, 'idle' | 'uploading' | 'done' | 'error'>>({});
 
   const mandatoryDocs = [
     { key: 'idProof', label: 'ID Proof (Mandatory)', category: 'id_proof' },
     { key: 'passportCopy', label: 'Passport Copy (Mandatory)', category: 'passport' },
+    { key: 'counsellorSheet', label: 'Counsellor Sheet (Mandatory)', category: 'counsellor_sheet' },
   ] as const;
 
   const optionalDocs: { key: string; label: string; category: string }[] = [];
 
-  const allMandatoryUploaded = mandatoryDocs.every(({ key }) => data[key] instanceof File);
+  // Either freshly selected in this session (File objects) or already uploaded
+  // server-side in an earlier session (persisted allMandatoryDocsUploaded flag,
+  // restored by the wizard's mount-time hydration effect).
+  const freshlyUploaded = mandatoryDocs.every(({ key }) => data[key] instanceof File);
+  const hasPassportNumber = Boolean(String(data.passportNumber || '').trim());
+  const allMandatoryUploaded = (freshlyUploaded || data.allMandatoryDocsUploaded) && hasPassportNumber;
 
   useEffect(() => {
     if (allMandatoryUploaded !== data.allMandatoryDocsUploaded) {
@@ -2770,26 +3435,60 @@ function DocumentsStage({ lead, data, setData, opportunityId: initialOpportunity
   }, [allMandatoryUploaded]);
 
   const uploadFileToServer = async (file: File, category: string, oppId: number): Promise<string | null> => {
-    const form = new FormData();
-    form.append('file', file);
-    form.append('opportunityId', String(oppId));
-    form.append('category', category);
-    form.append('documentName', file.name);
-    form.append('required', 'true');
-    form.append('uploadedBy', String(uploadedBy || 1));
-    const res = await fetch('/api/opportunity-documents', { method: 'POST', body: form });
+    // Upload straight from the browser to Vercel Blob (bypasses the ~4.5MB
+    // serverless function body limit), then record the metadata separately.
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const blob = await uploadFileToBlob(file, `opportunity-documents/${oppId}/${category}/${Date.now()}_${safeName}`);
+
+    const res = await fetch('/api/opportunity-documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        opportunityId: oppId,
+        documentType: category,
+        documentName: file.name,
+        fileName: safeName,
+        filePath: blob.url,
+        fileSize: file.size,
+        mimeType: file.type || 'application/octet-stream',
+        category,
+        status: 'uploaded',
+        required: true,
+        uploadedBy: uploadedBy || 1,
+      }),
+    });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `Upload failed for ${file.name}`);
     }
     const result = await res.json();
-    return result.filePath || null;
+    return result.filePath || blob.url;
   };
 
   const handleSave = async () => {
     if (!allMandatoryUploaded) return;
     setSaving(true);
     try {
+      // Passport number lives on the lead record itself (dmc_forum_leads.id_number),
+      // not on an opportunity-document row, so it's saved via the same lead-update
+      // endpoint the Edit Lead page uses rather than /api/opportunity-documents.
+      if (leadId) {
+        const leadUpdateRes = await fetch(`/api/leads/${leadId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ passportNumber: data.passportNumber }),
+        });
+        if (!leadUpdateRes.ok) {
+          const err = await leadUpdateRes.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to save passport number');
+        }
+        // Keep the wizard's lead state in sync so the passport number is
+        // immediately available to the Agreement/Signed Agreement stages and
+        // any receipt printed afterward, without needing a full page reload.
+        const updatedLead = await leadUpdateRes.json();
+        onLeadUpdated?.(updatedLead);
+      }
+
       // Ensure we have an opportunity ID — create one if missing
       let oppId: number | null = initialOpportunityId || null;
       if (!oppId && onEnsureOpportunity) {
@@ -2830,11 +3529,11 @@ function DocumentsStage({ lead, data, setData, opportunityId: initialOpportunity
         console.warn('No opportunity ID available — documents saved to state only, will upload after opportunity creation.');
       }
 
-      alert('Documents saved successfully!');
+      window.toast.success('Documents saved successfully!');
       onNext();
     } catch (error) {
       console.error('Error saving documents:', error);
-      alert(`Error saving documents: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      window.toast.error(`Error saving documents: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
@@ -2847,6 +3546,11 @@ function DocumentsStage({ lead, data, setData, opportunityId: initialOpportunity
         {!initialOpportunityId && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
             Opportunity will be created automatically when you save documents.
+          </div>
+        )}
+        {data.allMandatoryDocsUploaded && !freshlyUploaded && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+            Mandatory documents were already uploaded in a previous session. You can continue, or re-select a file below to replace one.
           </div>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2885,6 +3589,19 @@ function DocumentsStage({ lead, data, setData, opportunityId: initialOpportunity
               />
             </div>
           ))}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Passport Number <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={data.passportNumber || ''}
+              onChange={(e) => setData({ ...data, passportNumber: e.target.value })}
+              placeholder="Enter passport number"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
         </div>
       </div>
 
@@ -2904,7 +3621,7 @@ function DocumentsStage({ lead, data, setData, opportunityId: initialOpportunity
           onClick={onPrevious}
           className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
         >
-          Back to Payment
+          Back to Accounts
         </button>
         <button
           onClick={handleSave}
@@ -2918,18 +3635,21 @@ function DocumentsStage({ lead, data, setData, opportunityId: initialOpportunity
   );
 }
 
-function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, onDeleteAgreement, onNext, onPrevious }: any) {
+function AgreementStage({ lead, data, setData, quotationData, programValidity, opportunityId, onSaveAgreement, onDeleteAgreement, onNext, onPrevious }: any) {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [saving, setSaving] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const counselorSummaryLength = data.counselorConversationSummary.trim().length;
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await onSaveAgreement();
-      alert('Agreement saved successfully.');
+      window.toast.success('Agreement saved successfully.');
     } catch (error) {
       console.error('Error saving:', error);
-      alert('Failed to save data');
+      window.toast.error('Failed to save data');
     } finally {
       setSaving(false);
     }
@@ -2941,37 +3661,45 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
       const clientName = [lead?.fname, lead?.lname].filter(Boolean).join(' ') || lead?.name || 'Client';
       const destinationCountry = (lead as any)?.country_interest_label || (lead as any)?.country_interest || 'Not specified';
       const serviceProgram   = (lead as any)?.service_interest_label  || (lead as any)?.service_interest  || data.agreementType || 'Consulting Service';
+      const branchDetails = getLeadBranchDetails(lead as any);
 
       // Pull payment amounts from quotation if available
       const totalAmount    = quotationData?.total    || data.amount || (lead as any)?.payTotal || (lead as any)?.demandAmt || '0';
       const initialPayment = quotationData?.subtotal ? String(quotationData.subtotal) : String(Math.round(Number(totalAmount) / 2));
       const secondPayment  = quotationData?.total    ? String(Math.max(0, Number(quotationData.total) - Number(initialPayment))) : String(Math.round(Number(totalAmount) / 2));
 
-      await onSaveAgreement();
+      const savedAgreementId = await onSaveAgreement();
 
-      const html = renderBilingualAgreementWithPdfFirstPage({
-        agreementNumber : `AGR-${Date.now()}`,
+      const html = renderAgreementForBranch(branchDetails.branchAbbrv, {
+        // Use the number that was just saved to (or already existed in) the
+        // database rather than minting a new one — otherwise the downloaded
+        // PDF shows a different agreement number than the saved record.
+        agreementNumber : data.agreementNumber || `AGR-${savedAgreementId || Date.now()}`,
         agreementDate   : new Date().toLocaleDateString('en-GB'),
+        agreementExpiry : data.endDate ? new Date(data.endDate).toLocaleDateString('en-GB') : '',
         clientName,
         clientEmail   : (lead as any)?.email      || '',
         clientPhone   : (lead as any)?.phone      || (lead as any)?.mobile || '',
         clientAddress : (lead as any)?.address    || '',
         nationality   : (lead as any)?.nationality || '',
-        passportNumber: (lead as any)?.passport_no || (lead as any)?.id_number || '',
-        emiratesId    : (lead as any)?.emirates_id || (lead as any)?.id_number  || '',
-        occupation    : (lead as any)?.occupation  || '',
+        passportNumber: (lead as any)?.id_number || '',
+        idNumber      : (lead as any)?.emirates_id || (lead as any)?.id_number  || '',
         serviceProgram,
+        programCode   : data.agreementType || '',
+        programTermSchedule: programValidity || (data.startDate && data.endDate ? `${data.startDate} to ${data.endDate}` : ''),
         destinationCountry,
         totalAmount   : String(totalAmount),
         initialPayment,
         secondPayment,
-        branchName   : (lead as any)?.dmBranch?.name    || (lead as any)?.branchName    || 'DM Immigration Consultants DMCC – Dubai Branch',
-        branchAddress: (lead as any)?.dmBranch?.address  || (lead as any)?.branchAddress || 'Office 3703B, Latifa Tower, Sheikh Zayed Road, Trade Centre First, P.O. Box 29514, Dubai, UAE',
+        clientId      : String((lead as any)?.id || ''),
+        includedDeliverables: data.agreementTitle || '',
+        expressExclusions: '',
+        specialTerms: data.terms || '',
       });
 
       // Open in a new tab — browser renders Arabic natively, user saves as PDF via Ctrl+P / Print dialog
       const win = window.open('', '_blank', 'width=900,height=700');
-      if (!win) { alert('Please allow pop-ups to open the agreement.'); return; }
+      if (!win) { window.toast.warning('Please allow pop-ups to open the agreement.'); return; }
       win.document.write(html);
       win.document.close();
       // Trigger print after fonts have loaded
@@ -2986,7 +3714,7 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
       setData((current: AgreementData) => ({ ...current, status: 'generated' }));
     } catch (error) {
       console.error('Error generating agreement PDF:', error);
-      alert('Failed to generate agreement PDF');
+      window.toast.error('Failed to generate agreement PDF');
     } finally {
       setGeneratingPdf(false);
     }
@@ -2999,10 +3727,10 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
     setSaving(true);
     try {
       await onDeleteAgreement();
-      alert('Agreement deleted.');
+      window.toast.success('Agreement deleted.');
     } catch (error) {
       console.error('Error deleting agreement:', error);
-      alert(error instanceof Error ? error.message : 'Failed to delete agreement');
+      window.toast.error(error instanceof Error ? error.message : 'Failed to delete agreement');
     } finally {
       setSaving(false);
     }
@@ -3010,6 +3738,17 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
 
   const [lookupNumber, setLookupNumber] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
+
+  // An agreement number is often already generated for this opportunity (the
+  // Payment stage's first save auto-creates one) before the counselor ever
+  // reaches this stage — pre-fill the lookup box with it instead of leaving
+  // it blank, so fetching/downloading is a single click, not manual entry.
+  useEffect(() => {
+    if (data.agreementNumber && !lookupNumber) {
+      setLookupNumber(data.agreementNumber);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.agreementNumber]);
 
   const handleAgreementLookup = async () => {
     const num = lookupNumber.trim();
@@ -3020,10 +3759,11 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
       if (!res.ok) throw new Error('Not found');
       const json = await res.json();
       const agr = Array.isArray(json.data) ? json.data[0] : json.data ?? json;
-      if (!agr) { alert(`No agreement found with number: ${num}`); return; }
+      if (!agr) { window.toast.warning(`No agreement found with number: ${num}`); return; }
       setData((prev: AgreementData) => ({
         ...prev,
         agreementId: agr.id ?? prev.agreementId,
+        agreementNumber: agr.agreementNumber ?? prev.agreementNumber,
         agreementType: agr.agreementType ?? agr.type ?? prev.agreementType,
         agreementTitle: agr.title ?? agr.agreementTitle ?? prev.agreementTitle,
         terms: agr.termsAndConditions ?? agr.terms ?? prev.terms,
@@ -3034,9 +3774,9 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
         companyAddress: agr.companyAddress ?? prev.companyAddress,
         status: agr.status ?? prev.status,
       }));
-      alert(`Agreement ${num} loaded successfully.`);
+      window.toast.success(`Agreement ${num} loaded successfully.`);
     } catch {
-      alert(`No agreement found with number: ${num}`);
+      window.toast.warning(`No agreement found with number: ${num}`);
     } finally {
       setLookupLoading(false);
     }
@@ -3051,6 +3791,16 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
           <p className="text-gray-600 text-sm">Generate service agreement document</p>
         </div>
       </div>
+
+      {data.agreementNumber && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+          <div>
+            <span className="text-xs font-medium text-green-700 uppercase">Agreement Number</span>
+            <p className="text-lg font-bold text-green-900">{data.agreementNumber}</p>
+          </div>
+          <FileSignature className="text-green-600" size={24} />
+        </div>
+      )}
 
       {/* Agreement number lookup */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -3072,13 +3822,17 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
             {lookupLoading ? 'Loading...' : 'Fetch & Fill'}
           </button>
         </div>
-        <p className="text-xs text-blue-600 mt-1">Enter an agreement number and click Fetch to auto-fill all fields below.</p>
+        <p className="text-xs text-blue-600 mt-1">
+          {data.agreementNumber
+            ? 'This opportunity\'s agreement number is filled in — click Fetch & Fill to reload its details, or scroll down to download.'
+            : 'Enter an agreement number and click Fetch to auto-fill all fields below.'}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Agreement Type</label>
-          <select
+          <SearchableSelect
             value={data.agreementType}
             onChange={(e) => setData({ ...data, agreementType: e.target.value })}
             className="w-full p-3 border rounded-lg"
@@ -3094,7 +3848,7 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
             <option value="eip">Economic Immigration Program</option>
             <option value="work-permit-visa-application">Work Permit Visa Application</option>
             <option value="yukon-gcc">Yukon GCC</option>
-          </select>
+          </SearchableSelect>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Agreement Title</label>
@@ -3127,19 +3881,36 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
           value={data.counselorConversationSummary}
           onChange={(e) => setData({ ...data, counselorConversationSummary: e.target.value })}
           rows={4}
-          className="w-full p-3 border rounded-lg"
+          className={`w-full p-3 border rounded-lg ${counselorSummaryLength > 0 && counselorSummaryLength < COUNSELOR_SUMMARY_MIN_CHARS ? 'border-red-300 focus:border-red-500' : ''}`}
           placeholder="Summarize the conversation with the client regarding their service requirements, expectations, and any commitments made..."
         />
+        <div className="mt-1 flex items-center justify-between gap-3 text-xs">
+          <span className={counselorSummaryLength < COUNSELOR_SUMMARY_MIN_CHARS ? 'text-red-600' : 'text-green-700'}>
+            Minimum {COUNSELOR_SUMMARY_MIN_CHARS} characters required
+          </span>
+          <span className="text-gray-500">{counselorSummaryLength}/{COUNSELOR_SUMMARY_MIN_CHARS}</span>
+        </div>
       </div>
 
-      <button
-        onClick={downloadAgreementPdf}
-        disabled={generatingPdf}
-        className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 flex items-center justify-center font-medium"
-      >
-        <Download className="mr-2" size={20} />
-        {generatingPdf ? 'Opening Agreement...' : 'Generate & Print Agreement (PDF)'}
-      </button>
+      <div className="flex gap-3">
+        <button
+          onClick={downloadAgreementPdf}
+          disabled={generatingPdf}
+          className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 flex items-center justify-center font-medium"
+        >
+          <Download className="mr-2" size={20} />
+          {generatingPdf ? 'Opening Agreement...' : 'Generate & Print Agreement (PDF)'}
+        </button>
+        {opportunityId && (
+          <button
+            onClick={() => window.open(`/admin/leads/agreement/${opportunityId}`, '_blank')}
+            className="px-6 py-3 border border-green-600 text-green-700 rounded-lg hover:bg-green-50 flex items-center justify-center font-medium"
+          >
+            <FileText className="mr-2" size={20} />
+            Open Agreement Page
+          </button>
+        )}
+      </div>
 
       <div className="flex justify-between">
         <button
@@ -3158,7 +3929,7 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
             <Save className="mr-2" size={20} />
             {saving ? 'Saving...' : 'Save Draft'}
           </button>
-          {data.agreementId && (
+          {data.agreementId && canDelete && (
             <button
               onClick={handleDelete}
               disabled={saving || generatingPdf}
@@ -3181,25 +3952,39 @@ function AgreementStage({ lead, data, setData, quotationData, onSaveAgreement, o
   );
 }
 
-function SignedAgreementStage({ lead, data, setData, opportunityId, uploadedBy, complianceStatus, onNext, onPrevious }: any) {
+function SignedAgreementStage({ lead, data, setData, opportunityId, uploadedBy, complianceStatus, onSubmitCompliance, onNext, onPrevious }: any) {
   const [uploading, setUploading] = useState(false);
+  const [submittingCompliance, setSubmittingCompliance] = useState(false);
+  const [submittedUrl, setSubmittedUrl] = useState<string | null>(null);
 
   const handleFileSelect = async (file?: File) => {
     if (!file) return;
     if (!opportunityId) {
-      alert('Opportunity not yet created. Please complete the agreement stage first.');
+      window.toast.warning('Opportunity not yet created. Please complete the agreement stage first.');
       return;
     }
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('opportunityId', String(opportunityId));
-      form.append('category', 'signed_agreement');
-      form.append('documentName', file.name);
-      form.append('required', 'true');
-      form.append('uploadedBy', String(uploadedBy || 1));
-      const res = await fetch('/api/opportunity-documents', { method: 'POST', body: form });
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const blob = await uploadFileToBlob(file, `opportunity-documents/${opportunityId}/signed_agreement/${Date.now()}_${safeName}`);
+
+      const res = await fetch('/api/opportunity-documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opportunityId,
+          documentType: 'signed_agreement',
+          documentName: file.name,
+          fileName: safeName,
+          filePath: blob.url,
+          fileSize: file.size,
+          mimeType: file.type || 'application/octet-stream',
+          category: 'signed_agreement',
+          status: 'uploaded',
+          required: true,
+          uploadedBy: uploadedBy || 1,
+        }),
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Upload failed');
@@ -3207,17 +3992,42 @@ function SignedAgreementStage({ lead, data, setData, opportunityId, uploadedBy, 
       const result = await res.json();
       setData({
         ...data,
-        documentUrl: result.filePath || `/uploads/opportunity-documents/${file.name}`,
+        documentUrl: result.filePath || blob.url,
         uploadedTocrm: true,
       });
     } catch (err) {
-      alert(`Failed to upload signed agreement: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      window.toast.error(`Failed to upload signed agreement: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setUploading(false);
     }
   };
 
   const canSubmit = Boolean(data.documentUrl && data.uploadedTocrm && data.clientSignature && data.signatureDate);
+
+  useEffect(() => {
+    if (!canSubmit) return;
+    if (!onSubmitCompliance) return;
+    if (complianceStatus === 'pending' || complianceStatus === 'approved') return;
+    if (submittedUrl === data.documentUrl) return;
+
+    let cancelled = false;
+    (async () => {
+      setSubmittingCompliance(true);
+      try {
+        await onSubmitCompliance();
+        if (!cancelled) setSubmittedUrl(data.documentUrl);
+      } catch (error) {
+        console.error('Error submitting signed agreement for compliance:', error);
+        if (!cancelled) {
+          window.toast.error(error instanceof Error ? error.message : 'Failed to submit signed agreement for compliance review');
+        }
+      } finally {
+        if (!cancelled) setSubmittingCompliance(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [canSubmit, complianceStatus, data.documentUrl, onSubmitCompliance, submittedUrl]);
 
   return (
     <div className="space-y-6">
@@ -3232,7 +4042,7 @@ function SignedAgreementStage({ lead, data, setData, opportunityId, uploadedBy, 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center">
           <AlertCircle className="mr-2 text-blue-600" size={20} />
-          <span className="text-sm text-blue-800">Once uploaded, the signed agreement will be automatically sent to CRM.</span>
+          <span className="text-sm text-blue-800">Once uploaded with signature details, the signed agreement will be automatically sent to compliance for review.</span>
         </div>
       </div>
 
@@ -3298,6 +4108,12 @@ function SignedAgreementStage({ lead, data, setData, opportunityId, uploadedBy, 
           {complianceStatus.replace('_', ' ')}
         </span>
       </div>
+      {submittingCompliance && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800 flex items-center gap-2">
+          <Clock size={16} />
+          Sending signed agreement to compliance manager...
+        </div>
+      )}
 
       <div className="flex justify-between">
         <button
@@ -3312,7 +4128,7 @@ function SignedAgreementStage({ lead, data, setData, opportunityId, uploadedBy, 
           disabled={!canSubmit}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center font-medium"
         >
-          Continue to Accounts
+          Submit for Compliance Review
           <ChevronRight className="ml-2" size={20} />
         </button>
       </div>
@@ -3320,24 +4136,63 @@ function SignedAgreementStage({ lead, data, setData, opportunityId, uploadedBy, 
   );
 }
 
-function RetainedStage({ lead, data, setData, onApproveCompliance, onRejectCompliance, onCloseWon, onPrevious }: any) {
+function RetainedStage({ lead, data, setData, onRefreshCompliance, onCloseWon, closingWon, onPrevious }: any) {
   const canClose = data.agreementComplianceStatus === 'approved';
   const isRejected = data.agreementComplianceStatus === 'rejected';
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefreshClick = async () => {
+    setRefreshing(true);
+    try {
+      await onRefreshCompliance();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center mb-6">
-        <Shield className="mr-3 text-blue-600" size={28} />
-        <div>
-          <h3 className="text-2xl font-bold text-gray-900">Retention & Compliance Review</h3>
-          <p className="text-gray-600 text-sm">Compliance manager review for approval</p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center">
+          <Shield className="mr-3 text-blue-600" size={28} />
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900">Retention & Compliance Review</h3>
+            <p className="text-gray-600 text-sm">Compliance manager review for approval</p>
+          </div>
         </div>
+        <button
+          onClick={handleRefreshClick}
+          disabled={refreshing}
+          className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 flex items-center font-medium text-sm"
+        >
+          <RefreshCw className={`mr-2 ${refreshing ? 'animate-spin' : ''}`} size={16} />
+          Refresh Status
+        </button>
       </div>
 
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <div className="flex items-center">
           <AlertCircle className="mr-2 text-yellow-600" size={20} />
           <span className="text-sm text-yellow-800">This agreement requires compliance officer approval before closing or marking the opportunity won.</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+          <div className="flex items-center gap-2 text-green-800 font-semibold">
+            <CheckCircle size={18} />
+            Payment Verified
+          </div>
+          <p className="text-xs text-green-700 mt-1">Accounts verification is complete for this opportunity.</p>
+        </div>
+        <div className={`rounded-lg border p-4 ${canClose ? 'border-green-200 bg-green-50' : isRejected ? 'border-red-200 bg-red-50' : 'border-yellow-200 bg-yellow-50'}`}>
+          <div className={`flex items-center gap-2 font-semibold ${canClose ? 'text-green-800' : isRejected ? 'text-red-800' : 'text-yellow-800'}`}>
+            {canClose ? <CheckCircle size={18} /> : isRejected ? <XCircle size={18} /> : <Clock size={18} />}
+            Agreement {canClose ? 'Approved' : isRejected ? 'Rejected' : 'Pending'}
+          </div>
+          <p className={`text-xs mt-1 ${canClose ? 'text-green-700' : isRejected ? 'text-red-700' : 'text-yellow-700'}`}>
+            Compliance manager must approve the signed agreement before close.
+          </p>
         </div>
       </div>
 
@@ -3384,31 +4239,13 @@ function RetainedStage({ lead, data, setData, onApproveCompliance, onRejectCompl
           Back
         </button>
         <div className="flex gap-3">
-          {!canClose && (
-            <>
-              <button
-                onClick={onRejectCompliance}
-                className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center font-medium"
-              >
-                <ThumbsDown className="mr-2" size={20} />
-                Reject as Compliance
-              </button>
-              <button
-                onClick={onApproveCompliance}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center font-medium"
-              >
-                <ThumbsUp className="mr-2" size={20} />
-                Approve as Compliance
-              </button>
-            </>
-          )}
           <button
             onClick={onCloseWon}
-            disabled={!canClose}
+            disabled={!canClose || closingWon}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center font-medium"
           >
             <CheckCircle className="mr-2" size={20} />
-            Close / Mark Won
+            {closingWon ? 'Closing...' : 'Close / Mark Won'}
           </button>
         </div>
       </div>
@@ -3416,39 +4253,147 @@ function RetainedStage({ lead, data, setData, onApproveCompliance, onRejectCompl
   );
 }
 
-function RetentionRejectedStage({ lead, data, onResubmit }: any) {
+function RetentionRejectedStage({ lead, leadId, data, onResubmit }: any) {
+  const isApproved = data.agreementComplianceStatus === 'approved';
+  const isPending = data.agreementComplianceStatus === 'pending' || data.agreementComplianceStatus === 'not_submitted';
+  const statusLabel = isApproved ? 'Approved' : isPending ? 'Pending' : 'Rejected';
+  const StatusIcon = isApproved ? CheckCircle : isPending ? Clock : XCircle;
+  const [generatingCredentials, setGeneratingCredentials] = useState(false);
+  const [portalMessage, setPortalMessage] = useState('');
+  const [portalCredentials, setPortalCredentials] = useState<{
+    loginUrl: string;
+    username: string;
+    temporaryPassword: string;
+  } | null>(null);
+  const tone = isApproved
+    ? {
+        icon: 'text-green-600',
+        panel: 'bg-green-50 border-green-200',
+        heading: 'text-green-900',
+        accent: 'border-green-600',
+        action: 'Approved By',
+        date: 'Approval Date',
+        notesTitle: 'Review Notes',
+        subtitle: 'Agreement was approved by compliance manager',
+      }
+    : isPending
+      ? {
+          icon: 'text-yellow-600',
+          panel: 'bg-yellow-50 border-yellow-200',
+          heading: 'text-yellow-900',
+          accent: 'border-yellow-600',
+          action: 'Review By',
+          date: 'Review Date',
+          notesTitle: 'Review Notes',
+          subtitle: 'Agreement is waiting for compliance manager review',
+        }
+      : {
+          icon: 'text-red-600',
+          panel: 'bg-red-50 border-red-200',
+          heading: 'text-red-900',
+          accent: 'border-red-600',
+          action: 'Rejected By',
+          date: 'Rejection Date',
+          notesTitle: 'Rejection Reason',
+          subtitle: 'Agreement was rejected by compliance manager',
+        };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center mb-6">
-        <XCircle className="mr-3 text-red-600" size={28} />
+        <StatusIcon className={`mr-3 ${tone.icon}`} size={28} />
         <div>
-          <h3 className="text-2xl font-bold text-gray-900">Retention Review Rejected</h3>
-          <p className="text-gray-600 text-sm">Agreement was rejected by compliance manager</p>
+          <h3 className="text-2xl font-bold text-gray-900">Retention Review {statusLabel}</h3>
+          <p className="text-gray-600 text-sm">{tone.subtitle}</p>
         </div>
       </div>
 
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <h4 className="font-semibold text-lg mb-4 text-red-900">Rejection Details</h4>
+      <div className={`${tone.panel} border rounded-lg p-6`}>
+        <h4 className={`font-semibold text-lg mb-4 ${tone.heading}`}>Retention Review Details</h4>
         <div className="space-y-2 text-sm">
           <div className="flex items-center">
-            <XCircle className="mr-2 text-red-600" size={16} />
-            <span><strong>Rejected By:</strong> {data.complianceManager || 'Compliance Manager'}</span>
+            <StatusIcon className={`mr-2 ${tone.icon}`} size={16} />
+            <span><strong>{tone.action}:</strong> {data.complianceManager || 'Compliance Manager'}</span>
           </div>
           <div className="flex items-center">
-            <Clock className="mr-2 text-red-600" size={16} />
-            <span><strong>Rejection Date:</strong> {new Date().toLocaleDateString()}</span>
+            <Clock className={`mr-2 ${tone.icon}`} size={16} />
+            <span><strong>{tone.date}:</strong> {data.reviewDate || new Date().toLocaleDateString()}</span>
           </div>
         </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h4 className="font-semibold text-lg mb-4 text-gray-900">Rejection Reason</h4>
-        <div className="p-4 bg-gray-50 rounded-lg border-l-4 border-red-600">
-          <p className="text-sm">{data.reviewNotes || 'The submitted agreement requires modifications before approval.'}</p>
+        <h4 className="font-semibold text-lg mb-4 text-gray-900">{tone.notesTitle}</h4>
+        <div className={`p-4 bg-gray-50 rounded-lg border-l-4 ${tone.accent}`}>
+          <p className="text-sm">{data.reviewNotes || (isApproved ? 'Approved' : isPending ? 'Compliance review is still pending.' : 'The submitted agreement requires modifications before approval.')}</p>
         </div>
       </div>
 
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h4 className="font-semibold text-lg text-gray-900">Client Portal</h4>
+            <p className="text-sm text-gray-600">Generate and email portal login credentials for this client.</p>
+          </div>
+          <button
+            onClick={async () => {
+              setGeneratingCredentials(true);
+              setPortalMessage('');
+              setPortalCredentials(null);
+              try {
+                const res = await fetch(`/api/admin/clients/${leadId}/credentials`, { method: 'POST' });
+                const json = await res.json();
+                if (res.ok) {
+                  setPortalMessage(`Portal credentials emailed to ${json.email}.`);
+                  setPortalCredentials({
+                    loginUrl: json.loginUrl || `${window.location.origin}/clientportal/login`,
+                    username: json.username || json.email,
+                    temporaryPassword: json.temporaryPassword || '',
+                  });
+                } else {
+                  setPortalMessage(json.error || 'Failed to generate credentials');
+                }
+              } catch {
+                setPortalMessage('Failed to generate credentials');
+              } finally {
+                setGeneratingCredentials(false);
+              }
+            }}
+            disabled={generatingCredentials}
+            className="inline-flex items-center justify-center rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50"
+          >
+            <KeyRound className="mr-2 h-4 w-4" />
+            {generatingCredentials ? 'Generating...' : 'Generate Client Portal Credentials'}
+          </button>
+        </div>
+        {portalMessage && <p className="mt-3 text-sm text-gray-600">{portalMessage}</p>}
+        {portalCredentials && (
+          <div className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-3">
+            <div className="min-w-0">
+              <p className="font-medium text-slate-500">Login URL</p>
+              <a
+                href={portalCredentials.loginUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block truncate font-semibold text-blue-700 hover:text-blue-800"
+              >
+                {portalCredentials.loginUrl}
+              </a>
+            </div>
+            <div className="min-w-0">
+              <p className="font-medium text-slate-500">Username</p>
+              <p className="truncate font-semibold text-slate-900">{portalCredentials.username}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="font-medium text-slate-500">Temporary Password</p>
+              <p className="truncate font-semibold text-slate-900">{portalCredentials.temporaryPassword}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {!isApproved && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
         <h4 className="font-semibold text-lg mb-4 text-yellow-900">Required Actions</h4>
         <ul className="space-y-2 text-sm">
           <li className="flex items-center">
@@ -3464,9 +4409,11 @@ function RetentionRejectedStage({ lead, data, onResubmit }: any) {
             Resubmit for review
           </li>
         </ul>
-      </div>
+        </div>
+      )}
 
-      <div className="flex justify-end">
+      {!isApproved && (
+        <div className="flex justify-end">
         <button
           onClick={onResubmit}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
@@ -3474,111 +4421,10 @@ function RetentionRejectedStage({ lead, data, onResubmit }: any) {
           <Upload className="mr-2" size={20} />
           Resubmit for Review
         </button>
-      </div>
+        </div>
+      )}
     </div>
   );
-}
-
-function getOperationsModule(lead: any) {
-  const country = String(lead?.country_interest || '').toLowerCase();
-  const service = String(lead?.service_interest || '').toLowerCase();
-  const leadType = String(lead?.type || lead?.lead_type || '').toLowerCase();
-  const countryId = Number(lead?.country_interest);
-  const serviceId = Number(lead?.service_interest);
-  const combined = `${country} ${service}`;
-
-  // Production leads normally store country and service as IDs. Keep this in
-  // sync with leadOpportunityConversion so a won opportunity opens the right
-  // operations program instead of falling back to Canada.
-  const eipServices = [211, 213, 214, 215, 216, 218];
-  const jobSearchServices = [321, 322, 332, 333, 331, 327, 326, 341, 338, 339, 352, 349, 343, 344, 354, 250, 248, 251, 252];
-  const polandServices = [39, 280, 254, 278, 285, 298, 293, 288, 287, 286, 303, 315, 316, 317, 309, 294, 264, 279, 329];
-
-  if (leadType === 'visit') {
-    return { label: 'Visit Visa Operations', subtitle: 'Visit visa client flow', path: '/admin/leads/visit-visa-operations', color: 'bg-blue-600 hover:bg-blue-700', icon: FileText };
-  }
-  if (leadType === 'student') {
-    return { label: 'Student Visa Operations', subtitle: 'Student visa client flow', path: '/admin/leads/student-visa-operations', color: 'bg-blue-600 hover:bg-blue-700', icon: FileText };
-  }
-  if ((leadType === 'skill' || leadType === 'work') && eipServices.includes(serviceId)) {
-    return { label: 'EIP Canada Operations', subtitle: 'Canada investment client flow', path: '/admin/leads/eip-canada-operations', color: 'bg-red-600 hover:bg-red-700', icon: MapPin };
-  }
-  if (jobSearchServices.includes(serviceId)) {
-    return { label: 'Resume Marketing Operations', subtitle: 'Resume marketing services', path: '/admin/leads/rms-operations', color: 'bg-purple-600 hover:bg-purple-700', icon: Briefcase };
-  }
-  if (polandServices.includes(serviceId)) {
-    return { label: 'Poland Visa Operations', subtitle: 'Poland work permit client flow', path: '/admin/leads/poland-visa-operations', color: 'bg-indigo-600 hover:bg-indigo-700', icon: Plane };
-  }
-  if (leadType === 'skill' && (countryId === 1 || countryId === 14)) {
-    return { label: 'Australia Operations', subtitle: 'Australia skilled client flow', path: '/admin/leads/skill-australia-operations', color: 'bg-yellow-600 hover:bg-yellow-700', icon: Globe };
-  }
-  if (leadType === 'skill' && countryId === 2) {
-    return { label: 'Canada Operations', subtitle: 'Canada skilled client flow', path: '/admin/leads/skill-canada-operations', color: 'bg-red-600 hover:bg-red-700', icon: MapPin };
-  }
-
-  if (combined.includes('resume') || combined.includes('rms') || combined.includes('marketing')) {
-    return {
-      label: 'Resume Marketing Operations',
-      subtitle: 'Resume marketing services',
-      path: '/admin/leads/rms-operations',
-      color: 'bg-purple-600 hover:bg-purple-700',
-      icon: Briefcase
-    };
-  }
-
-  if (combined.includes('visit') || combined.includes('tourist')) {
-    return {
-      label: 'Visit Visa Operations',
-      subtitle: 'Visit visa client flow',
-      path: '/admin/leads/visit-visa-operations',
-      color: 'bg-blue-600 hover:bg-blue-700',
-      icon: FileText
-    };
-  }
-
-  if (combined.includes('work visa') || combined.includes('work permit') || combined.includes('employment')) {
-    return {
-      label: 'Work Visa Operations',
-      subtitle: 'Work permit client flow',
-      path: '/admin/leads/poland-visa-operations',
-      color: 'bg-indigo-600 hover:bg-indigo-700',
-      icon: Plane
-    };
-  }
-
-  if (combined.includes('australia')) {
-    return {
-      label: 'Australia Operations',
-      subtitle: 'Australia single operations module',
-      path: '/admin/leads/skill-australia-operations',
-      color: 'bg-yellow-600 hover:bg-yellow-700',
-      icon: Globe
-    };
-  }
-
-  if (combined.includes('canada')) {
-    return {
-      label: 'Canada Operations',
-      subtitle: 'Canada client operations module',
-      path: '/admin/leads/skill-canada-operations',
-      color: 'bg-red-600 hover:bg-red-700',
-      icon: MapPin
-    };
-  }
-
-  return {
-    label: 'Canada Operations',
-    subtitle: 'Default client operations module',
-    path: '/admin/leads/skill-canada-operations',
-    color: 'bg-red-600 hover:bg-red-700',
-    icon: MapPin
-  };
-}
-
-function buildOperationsUrl(path: string, lead: any, opportunityId: number | null) {
-  const clientName = `${lead?.fname || ''} ${lead?.lname || ''}`.trim() || 'Client';
-  const id = opportunityId || Number(lead?.opportunity_id) || Number(lead?.id);
-  return `${path}?opportunityId=${id}&leadId=${lead?.id}&clientName=${encodeURIComponent(clientName)}`;
 }
 
 function normalizePriorityForWizard(priority?: string) {
@@ -3589,12 +4435,111 @@ function normalizePriorityForWizard(priority?: string) {
   return 'medium';
 }
 
-function ClosedStage({ lead, prospectData, quotationData, paymentData, opportunityId, currencyCode = 'AED' }: any) {
-  const recommendedModule = getOperationsModule(lead);
-  const RecommendedIcon = recommendedModule.icon;
-  const openOperations = (path = recommendedModule.path) => {
-    window.location.href = buildOperationsUrl(path, lead, opportunityId);
+function ReadonlyDetail({ label, value, placeholder = '' }: { label: string; value?: string | null; placeholder?: string }) {
+  return (
+    <div>
+      <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-500">{label}</label>
+      <div className={`min-h-[52px] rounded-lg border border-gray-200 bg-white px-4 py-3 text-base ${value ? 'text-gray-900' : 'text-gray-400'}`}>
+        {value || placeholder}
+      </div>
+    </div>
+  );
+}
+
+function ClosedStage({ lead, leadId, prospectData, quotationData, paymentData, currencyCode = 'AED' }: any) {
+  const { user } = useAuth();
+  const [generatingCredentials, setGeneratingCredentials] = useState(false);
+  const [portalMessage, setPortalMessage] = useState('');
+  const [portalCredentials, setPortalCredentials] = useState<{
+    loginUrl: string;
+    username: string;
+    temporaryPassword: string;
+    generatedAt?: string | null;
+  } | null>(null);
+
+  const clientName = [lead?.fname, lead?.lname].filter(Boolean).join(' ').trim() || lead?.name || 'Client';
+  const clientEmail = lead?.email || portalCredentials?.username || '';
+  const branchDetails = getLeadBranchDetails(lead as any);
+  const branchOffice = branchDetails.companyName || 'DMC Immigration Consultants';
+  const counselorName = user?.name || '';
+  const emailSubject = `Welcome to DMC Immigration, ${clientName} - Your Client Portal is Ready`;
+  const emailBody = [
+    `Dear ${clientName},`,
+    '',
+    "Welcome to DMC Immigration! We're glad to have you on board, and we're committed to making your immigration journey as smooth and transparent as possible.",
+    '',
+    "To help you stay updated at every step, we've set up your Client Portal - a single place to track your case status, view and upload documents, and stay in touch with your counselor.",
+    '',
+    'Here are your login details:',
+    '',
+    `Login URL: ${portalCredentials?.loginUrl || ''}`,
+    `Username: ${portalCredentials?.username || clientEmail}`,
+    `Temporary Password: ${portalCredentials?.temporaryPassword || ''}`,
+    '',
+    "For security, please log in and change your password as soon as possible. If you run into any trouble accessing the portal, just reply to this email and we'll help you right away.",
+    '',
+    'Thank you for choosing DMC Immigration. We look forward to supporting you through every stage of your journey.',
+    '',
+    'Warm regards,',
+    'The DMC Team',
+  ].join('\n');
+  const copyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(`Subject: ${emailSubject}\n\n${emailBody}`);
+      setPortalMessage('Email content copied.');
+    } catch {
+      setPortalMessage('Could not copy email content.');
+    }
   };
+  const openGmailCompose = () => {
+    const url = new URL('https://mail.google.com/mail/');
+    url.searchParams.set('view', 'cm');
+    url.searchParams.set('fs', '1');
+    url.searchParams.set('to', clientEmail);
+    url.searchParams.set('su', emailSubject);
+    url.searchParams.set('body', emailBody);
+    window.open(url.toString(), '_blank', 'noopener,noreferrer');
+  };
+  const generateClientPortal = async () => {
+    setGeneratingCredentials(true);
+    setPortalMessage('');
+    try {
+      const res = await fetch(`/api/admin/clients/${leadId}/credentials`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok) {
+        setPortalCredentials({
+          loginUrl: json.loginUrl || `${window.location.origin}/clientportal/login`,
+          username: json.username || json.email,
+          temporaryPassword: json.temporaryPassword || '',
+          generatedAt: json.generatedAt || null,
+        });
+        setPortalMessage('Client portal details are ready.');
+      } else {
+        setPortalMessage(json.error || 'Failed to generate credentials');
+      }
+    } catch {
+      setPortalMessage('Failed to generate credentials');
+    } finally {
+      setGeneratingCredentials(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/admin/clients/${leadId}/credentials`)
+      .then((res) => res.json().then((json) => ({ ok: res.ok, json })))
+      .then(({ ok, json }) => {
+        if (cancelled || !ok || !json.credentials) return;
+        setPortalCredentials({
+          loginUrl: json.credentials.loginUrl || `${window.location.origin}/clientportal/login`,
+          username: json.credentials.username || json.credentials.email,
+          temporaryPassword: json.credentials.temporaryPassword || '',
+          generatedAt: json.credentials.generatedAt || null,
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [leadId]);
 
   return (
     <div className="space-y-6">
@@ -3644,77 +4589,77 @@ function ClosedStage({ lead, prospectData, quotationData, paymentData, opportuni
         </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h4 className="font-semibold text-lg mb-4 text-blue-900">Launch Operations</h4>
-        <p className="text-sm text-blue-800 mb-4">
-          Recommended module is selected from the client country and service.
-        </p>
-
-        <button
-          onClick={() => openOperations()}
-          className={`mb-4 w-full px-5 py-4 ${recommendedModule.color} text-white rounded-lg flex items-center justify-center text-center transition-all`}
-        >
-          <RecommendedIcon className="mr-3" size={24} />
-          <span className="font-medium">{recommendedModule.label}</span>
-          <span className="ml-3 text-sm opacity-90">{recommendedModule.subtitle}</span>
-        </button>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <button
-            onClick={() => openOperations('/admin/leads/rms-operations')}
-            className="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex flex-col items-center justify-center text-center transition-all"
-          >
-            <Briefcase className="mb-2" size={24} />
-            <span className="text-sm font-medium">RMS Operations</span>
-            <span className="text-xs opacity-90">Resume Marketing</span>
-          </button>
-
-          <button
-            onClick={() => openOperations('/admin/leads/visit-visa-operations')}
-            className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex flex-col items-center justify-center text-center transition-all"
-          >
-            <FileText className="mb-2" size={24} />
-            <span className="text-sm font-medium">Visit Visa</span>
-            <span className="text-xs opacity-90">Tourism/Family</span>
-          </button>
-
-          <button
-            onClick={() => openOperations('/admin/leads/student-visa-operations')}
-            className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex flex-col items-center justify-center text-center transition-all"
-          >
-            <BookOpen className="mb-2" size={24} />
-            <span className="text-sm font-medium">Student Visa</span>
-            <span className="text-xs opacity-90">Education</span>
-          </button>
-
-          <button
-            onClick={() => openOperations('/admin/leads/skill-australia-operations')}
-            className="px-4 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 flex flex-col items-center justify-center text-center transition-all"
-          >
-            <Globe className="mb-2" size={24} />
-            <span className="text-sm font-medium">Australia Operations</span>
-            <span className="text-xs opacity-90">Single Module</span>
-          </button>
-
-          <button
-            onClick={() => openOperations('/admin/leads/skill-canada-operations')}
-            className="px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 flex flex-col items-center justify-center text-center transition-all"
-          >
-            <MapPin className="mb-2" size={24} />
-            <span className="text-sm font-medium">Canada Operations</span>
-            <span className="text-xs opacity-90">Client Module</span>
-          </button>
-
-          <button
-            onClick={() => openOperations('/admin/leads/poland-visa-operations')}
-            className="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex flex-col items-center justify-center text-center transition-all"
-          >
-            <Plane className="mb-2" size={24} />
-            <span className="text-sm font-medium">Work Visa</span>
-            <span className="text-xs opacity-90">Work Permit</span>
-          </button>
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h4 className="text-2xl font-bold text-gray-900">Welcome Email - Client Portal Handoff</h4>
+            <p className="mt-1 text-sm text-gray-500">Generate once, review the client portal details, then copy or send.</p>
+          </div>
+          {!portalCredentials?.temporaryPassword && (
+            <button
+              onClick={generateClientPortal}
+              disabled={generatingCredentials}
+              className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              <KeyRound className="mr-2 h-4 w-4" />
+              {generatingCredentials ? 'Generating...' : 'Generate Client Portal'}
+            </button>
+          )}
         </div>
+
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <ReadonlyDetail label="Client Name" value={clientName} />
+          <ReadonlyDetail label="Client Email" value={clientEmail} />
+          <ReadonlyDetail label="Login URL" value={portalCredentials?.loginUrl || ''} />
+          <ReadonlyDetail label="Username" value={portalCredentials?.username || clientEmail} />
+          <ReadonlyDetail label="Temporary Password" value={portalCredentials?.temporaryPassword || ''} />
+          <ReadonlyDetail label="Counselor Name" value={counselorName} placeholder="Your name" />
+          <div className="md:col-span-2">
+            <ReadonlyDetail label="Branch / Office" value={branchOffice} />
+          </div>
+        </div>
+        {portalMessage && <p className="mt-4 text-sm text-gray-600">{portalMessage}</p>}
       </div>
+
+      {portalCredentials && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 text-gray-900">
+            <p className="text-base text-gray-500"><strong className="text-gray-900">Subject:</strong> {emailSubject}</p>
+            <div className="my-4 border-t border-dashed border-gray-300" />
+            <div className="space-y-5 whitespace-pre-line text-base leading-8">
+              <p>Dear {clientName},</p>
+              <p>{`Welcome to DMC Immigration! We're glad to have you on board, and we're committed to making your immigration journey as smooth and transparent as possible.`}</p>
+              <p>{`To help you stay updated at every step, we've set up your Client Portal - a single place to track your case status, view and upload documents, and stay in touch with your counselor.`}</p>
+              <p>Here are your login details:</p>
+              <p>
+                Login URL: {portalCredentials.loginUrl}<br />
+                Username: <span className="rounded bg-green-100 px-1 font-semibold text-green-800">{portalCredentials.username}</span><br />
+                Temporary Password: <span className="rounded bg-green-100 px-1 font-semibold text-green-800">{portalCredentials.temporaryPassword}</span>
+              </p>
+              <p>{`For security, please log in and change your password as soon as possible. If you run into any trouble accessing the portal, just reply to this email and we'll help you right away.`}</p>
+              <p>Thank you for choosing DMC Immigration. We look forward to supporting you through every stage of your journey.</p>
+              <p>Warm regards,<br />The DMC Immigration Consultants Team</p>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              onClick={openGmailCompose}
+              className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              <Mail className="mr-2 h-4 w-4" />
+              Send via Gmail
+            </button>
+            <button
+              onClick={copyEmail}
+              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Copy Email
+            </button>
+          </div>
+          <p className="mt-3 text-sm text-gray-500">Send via Gmail opens a pre-filled compose window in your logged-in Gmail account. Copy Email copies the subject and body as plain text.</p>
+        </div>
+      )}
 
       <div className="flex justify-end gap-3">
         <button className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium">

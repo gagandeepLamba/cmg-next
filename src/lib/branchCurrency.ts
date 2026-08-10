@@ -3,9 +3,22 @@ import { sequelize } from '@/lib/sequelize';
 
 export type BranchCurrency = {
   branchId: number;
+  // dm_branch.name — the registered legal entity name (e.g. "Didactic
+  // Management Consultants L.L.C S.P.C"). Use this for anything printed as
+  // an official document (receipts, agreements, invoices) - never as a plain
+  // UI label, since it's not the name staff/clients actually recognize.
   branchName: string;
+  // dm_branch.branch — the plain, recognizable branch label (e.g. "Dubai",
+  // "Abu Dhabi", "Kuwait"). Use this for UI display (dropdowns, tables,
+  // dashboards) instead of branchName.
+  branchLabel: string;
   branchAddress: string;
   currencyCode: string;
+  vatGstPercent: number | null;
+  // dm_branch.abbrv — the stable key branchAgreementProfiles.ts resolves the
+  // branch's real legal name/licence/governing law from (branchName/Address
+  // above are short operational labels, not the registered legal identity).
+  branchAbbrv: string;
 };
 
 /**
@@ -19,8 +32,11 @@ export async function resolveBranchCurrency(branchId: number | null | undefined)
     `SELECT
        b.id AS branchId,
        b.name AS branchName,
+       b.branch AS branchLabel,
        b.address AS branchAddress,
-       c.currency_code AS currencyCode
+       c.currency_code AS currencyCode,
+       b.vat_gst_percent AS vatGstPercent,
+       b.abbrv AS branchAbbrv
      FROM dm_branch b
      INNER JOIN dm_currency c
        ON c.status = 1
@@ -49,4 +65,13 @@ export async function resolveBranchCurrency(branchId: number | null | undefined)
 
 export function branchCurrencyError(branchId: number | null | undefined) {
   return `No active currency is configured for branch ${branchId || 'unknown'}. Match dm_branch.branch, name, or abbreviation to dm_currency.country.`;
+}
+
+// UAE emirate keywords, shared between the currency-country inference above
+// and UAE-only logic elsewhere (e.g. Corporate Tax eligibility on the P&L
+// report) so both stay in sync with a single source of truth.
+export const UAE_BRANCH_KEYWORDS = 'dubai|abu dhabi|sharjah|ajman|fujairah|ras al khaimah|umm al quwain';
+
+export function isUaeBranchText(text: string): boolean {
+  return new RegExp(UAE_BRANCH_KEYWORDS, 'i').test(text || '');
 }

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { RenewalReminderService, renewalReminderRules } from '@/services/renewal-reminder-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const limit = Number.parseInt(searchParams.get('limit') || '100', 10);
@@ -36,6 +39,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.config', 'admin.access']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const result = await RenewalReminderService.runDailyReminderScan({

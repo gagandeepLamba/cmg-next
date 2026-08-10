@@ -15,15 +15,15 @@ interface DmcForumLeadsFeeAttributes {
 type DmcForumLeadsFeeCreationAttributes = Optional<DmcForumLeadsFeeAttributes, 'id' | 'status'>;
 
 class DmcForumLeadsFee extends Model<DmcForumLeadsFeeAttributes, DmcForumLeadsFeeCreationAttributes> implements DmcForumLeadsFeeAttributes {
-  public id!: number;
-  public lead!: number;
-  public amount!: number;
-  public taxAmt!: number;
-  public payDate!: Date;
-  public paidAmt!: number;
-  public paidDate!: Date;
-  public profAmt!: number;
-  public status!: number;
+  declare id: number;
+  declare lead: number;
+  declare amount: number;
+  declare taxAmt: number;
+  declare payDate: Date;
+  declare paidAmt: number;
+  declare paidDate: Date;
+  declare profAmt: number;
+  declare status: number;
 
   public static associate(models: any) {
     DmcForumLeadsFee.belongsTo(models.DmcForumLeads, { foreignKey: 'lead', targetKey: 'id', as: 'dmcForumLeads' });

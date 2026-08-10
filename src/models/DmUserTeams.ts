@@ -9,9 +9,9 @@ interface DmUserTeamsAttributes {
 interface DmUserTeamsCreationAttributes extends Optional<DmUserTeamsAttributes, never> {}
 
 class DmUserTeams extends Model<DmUserTeamsAttributes, DmUserTeamsCreationAttributes> implements DmUserTeamsAttributes {
-  public id!: number;
-  public user_id!: number;
-  public team_id!: number;
+  declare id: number;
+  declare user_id: number;
+  declare team_id: number;
 
   public static associate(models: any) {
   }

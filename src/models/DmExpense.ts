@@ -15,27 +15,30 @@ interface DmExpenseAttributes {
   mgmt_approval: number;
   expense_type: number;
   transaction_type: string;
+  coa_account_id: number | null;
 }
 
-interface DmExpenseCreationAttributes extends Optional<DmExpenseAttributes, never> {}
+interface DmExpenseCreationAttributes extends Optional<DmExpenseAttributes, 'coa_account_id'> {}
 
 class DmExpense extends Model<DmExpenseAttributes, DmExpenseCreationAttributes> implements DmExpenseAttributes {
-  public id!: number;
-  public date!: Date;
-  public particular!: string;
-  public amount!: number;
-  public vat!: number;
-  public addBy!: number;
-  public remark!: string;
-  public region!: number;
-  public branch!: number;
-  public receipt!: string;
-  public is_approval!: number;
-  public mgmt_approval!: number;
-  public expense_type!: number;
-  public transaction_type!: string;
+  declare id: number;
+  declare date: Date;
+  declare particular: string;
+  declare amount: number;
+  declare vat: number;
+  declare addBy: number;
+  declare remark: string;
+  declare region: number;
+  declare branch: number;
+  declare receipt: string;
+  declare is_approval: number;
+  declare mgmt_approval: number;
+  declare expense_type: number;
+  declare transaction_type: string;
+  declare coa_account_id: number | null;
 
   public static associate(models: any) {
+    DmExpense.belongsTo(models.DmCoaAccount, { foreignKey: 'coa_account_id', targetKey: 'id', as: 'coaAccount' });
   }
 }
 
@@ -98,6 +101,10 @@ DmExpense.init(
     transaction_type: {
       type: DataTypes.STRING(10),
       allowNull: false
+    },
+    coa_account_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true
     },
   },
   {

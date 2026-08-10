@@ -1,7 +1,7 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -239,26 +239,26 @@ export default function ContractAnalyticsPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   if (!analytics) {
     return (
-      <MainLayout>
+      <>
         <div className="text-center text-gray-500">
           No analytics data available
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -267,7 +267,7 @@ export default function ContractAnalyticsPage() {
             <p className="text-gray-600">Comprehensive contract performance and revenue analytics</p>
           </div>
           <div className="flex space-x-2">
-            <select
+            <SearchableSelect
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -276,7 +276,7 @@ export default function ContractAnalyticsPage() {
               <option value="30days">Last 30 Days</option>
               <option value="90days">Last 90 Days</option>
               <option value="1year">Last Year</option>
-            </select>
+            </SearchableSelect>
             <Button variant="outline" onClick={() => setShowComparison(!showComparison)}>
               <BarChart className="h-4 w-4 mr-2" />
               {showComparison ? 'Hide' : 'Show'} Comparison
@@ -583,7 +583,7 @@ export default function ContractAnalyticsPage() {
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+    </>
   )
 }
 

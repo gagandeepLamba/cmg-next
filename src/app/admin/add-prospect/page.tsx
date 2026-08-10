@@ -1,7 +1,7 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -174,7 +174,7 @@ export default function AddProspectPage() {
       console.log('Prospect added:', result)
       
       // Show success message
-      alert('Prospect added successfully!')
+      window.toast.success('Prospect added successfully!')
       
       // Reset form
       setFormData({
@@ -190,22 +190,22 @@ export default function AddProspectPage() {
       fetchProspects()
     } catch (error) {
       console.error('Error adding prospect:', error)
-      alert('Error adding prospect. Please try again.')
+      window.toast.error('Error adding prospect. Please try again.')
     }
   }
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -297,7 +297,7 @@ export default function AddProspectPage() {
                 />
               </div>
 
-              <select
+              <SearchableSelect
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -307,7 +307,7 @@ export default function AddProspectPage() {
                 <option value="in_progress">In Progress</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
-              </select>
+              </SearchableSelect>
 
               <Button variant="outline">
                 <Filter className="h-4 w-4 mr-2" />
@@ -345,7 +345,7 @@ export default function AddProspectPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Type
                     </label>
-                    <select
+                    <SearchableSelect
                       name="oldNew"
                       value={formData.oldNew}
                       onChange={handleInputChange}
@@ -353,7 +353,7 @@ export default function AddProspectPage() {
                     >
                       <option value="new">New</option>
                       <option value="old">Old</option>
-                    </select>
+                    </SearchableSelect>
                   </div>
 
                   <div>
@@ -534,6 +534,6 @@ export default function AddProspectPage() {
           </Card>
         )}
       </div>
-    </MainLayout>
+    </>
   )
 }

@@ -10,10 +10,10 @@ interface Dm3partyPaymentDetAttributes {
 interface Dm3partyPaymentDetCreationAttributes extends Optional<Dm3partyPaymentDetAttributes, never> {}
 
 class Dm3partyPaymentDet extends Model<Dm3partyPaymentDetAttributes, Dm3partyPaymentDetCreationAttributes> implements Dm3partyPaymentDetAttributes {
-  public id!: number;
-  public payId!: number;
-  public particular!: string;
-  public amount!: number;
+  declare id: number;
+  declare payId: number;
+  declare particular: string;
+  declare amount: number;
 
   public static associate(models: any) {
     Dm3partyPaymentDet.belongsTo(models.Dm3partyPayment, { foreignKey: 'payId', targetKey: 'id', as: 'dm3partyPayment' });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const toPositiveInt = (value: string | null, fallback: number) => {
   const parsed = Number.parseInt(value || '', 10);
@@ -53,6 +54,8 @@ const ensureLeaveTables = async () => {
 };
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.view', 'hr.self']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureLeaveTables();
     const { searchParams } = new URL(request.url);
@@ -130,6 +133,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.create', 'hr.self']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureLeaveTables();
     const body = await request.json();

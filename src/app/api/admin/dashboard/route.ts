@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
 import { verifyToken } from '@/lib/auth';
+import { getBranchTaxInfo } from '@/lib/branchTax';
 
 let dbInitialized = false;
 const ensureDBConnection = async () => {
@@ -19,6 +20,7 @@ function roleCategory(type: string) {
   if (['pro'].includes(t)) return 'pro';
   if (['finance', 'accounts'].includes(t)) return 'finance';
   if (['operations', 'ops'].includes(t)) return 'operations';
+  if (['digital_marketing'].includes(t)) return 'marketing';
   return 'counselor'; // sales, employee, etc.
 }
 
@@ -97,6 +99,25 @@ export async function GET(request: NextRequest) {
       ${leadWhere}
     `, { replacements: { today, weekAgo, monthAgo, ...leadReplacements }, type: QueryTypes.SELECT });
 
+    // "Revenue" for a counselor should be the company's actual earnings, not
+    // the VAT collected on the client's behalf and remitted to the
+    // government - so back the branch's tax rate out of each lead's
+    // payTotal (skipping leads flagged novat) rather than summing the raw,
+    // tax-inclusive payment total.
+    const revenueRows = await sequelize.query<any>(`
+      SELECT l.payTotal, l.novat, b.branch AS branchName, b.address AS branchAddress
+      FROM dmc_forum_leads l
+      LEFT JOIN dm_branch b ON b.id = l.branch
+      ${leadWhere}
+    `, { replacements: leadReplacements, type: QueryTypes.SELECT });
+    const totalRevenueExVat = (revenueRows as any[]).reduce((sum, row) => {
+      const payTotal = Number(row.payTotal || 0);
+      if (!payTotal) return sum;
+      if (Number(row.novat) === 1) return sum + payTotal;
+      const { rate } = getBranchTaxInfo(row.branchName || row.branchAddress);
+      return sum + payTotal / (1 + rate);
+    }, 0);
+
     // ── Appointment Stats ────────────────────────────────────────────────────
     const [appointmentStats] = await sequelize.query<any>(`
       SELECT
@@ -107,6 +128,34 @@ export async function GET(request: NextRequest) {
       FROM appointments a
       WHERE 1=1 ${apptEmployeeFilter} ${apptBranchFilter}
     `, { replacements: apptReplacements, type: QueryTypes.SELECT });
+
+    // ── Month-over-month trend (this month vs last month, same scope as above) ─
+    const monthNow = new Date();
+    const thisMonthStart = new Date(monthNow.getFullYear(), monthNow.getMonth(), 1).toISOString().split('T')[0];
+    const lastMonthStart = new Date(monthNow.getFullYear(), monthNow.getMonth() - 1, 1).toISOString().split('T')[0];
+    const lastMonthEnd = new Date(monthNow.getFullYear(), monthNow.getMonth(), 0).toISOString().split('T')[0];
+
+    const [leadTrendStats] = await sequelize.query<any>(`
+      SELECT
+        SUM(CASE WHEN DATE(COALESCE(l.created, l.regdate)) >= :thisMonthStart THEN 1 ELSE 0 END) AS thisMonthLeads,
+        SUM(CASE WHEN DATE(COALESCE(l.created, l.regdate)) >= :thisMonthStart
+               AND (LOWER(COALESCE(l.status, '')) IN ('converted','retained','client') OR LOWER(COALESCE(l.opportunity_status, '')) = 'won')
+             THEN 1 ELSE 0 END) AS thisMonthConverted,
+        SUM(CASE WHEN DATE(COALESCE(l.created, l.regdate)) BETWEEN :lastMonthStart AND :lastMonthEnd THEN 1 ELSE 0 END) AS lastMonthLeads,
+        SUM(CASE WHEN DATE(COALESCE(l.created, l.regdate)) BETWEEN :lastMonthStart AND :lastMonthEnd
+               AND (LOWER(COALESCE(l.status, '')) IN ('converted','retained','client') OR LOWER(COALESCE(l.opportunity_status, '')) = 'won')
+             THEN 1 ELSE 0 END) AS lastMonthConverted
+      FROM dmc_forum_leads l
+      ${leadWhere}
+    `, { replacements: { thisMonthStart, lastMonthStart, lastMonthEnd, ...leadReplacements }, type: QueryTypes.SELECT });
+
+    const [apptTrendStats] = await sequelize.query<any>(`
+      SELECT
+        SUM(CASE WHEN DATE(a.date) >= :thisMonthStart THEN 1 ELSE 0 END) AS thisMonthAppointments,
+        SUM(CASE WHEN DATE(a.date) BETWEEN :lastMonthStart AND :lastMonthEnd THEN 1 ELSE 0 END) AS lastMonthAppointments
+      FROM appointments a
+      WHERE 1=1 ${apptEmployeeFilter} ${apptBranchFilter}
+    `, { replacements: { thisMonthStart, lastMonthStart, lastMonthEnd, uid: userId, branch: userBranch }, type: QueryTypes.SELECT });
 
     // ── Employee Stats ───────────────────────────────────────────────────────
     const [employeeStats] = await sequelize.query<any>(
@@ -147,9 +196,10 @@ export async function GET(request: NextRequest) {
     const todayAppointments = await sequelize.query<any>(`
       SELECT
         a.id, a.date, a.appointtime, a.leadid, a.booked, a.done, a.not_done,
+        a.meeting_status, a.meeting_verified,
         l.fname, l.lname, l.phone, l.mobile,
         e.name AS counselorName,
-        b.name AS branchName
+        b.branch AS branchName
       FROM appointments a
       LEFT JOIN dmc_forum_leads l ON a.leadid = l.id
       LEFT JOIN dm_employee e ON a.counsilorid = e.id
@@ -222,14 +272,14 @@ export async function GET(request: NextRequest) {
     // ── Branch Performance ─────────────────────────────────────────────────────
     const branchPerformance = await sequelize.query<any>(`
       SELECT
-        COALESCE(b.name, 'Unassigned') AS branch,
+        COALESCE(b.branch, 'Unassigned') AS branch,
         COUNT(l.id) AS leads,
         SUM(CASE WHEN LOWER(COALESCE(l.status, '')) IN ('converted','retained','client')
               OR LOWER(COALESCE(l.opportunity_status, '')) = 'won' THEN 1 ELSE 0 END) AS converted
       FROM dmc_forum_leads l
       LEFT JOIN dm_branch b ON l.branch = b.id
       ${leadWhere}
-      GROUP BY COALESCE(b.name, 'Unassigned')
+      GROUP BY COALESCE(b.branch, 'Unassigned')
       ORDER BY leads DESC
       LIMIT 8
     `, { replacements: leadReplacements, type: QueryTypes.SELECT });
@@ -303,7 +353,7 @@ export async function GET(request: NextRequest) {
       percentage: totalLeads > 0 ? ((n(item.count) / totalLeads) * 100).toFixed(1) : '0',
     }));
 
-    const statusDistributionColors = ['#003399','#0044B3','#3366CC','#002266','#C7D3EA','#0891b2'];
+    const statusDistributionColors = ['#35AE22','#289018','#50C835','#1C6B10','#B8DFB0','#0891b2'];
 
     const stats = {
       // Identity / role context
@@ -326,7 +376,7 @@ export async function GET(request: NextRequest) {
       totalEmployees: n(employeeStats?.totalEmployees),
       totalBranches: n(branchStats?.totalBranches),
       // Finance
-      totalRevenue: n(leadStats?.totalRevenue),
+      totalRevenue: totalRevenueExVat,
       totalPayments: n(leadStats?.totalPaidAmount),
       totalPaidAmount: n(leadStats?.totalPaidAmount),
       totalBalance: n(leadStats?.totalBalance),
@@ -355,6 +405,15 @@ export async function GET(request: NextRequest) {
       })),
       todayCounselorAppointments: todayAppointments.length,
       todayCounselorFollowUps: todayFollowUps.length,
+      // Month-over-month performance trend (used for the "achievement" view)
+      monthTrend: {
+        thisMonthLeads: n(leadTrendStats?.thisMonthLeads),
+        lastMonthLeads: n(leadTrendStats?.lastMonthLeads),
+        thisMonthConverted: n(leadTrendStats?.thisMonthConverted),
+        lastMonthConverted: n(leadTrendStats?.lastMonthConverted),
+        thisMonthAppointments: n(apptTrendStats?.thisMonthAppointments),
+        lastMonthAppointments: n(apptTrendStats?.lastMonthAppointments),
+      },
     };
 
     const data = {

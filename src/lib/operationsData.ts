@@ -1,3 +1,5 @@
+import { uploadFileToBlob } from './uploadToBlob';
+
 export type UploadedOperationFile = {
   name: string;
   url: string;
@@ -12,15 +14,17 @@ export async function uploadOperationFiles(
   leadId: number,
 ): Promise<unknown> {
   if (value instanceof File) {
-    const formData = new FormData();
-    formData.append('file', value);
-    formData.append('module', module);
-    formData.append('leadId', String(leadId));
-
-    const response = await fetch('/api/admin/operations/upload', { method: 'POST', body: formData });
-    const result = await response.json();
-    if (!response.ok || !result.success) throw new Error(result.error || `Unable to upload ${value.name}`);
-    return result.file as UploadedOperationFile;
+    // Upload straight from the browser to Vercel Blob (bypasses the ~4.5MB
+    // serverless function body limit that a normal multipart POST would hit).
+    const safeName = value.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const moduleSafe = module.replace(/[^a-z0-9-]/gi, '');
+    const blob = await uploadFileToBlob(value, `operations/${moduleSafe}/${leadId}/${Date.now()}_${safeName}`);
+    return {
+      name: value.name,
+      url: blob.url,
+      size: value.size,
+      type: value.type,
+    } as UploadedOperationFile;
   }
 
   if (Array.isArray(value)) return Promise.all(value.map((item) => uploadOperationFiles(item, module, leadId)));

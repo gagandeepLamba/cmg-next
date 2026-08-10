@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { UAEComplianceService } from '@/services/uae-compliance-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.view', 'pro.wps.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const compliance = await UAEComplianceService.getComplianceChecks();
     return NextResponse.json(compliance);

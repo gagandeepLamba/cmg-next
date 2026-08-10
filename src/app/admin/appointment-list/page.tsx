@@ -1,7 +1,8 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +34,7 @@ interface Appointment {
   region: string
   notes: string
   createdAt: string
+  crossBranch: boolean
 }
 
 export default function AppointmentListPage() {
@@ -41,6 +43,7 @@ export default function AppointmentListPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [dateFilter, setDateFilter] = useState('')
+  const [crossBranchOnly, setCrossBranchOnly] = useState(false)
 
   useEffect(() => {
     fetchAppointments()
@@ -70,7 +73,8 @@ export default function AppointmentListPage() {
             branch: a.branchName || (a.branch ? `Branch #${a.branch}` : ''),
             region: a.regionName || (a.region ? `Region #${a.region}` : ''),
             notes: a.screenshot || '',
-            createdAt: ''
+            createdAt: '',
+            crossBranch: Number(a.cross_branch || 0) === 1
           }
         })
         setAppointments(mapped)
@@ -121,22 +125,35 @@ export default function AppointmentListPage() {
     
     const matchesStatus = !statusFilter || appointment.status === statusFilter
     const matchesDate = !dateFilter || appointment.date.startsWith(dateFilter)
-    
-    return matchesSearch && matchesStatus && matchesDate
+    const matchesCrossBranch = !crossBranchOnly || appointment.crossBranch
+
+    return matchesSearch && matchesStatus && matchesDate && matchesCrossBranch
   })
+
+  const { sorted: sortedAppointments, sortKey: appointmentSortKey, sortDirection: appointmentSortDirection, toggleSort: toggleAppointmentSort } = useSortableData(
+    filteredAppointments,
+    {
+      dateTime: (a) => `${a.date} ${a.time}`,
+      lead: (a) => a.leadName,
+      counselor: (a) => a.counselorName,
+      type: (a) => a.type,
+      status: (a) => a.status,
+      location: (a) => `${a.branch || ''} ${a.region || ''}`,
+    },
+  )
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -164,7 +181,7 @@ export default function AppointmentListPage() {
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 w-full"
                 />
               </div>
-              <select
+              <SearchableSelect
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -176,16 +193,19 @@ export default function AppointmentListPage() {
                 <option value="cancelled">Cancelled</option>
                 <option value="rescheduled">Rescheduled</option>
                 <option value="pending">Pending</option>
-              </select>
+              </SearchableSelect>
               <input
                 type="date"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               />
-              <Button variant="outline">
+              <Button
+                variant={crossBranchOnly ? 'default' : 'outline'}
+                onClick={() => setCrossBranchOnly((prev) => !prev)}
+              >
                 <Filter className="h-4 w-4 mr-2" />
-                More Filters
+                Cross-Branch Only
               </Button>
             </div>
           </CardContent>
@@ -198,31 +218,19 @@ export default function AppointmentListPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date & Time
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Lead
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Counselor
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Location
-                    </th>
+                    <SortableTh label="Date & Time" sortKey="dateTime" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
+                    <SortableTh label="Lead" sortKey="lead" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
+                    <SortableTh label="Counselor" sortKey="counselor" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
+                    <SortableTh label="Type" sortKey="type" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
+                    <SortableTh label="Status" sortKey="status" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
+                    <SortableTh label="Location" sortKey="location" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
                     <th className="relative px-6 py-3">
                       <span className="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredAppointments.map((appointment) => (
+                  {sortedAppointments.map((appointment) => (
                     <tr key={appointment.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
@@ -262,8 +270,13 @@ export default function AppointmentListPage() {
                         {getStatusBadge(appointment.status)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {appointment.branch}
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm text-gray-900">
+                            {appointment.branch}
+                          </div>
+                          {appointment.crossBranch && (
+                            <Badge className="bg-teal-100 text-teal-800">Cross-Branch</Badge>
+                          )}
                         </div>
                         <div className="text-sm text-gray-500">
                           {appointment.region}
@@ -294,6 +307,6 @@ export default function AppointmentListPage() {
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+    </>
   )
 }

@@ -9,6 +9,10 @@ export const modulePermissions = {
   operationsUpdate: 'operations.update',
   operationsDelete: 'operations.delete',
   operationsManage: 'operations.manage',
+  operationsCaseTransfer: 'operations.case_transfer',
+  operationsCaseStatusManage: 'operations.case_status_manage',
+  operationsTaskReassign: 'operations.task_reassign',
+  operationsAccessControl: 'operations.access_control',
   reportsView: 'reports.view',
   reportsCreate: 'reports.create',
   reportsUpdate: 'reports.update',
@@ -69,6 +73,7 @@ export const modulePermissions = {
   hrEosb: 'hr.eosb',
   hrSelf: 'hr.self',
   hrTeamAttendanceLeave: 'hr.team.attendance_leave',
+  hrReportsAttendance: 'hr.reports.attendance',
   proDashboard: 'pro.dashboard',
   proView: 'pro.view',
   proCreate: 'pro.create',
@@ -80,6 +85,15 @@ export const modulePermissions = {
   financeView: 'finance.view',
   financeManage: 'finance.manage',
   feesView: 'fees.view',
+  itDashboard: 'it.dashboard',
+  itView: 'it.view',
+  itCreate: 'it.create',
+  itSelf: 'it.self',
+  itManage: 'it.manage',
+  itApproveManager: 'it.approve.manager',
+  itApproveBranch: 'it.approve.branch',
+  itApproveDirector: 'it.approve.director',
+  itConfig: 'it.config',
 } as const;
 
 export type ModulePermission = typeof modulePermissions[keyof typeof modulePermissions];
@@ -98,6 +112,9 @@ export type ModuleRoleKey =
   | 'branch_manager'
   | 'receptionist'
   | 'foe'
+  | 'digital_marketing'
+  | 'it_manager'
+  | 'it_support_staff'
   | 'employee_self';
 
 const adminPermissions: ModulePermission[] = [
@@ -111,6 +128,10 @@ const adminPermissions: ModulePermission[] = [
   modulePermissions.operationsUpdate,
   modulePermissions.operationsDelete,
   modulePermissions.operationsManage,
+  modulePermissions.operationsCaseTransfer,
+  modulePermissions.operationsCaseStatusManage,
+  modulePermissions.operationsTaskReassign,
+  modulePermissions.operationsAccessControl,
   modulePermissions.reportsView,
   modulePermissions.reportsCreate,
   modulePermissions.reportsUpdate,
@@ -179,8 +200,33 @@ const adminPermissions: ModulePermission[] = [
   modulePermissions.proOwnersRestricted,
   modulePermissions.hrSelf,
   modulePermissions.hrTeamAttendanceLeave,
+  modulePermissions.hrReportsAttendance,
   modulePermissions.financeView,
   modulePermissions.financeManage,
+  modulePermissions.itDashboard,
+  modulePermissions.itView,
+  modulePermissions.itApproveManager,
+  modulePermissions.itApproveBranch,
+  modulePermissions.itApproveDirector,
+  modulePermissions.itManage,
+  modulePermissions.itConfig,
+];
+
+// Every employee, regardless of role, can raise and track their own IT tickets.
+const itSelfServicePermissions: ModulePermission[] = [modulePermissions.itCreate, modulePermissions.itSelf];
+
+const itManagerPermissions: ModulePermission[] = [
+  modulePermissions.itDashboard,
+  modulePermissions.itView,
+  modulePermissions.itApproveManager,
+  modulePermissions.itManage,
+  modulePermissions.itConfig,
+];
+
+const itSupportStaffPermissions: ModulePermission[] = [
+  modulePermissions.itDashboard,
+  modulePermissions.itView,
+  modulePermissions.itManage,
 ];
 
 const salesModulePermissions: ModulePermission[] = [
@@ -277,7 +323,17 @@ const directorOfSalesPermissions: ModulePermission[] = [
   modulePermissions.feesView,
 ];
 
-export const rolePermissionMatrix: Array<{
+// Digital Marketing: read-only visibility into lead volume/status/source so they can
+// judge campaign performance, plus the marketing/campaign config modules.
+const digitalMarketingPermissions: ModulePermission[] = [
+  modulePermissions.leadsView,
+  modulePermissions.reportsView,
+  modulePermissions.analyticsView,
+  modulePermissions.marketingManage,
+  modulePermissions.campaignsManage,
+];
+
+const rolePermissionMatrixBase: Array<{
   key: ModuleRoleKey;
   role: string;
   salesModule: string;
@@ -339,6 +395,7 @@ export const rolePermissionMatrix: Array<{
       ...salesModulePermissions,
       modulePermissions.salesDelete,
       modulePermissions.counselorsManage,
+      modulePermissions.transfersManage,
     ],
   },
   {
@@ -356,13 +413,17 @@ export const rolePermissionMatrix: Array<{
     role: 'Branch Manager',
     salesModule: 'Full CRUD (own branch)',
     operationsModule: 'No Access',
-    hrModule: 'No Access',
+    hrModule: 'Attendance reports (own branch)',
     proModule: 'No Access',
     admin: 'No',
     permissions: [
       ...salesModulePermissions,
       modulePermissions.salesDelete,
       modulePermissions.counselorsManage,
+      modulePermissions.transfersManage,
+      modulePermissions.hrReportsAttendance,
+      modulePermissions.itDashboard,
+      modulePermissions.itApproveBranch,
     ],
   },
   {
@@ -402,7 +463,7 @@ export const rolePermissionMatrix: Array<{
     role: 'Operations',
     salesModule: 'No Access',
     operationsModule: 'Add/Edit',
-    hrModule: 'No Access',
+    hrModule: 'Attendance management (own team)',
     proModule: 'No Access',
     admin: 'No',
     permissions: [
@@ -410,6 +471,14 @@ export const rolePermissionMatrix: Array<{
       modulePermissions.operationsCreate,
       modulePermissions.operationsUpdate,
       modulePermissions.operationsManage,
+      // Operations Manager rights: case transfer, case status lifecycle
+      // (Close/Refund/On Hold/Visa Approved), task reassignment, attendance
+      // management for their team, and CRM access freeze/restrict.
+      modulePermissions.operationsCaseTransfer,
+      modulePermissions.operationsCaseStatusManage,
+      modulePermissions.operationsTaskReassign,
+      modulePermissions.operationsAccessControl,
+      modulePermissions.attendanceManage,
     ],
   },
   {
@@ -429,6 +498,7 @@ export const rolePermissionMatrix: Array<{
       modulePermissions.hrConfig,
       modulePermissions.hrPayroll,
       modulePermissions.hrEosb,
+      modulePermissions.hrReportsAttendance,
     ],
   },
   {
@@ -455,14 +525,45 @@ export const rolePermissionMatrix: Array<{
     role: 'Accountant / Finance',
     salesModule: 'Full CRUD (own leads)',
     operationsModule: 'No Access',
-    hrModule: 'No Access',
+    hrModule: 'Attendance reports (company-wide)',
     proModule: 'No Access',
     admin: 'No',
     permissions: [
       ...salesModulePermissions,
       modulePermissions.financeView,
       modulePermissions.financeManage,
+      modulePermissions.hrReportsAttendance,
     ],
+  },
+  {
+    key: 'digital_marketing',
+    role: 'Digital Marketing',
+    salesModule: 'Leads: view only',
+    operationsModule: 'No Access',
+    hrModule: 'No Access',
+    proModule: 'No Access',
+    admin: 'No',
+    permissions: digitalMarketingPermissions,
+  },
+  {
+    key: 'it_manager',
+    role: 'IT Manager',
+    salesModule: 'No Access',
+    operationsModule: 'No Access',
+    hrModule: 'No Access',
+    proModule: 'No Access',
+    admin: 'No',
+    permissions: itManagerPermissions,
+  },
+  {
+    key: 'it_support_staff',
+    role: 'IT Support Staff',
+    salesModule: 'No Access',
+    operationsModule: 'No Access',
+    hrModule: 'No Access',
+    proModule: 'No Access',
+    admin: 'No',
+    permissions: itSupportStaffPermissions,
   },
   {
     key: 'employee_self',
@@ -478,6 +579,13 @@ export const rolePermissionMatrix: Array<{
   },
 ];
 
+// Every role gets it.create/it.self merged in, so any employee can raise and
+// track their own IT support tickets regardless of their primary role.
+export const rolePermissionMatrix: typeof rolePermissionMatrixBase = rolePermissionMatrixBase.map((row) => ({
+  ...row,
+  permissions: Array.from(new Set([...row.permissions, ...itSelfServicePermissions])),
+}));
+
 const normalize = (value?: string | number | null) => String(value || '')
   .toLowerCase()
   .replace(/&/g, 'and')
@@ -490,27 +598,29 @@ export const resolveModuleRoleKey = (input: {
   roleType?: string | null;
 }): ModuleRoleKey => {
   const text = normalize(`${input.roleName || ''} ${input.roleType || ''}`);
-  const typeCode = String(input.roleType || '').toUpperCase().trim();
 
-  // Superadmin — role 1 or explicit markers
-  if (input.roleId === 1 || text.includes('super admin') || text.includes('superadmin') || text === 'admin' || text.includes('administrator')) {
+  // Superadmin — explicit markers only. (Do not gate on a hardcoded roleId:
+  // the current dm_role table's numeric IDs don't correspond to any fixed
+  // legacy scheme — e.g. role id 1 is "Operations" — so an ID-based shortcut
+  // here would silently grant super admin to whichever role happens to hold
+  // that ID.)
+  if (text.includes('super admin') || text.includes('superadmin') || text === 'admin' || text.includes('administrator')) {
     return 'super_admin';
   }
 
-  // Finance / Accountant roles by legacy ID or type code
-  const financeRoleIds = [9, 22, 40, 58, 59, 60];
-  const financeTypeCodes = ['AC', 'FO', 'GFO', 'FMP'];
-  if (financeRoleIds.includes(input.roleId as number) || financeTypeCodes.includes(typeCode)) return 'finance';
+  // NOTE: role resolution below is text-based only, matching against
+  // dm_role.name / dm_role.type. Earlier versions of this function also
+  // special-cased legacy numeric role IDs (e.g. treating role id 15 as HR),
+  // but those IDs have since been reassigned in dm_role (id 15 is now
+  // "Counsellor", id 10 is "CEO", id 4 is "PRO", etc.), which misrouted
+  // those roles to the wrong dashboard/permission set. The text match below
+  // reads the live role name/type and is not subject to that drift.
 
-  // Counselor / Sales roles by legacy ID or type code
-  const counselorRoleIds = [4, 10, 23, 31, 38];
-  const counselorTypeCodes = ['IC', 'SIC', 'TC', 'MC', 'SC'];
-  if (counselorRoleIds.includes(input.roleId as number) || counselorTypeCodes.includes(typeCode)) return 'sales';
-
-  // HR roles by legacy ID or type code
-  const hrRoleIds = [15, 36, 41, 57];
-  const hrTypeCodes = ['HR', 'GHR', 'GHHA'];
-  if (hrRoleIds.includes(input.roleId as number) || hrTypeCodes.includes(typeCode)) return 'hr';
+  // IT Support ticketing module roles — must be checked before the generic
+  // 'it' substring isn't matched by anything else below, but keep these early
+  // and explicit rather than relying on absence of collisions elsewhere.
+  if (text.includes('it support staff') || text.includes('it support')) return 'it_support_staff';
+  if (text.includes('it manager')) return 'it_manager';
 
   // Text-based matching (covers department_id=1 roles and any name-based roles)
   if (text.includes('founder')) return 'founder';
@@ -533,10 +643,14 @@ export const resolveModuleRoleKey = (input: {
   if (text.includes('branch manager') || text === 'bm') return 'branch_manager';
   if (text.includes('receptionist') || text.includes('front desk')) return 'receptionist';
   if (text.includes('foe') || text.includes('front office executive')) return 'foe';
+  if (text.includes('digital marketing') || text.includes('digital branding') || text.includes('digital marketer')) return 'digital_marketing';
   // Must be checked before the generic 'pro' match below, since
   // "process coordinator" contains the substring "pro".
   if (text.includes('process coordinator') || text.includes('case officer')) return 'operations';
   if (text.includes('sales') || text.includes('counsellor') || text.includes('counselor')) return 'sales';
+  // "operation manager" (singular "operation") doesn't contain the substring
+  // "operations", so it needs its own check ahead of the generic one below.
+  if (text.includes('operation manager') || text.includes('operations manager')) return 'operations';
   if (text.includes('operations') || text === 'ops' || text === 'op') return 'operations';
   if (text.includes('hr') || text.includes('human resources')) return 'hr';
   if (text.includes('pro') || text.includes('public relations officer')) return 'pro';

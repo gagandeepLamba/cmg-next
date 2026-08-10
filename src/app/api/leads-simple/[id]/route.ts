@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
 import { QueryTypes } from 'sequelize';
+import { verifyToken } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
 
 const ALLOWED_FIELDS = new Set([
   'status', 'priority', 'lead_quality', 'assignTo', 'branch', 'region',
@@ -11,10 +13,17 @@ const ALLOWED_FIELDS = new Set([
 ]);
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const token = request.cookies.get('auth-token')?.value
+      || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Authentication is required' }, { status: 401 });
+    }
+
     const { id: idParam } = await params;
     const id = parseInt(idParam, 10);
     if (!id) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
@@ -37,6 +46,13 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const token = request.cookies.get('auth-token')?.value
+      || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Authentication is required' }, { status: 401 });
+    }
+
     const { id: idParam } = await params;
     const id = parseInt(idParam, 10);
     if (!id) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
@@ -94,10 +110,17 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const token = request.cookies.get('auth-token')?.value
+      || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    if (!currentUser || !isCeo(currentUser)) {
+      return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+    }
+
     const { id: idParam } = await params;
     const id = parseInt(idParam, 10);
     if (!id) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });

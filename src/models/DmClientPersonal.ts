@@ -40,40 +40,40 @@ interface DmClientPersonalAttributes {
 interface DmClientPersonalCreationAttributes extends Optional<DmClientPersonalAttributes, 'leadid' | 'copr' | 'copr_a' | 'vphoto' | 'vphoto_a' | 'final_visa_docfb' | 'final_visa_docfb_a' | 'final_visa_docfull' | 'final_visa_docfull_a' | 'mcert_re' | 'mcert_re_a' | 'bcert' | 'bcert_a' | 'niddoc' | 'niddoc_a' | 'marraige' | 'marraige_a' | 'ielts' | 'ielts_a' | 'passport' | 'passport_a' | 'passport_new' | 'passport_new_a' | 'pcc' | 'pcc_a' | 'photo' | 'photo_a' | 'resume' | 'resume_a'> {}
 
 class DmClientPersonal extends Model<DmClientPersonalAttributes, DmClientPersonalCreationAttributes> implements DmClientPersonalAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public date!: string;
-  public copr!: string | null;
-  public copr_a!: string | null;
-  public client_sheet!: string;
-  public client_sheet_a!: number;
-  public vphoto!: string | null;
-  public vphoto_a!: string | null;
-  public final_visa_docfb!: string | null;
-  public final_visa_docfb_a!: string | null;
-  public final_visa_docfull!: string | null;
-  public final_visa_docfull_a!: string | null;
-  public mcert_re!: string | null;
-  public mcert_re_a!: string | null;
-  public bcert!: string | null;
-  public bcert_a!: string | null;
-  public niddoc!: string | null;
-  public niddoc_a!: string | null;
-  public marraige!: string | null;
-  public marraige_a!: string | null;
-  public ielts!: string | null;
-  public ielts_a!: string | null;
-  public passport!: string | null;
-  public passport_a!: string | null;
-  public passport_new!: string | null;
-  public passport_new_a!: string | null;
-  public pcc!: string | null;
-  public pcc_a!: string | null;
-  public photo!: string | null;
-  public photo_a!: string | null;
-  public resume!: string | null;
-  public resume_a!: string | null;
-  public dipthi!: number;
+  declare id: number;
+  declare leadid: number | null;
+  declare date: string;
+  declare copr: string | null;
+  declare copr_a: string | null;
+  declare client_sheet: string;
+  declare client_sheet_a: number;
+  declare vphoto: string | null;
+  declare vphoto_a: string | null;
+  declare final_visa_docfb: string | null;
+  declare final_visa_docfb_a: string | null;
+  declare final_visa_docfull: string | null;
+  declare final_visa_docfull_a: string | null;
+  declare mcert_re: string | null;
+  declare mcert_re_a: string | null;
+  declare bcert: string | null;
+  declare bcert_a: string | null;
+  declare niddoc: string | null;
+  declare niddoc_a: string | null;
+  declare marraige: string | null;
+  declare marraige_a: string | null;
+  declare ielts: string | null;
+  declare ielts_a: string | null;
+  declare passport: string | null;
+  declare passport_a: string | null;
+  declare passport_new: string | null;
+  declare passport_new_a: string | null;
+  declare pcc: string | null;
+  declare pcc_a: string | null;
+  declare photo: string | null;
+  declare photo_a: string | null;
+  declare resume: string | null;
+  declare resume_a: string | null;
+  declare dipthi: number;
 
   public static associate(models: any) {
   }

@@ -9,9 +9,9 @@ interface DmNewClientAttributes {
 interface DmNewClientCreationAttributes extends Optional<DmNewClientAttributes, never> {}
 
 class DmNewClient extends Model<DmNewClientAttributes, DmNewClientCreationAttributes> implements DmNewClientAttributes {
-  public id!: number;
-  public email!: string;
-  public email_sent!: number;
+  declare id: number;
+  declare email: string;
+  declare email_sent: number;
 
   public static associate(models: any) {
   }

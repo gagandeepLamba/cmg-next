@@ -13,12 +13,12 @@ interface DmRolePermissionAttributes {
 interface DmRolePermissionCreationAttributes extends Optional<DmRolePermissionAttributes, 'id' | 'status' | 'created_at' | 'updated_at'> {}
 
 class DmRolePermission extends Model<DmRolePermissionAttributes, DmRolePermissionCreationAttributes> implements DmRolePermissionAttributes {
-  public id!: number;
-  public role_id!: number;
-  public permission_id!: number;
-  public status!: number;
-  public created_at!: Date;
-  public updated_at!: Date;
+  declare id: number;
+  declare role_id: number;
+  declare permission_id: number;
+  declare status: number;
+  declare created_at: Date;
+  declare updated_at: Date;
 
   public static associate(models: any) {
     DmRolePermission.belongsTo(models.DmRole, { foreignKey: 'role_id', targetKey: 'id', as: 'role' });

@@ -1,6 +1,8 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import {
   Download, FileText, BarChart3, PieChart, TrendingUp, Calendar,
   Filter, Settings, RefreshCw, Eye, EyeOff, CheckCircle, AlertCircle,
@@ -124,6 +126,17 @@ export default function PerformanceReportGenerator() {
   });
 
   const [reportData, setReportData] = useState<ReportData | null>(null);
+  const { sorted: sortedPerformance, sortKey: performanceSortKey, sortDirection: performanceSortDirection, toggleSort: togglePerformanceSort } = useSortableData(
+    reportData?.performance || [],
+    {
+      counselor: (c) => c.name,
+      leads: (c) => c.totalLeads,
+      conversion: (c) => c.conversionRate,
+      response: (c) => c.avgResponseTime,
+      revenue: (c) => c.totalRevenue,
+      efficiency: (c) => c.efficiency,
+    },
+  );
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [savedReports, setSavedReports] = useState<ReportConfig[]>([]);
@@ -387,7 +400,7 @@ export default function PerformanceReportGenerator() {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Period</label>
-            <select
+            <SearchableSelect
               value={reportConfig.period}
               onChange={(e) => setReportConfig({ ...reportConfig, period: e.target.value as any })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -398,12 +411,12 @@ export default function PerformanceReportGenerator() {
               <option value="quarterly">Quarterly</option>
               <option value="yearly">Yearly</option>
               <option value="custom">Custom</option>
-            </select>
+            </SearchableSelect>
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Format</label>
-            <select
+            <SearchableSelect
               value={reportConfig.format}
               onChange={(e) => setReportConfig({ ...reportConfig, format: e.target.value as any })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -412,7 +425,7 @@ export default function PerformanceReportGenerator() {
               <option value="excel">Excel</option>
               <option value="csv">CSV</option>
               <option value="json">JSON</option>
-            </select>
+            </SearchableSelect>
           </div>
           
           <div>
@@ -601,16 +614,16 @@ export default function PerformanceReportGenerator() {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Counselor</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Leads</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Conversion</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Response</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Revenue</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Efficiency</th>
+                          <SortableTh label="Counselor" sortKey="counselor" activeKey={performanceSortKey} direction={performanceSortDirection} onSort={togglePerformanceSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                          <SortableTh label="Leads" sortKey="leads" activeKey={performanceSortKey} direction={performanceSortDirection} onSort={togglePerformanceSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                          <SortableTh label="Conversion" sortKey="conversion" activeKey={performanceSortKey} direction={performanceSortDirection} onSort={togglePerformanceSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                          <SortableTh label="Response" sortKey="response" activeKey={performanceSortKey} direction={performanceSortDirection} onSort={togglePerformanceSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                          <SortableTh label="Revenue" sortKey="revenue" activeKey={performanceSortKey} direction={performanceSortDirection} onSort={togglePerformanceSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                          <SortableTh label="Efficiency" sortKey="efficiency" activeKey={performanceSortKey} direction={performanceSortDirection} onSort={togglePerformanceSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {reportData.performance.map((counselor) => (
+                        {sortedPerformance.map((counselor) => (
                           <tr key={counselor.counselorId}>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">

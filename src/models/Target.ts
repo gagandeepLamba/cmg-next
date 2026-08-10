@@ -17,17 +17,17 @@ interface TargetAttributes {
 interface TargetCreationAttributes extends Optional<TargetAttributes, 'counsilorid' | 'month' | 'year' | 'appointment' | 'sales' | 'branch_sales' | 'leads' | 'cold' | 'target_date_id'> {}
 
 class Target extends Model<TargetAttributes, TargetCreationAttributes> implements TargetAttributes {
-  public id!: number;
-  public counsilorid!: number | null;
-  public branch!: number;
-  public month!: number | null;
-  public year!: number | null;
-  public appointment!: number | null;
-  public sales!: number | null;
-  public branch_sales!: number | null;
-  public leads!: number | null;
-  public cold!: number | null;
-  public target_date_id!: number | null;
+  declare id: number;
+  declare counsilorid: number | null;
+  declare branch: number;
+  declare month: number | null;
+  declare year: number | null;
+  declare appointment: number | null;
+  declare sales: number | null;
+  declare branch_sales: number | null;
+  declare leads: number | null;
+  declare cold: number | null;
+  declare target_date_id: number | null;
 
   public static associate(models: any) {
   }

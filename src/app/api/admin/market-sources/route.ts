@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { isCeo } from '@/lib/roleChecks';
 import { DmSource, DmSourceAttributes } from '@/models';
 import { Op } from 'sequelize';
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['marketing.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     console.log('🔄 Starting GET request for market sources');
     
@@ -69,6 +73,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['marketing.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
     
@@ -88,6 +94,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['marketing.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
     const { id, ...updateData } = body;
@@ -114,6 +122,11 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const auth = requireAuth(request, ['marketing.manage']);
+  if (isAuthError(auth)) return auth;
+  if (!isCeo(auth)) {
+    return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+  }
   try {
     const { searchParams } = new URL(request.url);
     const id = parseInt(searchParams.get('id') || '');

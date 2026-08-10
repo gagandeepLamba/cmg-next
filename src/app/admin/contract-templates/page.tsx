@@ -1,7 +1,7 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -150,33 +150,33 @@ export default function ContractTemplatesPage() {
   const stats = getTemplateStats()
 
   const handlePreview = (templateId: string) => {
-    alert(`Previewing template ${templateId}`)
+    window.toast.info(`Previewing template ${templateId}`)
   }
 
   const handleDownload = (templateId: string) => {
-    alert(`Downloading template ${templateId}`)
+    window.toast.info(`Downloading template ${templateId}`)
   }
 
   const handleEdit = (templateId: string) => {
-    alert(`Editing template ${templateId}`)
+    window.toast.info(`Editing template ${templateId}`)
   }
 
   const handleDelete = (templateId: string) => {
-    alert(`Deleting template ${templateId}`)
+    window.toast.info(`Deleting template ${templateId}`)
   }
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -264,7 +264,7 @@ export default function ContractTemplatesPage() {
                 />
               </div>
 
-              <select
+              <SearchableSelect
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -274,9 +274,9 @@ export default function ContractTemplatesPage() {
                 <option value="business">Business</option>
                 <option value="education">Education</option>
                 <option value="other">Other</option>
-              </select>
+              </SearchableSelect>
 
-              <select
+              <SearchableSelect
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -285,9 +285,9 @@ export default function ContractTemplatesPage() {
                 <option value="english">English</option>
                 <option value="arabic">Arabic</option>
                 <option value="bilingual">Bilingual</option>
-              </select>
+              </SearchableSelect>
 
-              <select
+              <SearchableSelect
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -296,7 +296,7 @@ export default function ContractTemplatesPage() {
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
                 <option value="draft">Draft</option>
-              </select>
+              </SearchableSelect>
 
               <Button variant="outline">
                 <Filter className="h-4 w-4 mr-2" />
@@ -391,7 +391,7 @@ export default function ContractTemplatesPage() {
           </Card>
         )}
       </div>
-    </MainLayout>
+    </>
   )
 }
 

@@ -10,10 +10,10 @@ interface MasterSheetsSkillAssessmentAttributes {
 interface MasterSheetsSkillAssessmentCreationAttributes extends Optional<MasterSheetsSkillAssessmentAttributes, 'userid' | 'file' | 'date'> {}
 
 class MasterSheetsSkillAssessment extends Model<MasterSheetsSkillAssessmentAttributes, MasterSheetsSkillAssessmentCreationAttributes> implements MasterSheetsSkillAssessmentAttributes {
-  public id!: number;
-  public userid!: number | null;
-  public file!: string | null;
-  public date!: string | null;
+  declare id: number;
+  declare userid: number | null;
+  declare file: string | null;
+  declare date: string | null;
 
   public static associate(models: any) {
   }

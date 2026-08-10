@@ -12,12 +12,12 @@ interface DmAppointmentRemarksAttributes {
 interface DmAppointmentRemarksCreationAttributes extends Optional<DmAppointmentRemarksAttributes, 'taskid' | 'remarks'> {}
 
 class DmAppointmentRemarks extends Model<DmAppointmentRemarksAttributes, DmAppointmentRemarksCreationAttributes> implements DmAppointmentRemarksAttributes {
-  public id!: number;
-  public taskid!: number | null;
-  public date!: string;
-  public remarks!: string | null;
-  public emp!: string;
-  public notf!: number;
+  declare id: number;
+  declare taskid: number | null;
+  declare date: string;
+  declare remarks: string | null;
+  declare emp: string;
+  declare notf: number;
 
   public static associate(models: any) {
   }

@@ -11,11 +11,11 @@ interface DmB2bAttributes {
 interface DmB2bCreationAttributes extends Optional<DmB2bAttributes, never> {}
 
 class DmB2b extends Model<DmB2bAttributes, DmB2bCreationAttributes> implements DmB2bAttributes {
-  public id!: number;
-  public name!: string;
-  public status!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare name: string;
+  declare status: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

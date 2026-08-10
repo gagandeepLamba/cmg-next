@@ -1,12 +1,15 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useRouter } from 'next/navigation';
-import { 
-  Users, TrendingUp, Calendar, DollarSign, Globe, 
+import {
+  Users, TrendingUp, Calendar, DollarSign, Globe,
   Filter, Search, Download, Eye, BarChart3,
   MapPin, Phone, Mail, Building, Clock
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface LeadData {
   id: number;
@@ -47,12 +50,16 @@ interface Statistics {
   monthlyTrends: Array<{ month: string; leads: number; revenue: number }>;
 }
 
-const formatCurrency = (value: number) => (
-  new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED', maximumFractionDigits: 0 }).format(value)
-);
-
 export default function LeadStatusReport() {
   const router = useRouter();
+  const { currencyCode } = useAuth();
+  const formatCurrency = (value: number) => {
+    try {
+      return new Intl.NumberFormat('en-AE', { style: 'currency', currency: currencyCode, maximumFractionDigits: 0 }).format(value);
+    } catch {
+      return `${currencyCode} ${Number(value || 0).toLocaleString()}`;
+    }
+  };
   const [leads, setLeads] = useState<LeadData[]>([]);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -159,6 +166,18 @@ export default function LeadStatusReport() {
     
     return matchesSearch && matchesStatus && matchesPriority && matchesCountry && matchesService && matchesDateFrom && matchesDateTo;
   });
+
+  const { sorted: sortedLeads, sortKey: leadSortKey, sortDirection: leadSortDirection, toggleSort: toggleLeadSort } = useSortableData(
+    filteredLeads,
+    {
+      lead: (lead) => `${lead.fname || ''} ${lead.lname || ''}`,
+      contact: (lead) => lead.email || lead.phone,
+      interest: (lead) => lead.country_interest_label || lead.country_interest,
+      status: (lead) => lead.status,
+      assignedTo: (lead) => lead.dmEmployeeByASSIGNTo?.name,
+      revenue: (lead) => lead.payTotal,
+    },
+  );
 
   const exportToExcel = () => {
     // Create CSV content
@@ -316,7 +335,7 @@ export default function LeadStatusReport() {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-              <select
+              <SearchableSelect
                 value={filters.status}
                 onChange={(e) => setFilters({...filters, status: e.target.value})}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -326,12 +345,12 @@ export default function LeadStatusReport() {
                 <option value="In Progress">In Progress</option>
                 <option value="Converted">Converted</option>
                 <option value="Closed">Closed</option>
-              </select>
+              </SearchableSelect>
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
-              <select
+              <SearchableSelect
                 value={filters.priority}
                 onChange={(e) => setFilters({...filters, priority: e.target.value})}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -340,12 +359,12 @@ export default function LeadStatusReport() {
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
-              </select>
+              </SearchableSelect>
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
-              <select
+              <SearchableSelect
                 value={filters.country}
                 onChange={(e) => setFilters({...filters, country: e.target.value})}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -354,7 +373,7 @@ export default function LeadStatusReport() {
                 {statistics?.topCountries.map(country => (
                   <option key={country.country} value={country.country}>{country.country}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
           </div>
         </div>
@@ -368,17 +387,17 @@ export default function LeadStatusReport() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lead</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Interest</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                  <SortableTh label="Lead" sortKey="lead" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  <SortableTh label="Contact" sortKey="contact" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  <SortableTh label="Interest" sortKey="interest" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  <SortableTh label="Status" sortKey="status" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  <SortableTh label="Assigned To" sortKey="assignedTo" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
+                  <SortableTh label="Revenue" sortKey="revenue" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredLeads.map((lead) => (
+                {sortedLeads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>

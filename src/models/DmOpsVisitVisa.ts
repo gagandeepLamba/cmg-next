@@ -22,22 +22,22 @@ interface DmOpsVisitVisaAttributes {
 interface DmOpsVisitVisaCreationAttributes extends Optional<DmOpsVisitVisaAttributes, 'retnDate' | 'agreeNo' | 'docSubDate' | 'planTravDate' | 'descountry' | 'university' | 'docReceDate' | 'appSub' | 'appStatus' | 'remark1' | 'docFile' | 'appFile' | 'remark2'> {}
 
 class DmOpsVisitVisa extends Model<DmOpsVisitVisaAttributes, DmOpsVisitVisaCreationAttributes> implements DmOpsVisitVisaAttributes {
-  public id!: number;
-  public leadId!: number;
-  public retnDate!: string | null;
-  public agreeNo!: string | null;
-  public docSubDate!: string | null;
-  public planTravDate!: string | null;
-  public descountry!: string | null;
-  public university!: string | null;
-  public docReceDate!: string | null;
-  public appSub!: string | null;
-  public appStatus!: string | null;
-  public remark1!: string | null;
-  public docFile!: string | null;
-  public appFile!: string | null;
-  public remark2!: string | null;
-  public remark_by!: number;
+  declare id: number;
+  declare leadId: number;
+  declare retnDate: string | null;
+  declare agreeNo: string | null;
+  declare docSubDate: string | null;
+  declare planTravDate: string | null;
+  declare descountry: string | null;
+  declare university: string | null;
+  declare docReceDate: string | null;
+  declare appSub: string | null;
+  declare appStatus: string | null;
+  declare remark1: string | null;
+  declare docFile: string | null;
+  declare appFile: string | null;
+  declare remark2: string | null;
+  declare remark_by: number;
 
   public static associate(models: any) {
   }

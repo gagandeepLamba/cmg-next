@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
 import { verifyToken } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireAuth(request);
+    if (isAuthError(auth)) return auth;
+
     const { searchParams } = new URL(request.url);
     const programId = searchParams.get('programId');
 
@@ -89,6 +94,9 @@ export async function DELETE(request: NextRequest) {
       request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
     const cu = token ? verifyToken(token) : null;
     if (!cu) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (!isCeo(cu)) {
+      return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+    }
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

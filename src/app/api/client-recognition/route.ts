@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const toNumber = (value: unknown) => Number(value || 0);
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['recognition.manage']);
+  if (isAuthError(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'clients';
@@ -67,6 +71,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['recognition.manage']);
+  if (isAuthError(auth)) return auth;
+
   try {
     const body = await request.json();
     const action = body.action;

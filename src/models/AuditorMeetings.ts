@@ -17,17 +17,17 @@ interface AuditorMeetingsAttributes {
 interface AuditorMeetingsCreationAttributes extends Optional<AuditorMeetingsAttributes, never> {}
 
 class AuditorMeetings extends Model<AuditorMeetingsAttributes, AuditorMeetingsCreationAttributes> implements AuditorMeetingsAttributes {
-  public id!: number;
-  public meeting_date!: Date;
-  public meeting_time!: Date;
-  public meeting_remarks!: string;
-  public created!: Date;
-  public created_by!: number;
-  public lead_id!: number;
-  public assign!: number;
-  public na_record!: number;
-  public followup_meet!: number;
-  public mail_sent!: number;
+  declare id: number;
+  declare meeting_date: Date;
+  declare meeting_time: Date;
+  declare meeting_remarks: string;
+  declare created: Date;
+  declare created_by: number;
+  declare lead_id: number;
+  declare assign: number;
+  declare na_record: number;
+  declare followup_meet: number;
+  declare mail_sent: number;
 
   public static associate(models: any) {
   }

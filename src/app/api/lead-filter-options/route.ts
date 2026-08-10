@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 interface RawOption {
   value: string | number | null;
@@ -51,7 +52,9 @@ const toOptions = (rows: RawOption[], defaults: string[] = []) => {
   return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureDBConnection();
 
@@ -82,7 +85,7 @@ export async function GET() {
         { type: QueryTypes.SELECT }
       ),
       sequelize.query<RawOption>(
-        'SELECT id as value, name as label, region FROM dm_branch WHERE status = 1 ORDER BY name ASC',
+        'SELECT id as value, branch as label, region FROM dm_branch WHERE status = 1 ORDER BY branch ASC',
         { type: QueryTypes.SELECT }
       ),
       sequelize.query<RawOption>(

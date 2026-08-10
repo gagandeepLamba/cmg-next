@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
 import { apiError, invalidRequest } from '@/lib/apiError';
 import { QueryTypes } from 'sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const ensureAttendanceTable = () => sequelize.query(`
   CREATE TABLE IF NOT EXISTS dm_employee_attendance (
@@ -13,6 +14,8 @@ const ensureAttendanceTable = () => sequelize.query(`
 `);
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['attendance.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureAttendanceTable();
     const branchId = Number.parseInt(new URL(request.url).searchParams.get('branchId') || '', 10);
@@ -36,6 +39,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['attendance.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureAttendanceTable();
     const body = await request.json();

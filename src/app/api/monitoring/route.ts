@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
           COALESCE(l.status,'New') AS status,
           COALESCE(l.priority,'') AS priority,
           COALESCE(e.name,'Unassigned') AS assigned_to,
-          COALESCE(b.name,'N/A') AS branch_name,
+          COALESCE(b.branch,'N/A') AS branch_name,
           l.created, l.regdate
         FROM dmc_forum_leads l
         LEFT JOIN dm_employee e ON e.id = l.assignTo
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       }>(
         `SELECT
           e.id, e.name,
-          COALESCE(b.name,'N/A') AS branch_name,
+          COALESCE(b.branch,'N/A') AS branch_name,
           SUM(CASE WHEN DATE(COALESCE(l.created,l.regdate)) = :today THEN 1 ELSE 0 END) AS today_leads,
           SUM(CASE WHEN DATE(COALESCE(l.created,l.regdate)) >= :weekAgo THEN 1 ELSE 0 END) AS week_leads,
           SUM(CASE WHEN DATE(COALESCE(l.created,l.regdate)) >= :weekAgo
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
         LEFT JOIN dm_branch b ON b.id = e.branch
         LEFT JOIN dmc_forum_leads l ON (l.assignTo=e.id OR l.Counsilor=e.id)
         WHERE e.status=1
-        GROUP BY e.id, e.name, b.name
+        GROUP BY e.id, e.name, b.branch
         HAVING week_leads > 0 OR today_appts > 0
         ORDER BY week_leads DESC
         LIMIT 15`,
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
           COALESCE(a.done,0) AS done,
           COALESCE(a.not_done,0) AS not_done,
           COALESCE(e.name,'Unassigned') AS counselor_name,
-          COALESCE(b.name,'N/A') AS branch_name
+          COALESCE(b.branch,'N/A') AS branch_name
         FROM appointments a
         LEFT JOIN dmc_forum_leads l ON l.id = a.leadid
         LEFT JOIN dm_employee e ON e.id = a.counsilorid

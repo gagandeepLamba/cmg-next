@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sequelize, connectDB } from '@/lib/sequelize';
 import { QueryTypes } from 'sequelize';
 import { verifyToken } from '@/lib/auth';
+import { notifyUser } from '@/lib/notify';
+import { resolveBranchCurrency } from '@/lib/branchCurrency';
+import { formatDocumentNumber } from '@/lib/documentNumbering';
 
 let dbInitialized = false;
 const ensureDB = async () => { if (!dbInitialized) { await connectDB(); dbInitialized = true; } };
@@ -41,21 +44,68 @@ export async function PUT(request: NextRequest) {
 
     let agreementNumber: string | null = null;
 
+    // Find the opportunity linked to this payment (needed both to auto-generate the
+    // agreement and to advance the finance gate on dm_opportunity_workflow_reviews below).
+    const [payment] = await sequelize.query<{ opportunityId: number; leadId: number | null; clientName: string; totalAmount: number; currency: string; assignedTo: number | null; leadAssignTo: number | null; branchId: number | null; serviceType: string | null }>(
+      `SELECT p.opportunityId, o.leadId,
+              COALESCE(p.clientName, CONCAT(l.fname,' ',COALESCE(l.lname,''))) AS clientName,
+              COALESCE(p.totalAmount,0) AS totalAmount,
+              COALESCE(p.currency,'AED') AS currency,
+              o.assignedTo, l.assignTo AS leadAssignTo,
+              COALESCE(o.branchId, l.branch) AS branchId,
+              COALESCE(o.serviceType, o.serviceRequired) AS serviceType
+       FROM dm_opportunity_payments p
+       LEFT JOIN dmc_opportunities o ON o.id = p.opportunityId
+       LEFT JOIN dmc_forum_leads  l ON l.id = o.leadId
+       WHERE p.id = :paymentId LIMIT 1`,
+      { replacements: { paymentId }, type: QueryTypes.SELECT }
+    );
+
+    // Let the counselor know Accounts reviewed their submission — the wizard's
+    // Accounts stage only shows this on-demand refresh, so without a
+    // notification a rejected payment can sit unnoticed indefinitely.
+    const counselorId = payment?.assignedTo || payment?.leadAssignTo;
+    if (counselorId) {
+      await notifyUser({
+        userId: counselorId,
+        type: 'payment_verification',
+        title: status === 'verified' ? 'Payment verified by Accounts' : 'Payment rejected by Accounts',
+        message: status === 'verified'
+          ? `Accounts verified the payment for ${payment?.clientName || `opportunity #${payment?.opportunityId}`}.`
+          : `Accounts rejected the payment for ${payment?.clientName || `opportunity #${payment?.opportunityId}`}.${remarks ? ` Remarks: ${remarks}` : ''}`,
+        priority: status === 'rejected' ? 'high' : 'medium',
+        link: payment?.leadId ? `/admin/leads/${payment.leadId}/edit` : undefined,
+        relatedId: payment?.leadId ?? undefined,
+        relatedType: payment?.leadId ? 'lead' : undefined,
+      });
+    }
+
+    if (payment?.opportunityId) {
+      // Advance the finance gate so the client can eventually surface in the
+      // Client List, which reads dm_opportunity_workflow_reviews.finance_status/
+      // compliance_status directly (see src/app/api/admin/clients/route.ts).
+      await sequelize.query(
+        `UPDATE dm_opportunity_workflow_reviews
+         SET finance_status = :financeStatus,
+             finance_reviewed_by = :accountId,
+             finance_reviewed_at = NOW(),
+             workflow_status = :workflowStatus,
+             updated_at = NOW()
+         WHERE opportunity_id = :opportunityId`,
+        {
+          replacements: {
+            financeStatus: status === 'verified' ? 'approved' : 'rejected',
+            accountId: currentUser?.id || null,
+            workflowStatus: status === 'verified' ? 'pending_compliance' : 'finance_review_failed',
+            opportunityId: payment.opportunityId,
+          },
+          type: QueryTypes.UPDATE,
+        }
+      );
+    }
+
     // When payment is verified, auto-generate an agreement number if one doesn't exist yet
     if (status === 'verified') {
-      // Find the opportunity linked to this payment
-      const [payment] = await sequelize.query<{ opportunityId: number; clientName: string; totalAmount: number; currency: string }>(
-        `SELECT p.opportunityId,
-                COALESCE(p.clientName, CONCAT(l.fname,' ',COALESCE(l.lname,''))) AS clientName,
-                COALESCE(p.totalAmount,0) AS totalAmount,
-                COALESCE(p.currency,'AED') AS currency
-         FROM dm_opportunity_payments p
-         LEFT JOIN dm_opportunities o ON o.id = p.opportunityId
-         LEFT JOIN dmc_forum_leads  l ON l.id = o.leadId
-         WHERE p.id = :paymentId LIMIT 1`,
-        { replacements: { paymentId }, type: QueryTypes.SELECT }
-      );
-
       if (payment?.opportunityId) {
         // Check if an agreement already exists for this opportunity
         const [existing] = await sequelize.query<{ id: number; agreementNumber: string }>(
@@ -66,12 +116,11 @@ export async function PUT(request: NextRequest) {
         if (existing) {
           agreementNumber = existing.agreementNumber;
         } else {
-          // Auto-generate the agreement record
-          const ts = Date.now();
-          const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
-          agreementNumber = `AGR-${ts}-${rand}`;
+          // Placeholder for the NOT NULL column — reformatted below once the
+          // row's own auto-increment id is known.
+          agreementNumber = `AGR-PENDING-${Date.now()}`;
 
-          await sequelize.query(
+          const [insertId] = await sequelize.query(
             `INSERT INTO dm_opportunity_agreements
                (opportunityId, agreementNumber, agreementType, title, status,
                 clientName, totalAmount, currency, startDate, endDate,
@@ -96,6 +145,47 @@ export async function PUT(request: NextRequest) {
               type: QueryTypes.INSERT,
             }
           );
+
+          // AG/{branch}/{product}/{DDMMYYYY}/{seq}, e.g. AG/QTR/CAN/15072026/001.
+          const branchCurrency = await resolveBranchCurrency(payment.branchId);
+          agreementNumber = formatDocumentNumber({
+            prefix: 'AG',
+            branchName: branchCurrency?.branchName,
+            branchAddress: branchCurrency?.branchAddress,
+            product: payment.serviceType,
+            sequenceId: Number(insertId),
+          });
+          await sequelize.query(
+            `UPDATE dm_opportunity_agreements SET agreementNumber = :agreementNumber WHERE id = :id`,
+            { replacements: { agreementNumber, id: Number(insertId) }, type: QueryTypes.UPDATE }
+          );
+
+          // Keep the legacy contract register (dmc_forum_leads_contracts) in sync,
+          // matching the other two agreement-creation paths (lead-to-opportunity,
+          // receipts) so every agreement gets a contract number regardless of
+          // which flow generated it.
+          if (payment.leadId) {
+            await sequelize.query(
+              `INSERT INTO dmc_forum_leads_contracts
+                 (leadId, contract, unsigned_contract, ar_contract, new_contract, garys,
+                  remarks, verify, verify_by, verify_date, batch_id, wp_batch_id,
+                  vendor_id, employer_id, old_crm_ag_id, payment_status)
+               VALUES
+                 (:leadId, :contractFile, :unsignedFile, :arFile, NULL, NULL,
+                  :remarks, 0, 0, NULL, 0, 0,
+                  0, 0, 0, 1)`,
+              {
+                replacements: {
+                  leadId: payment.leadId,
+                  contractFile: `${agreementNumber}.pdf`,
+                  unsignedFile: `unsigned_${agreementNumber}.pdf`,
+                  arFile: `ar_${agreementNumber}.pdf`,
+                  remarks: `Auto-created on payment verification. Agreement number: ${agreementNumber}`,
+                },
+                type: QueryTypes.INSERT,
+              }
+            );
+          }
         }
       }
     }

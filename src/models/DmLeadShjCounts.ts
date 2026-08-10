@@ -10,10 +10,10 @@ interface DmLeadShjCountsAttributes {
 interface DmLeadShjCountsCreationAttributes extends Optional<DmLeadShjCountsAttributes, never> {}
 
 class DmLeadShjCounts extends Model<DmLeadShjCountsAttributes, DmLeadShjCountsCreationAttributes> implements DmLeadShjCountsAttributes {
-  public id!: number;
-  public branch_id!: number;
-  public emp_id!: number;
-  public lead_count!: number;
+  declare id: number;
+  declare branch_id: number;
+  declare emp_id: number;
+  declare lead_count: number;
 
   public static associate(models: any) {
   }

@@ -4,18 +4,20 @@ interface DmServiceAttributes {
   id: number;
   name: string;
   status: number;
+  validity: string | null;
   flag: string | null;
   slogan_logo: string | null;
 }
 
-interface DmServiceCreationAttributes extends Optional<DmServiceAttributes, 'status' | 'flag' | 'slogan_logo'> {}
+interface DmServiceCreationAttributes extends Optional<DmServiceAttributes, 'status' | 'validity' | 'flag' | 'slogan_logo'> {}
 
 class DmService extends Model<DmServiceAttributes, DmServiceCreationAttributes> implements DmServiceAttributes {
-  public id!: number;
-  public name!: string;
-  public status!: number;
-  public flag!: string | null;
-  public slogan_logo!: string | null;
+  declare id: number;
+  declare name: string;
+  declare status: number;
+  declare validity: string | null;
+  declare flag: string | null;
+  declare slogan_logo: string | null;
 
   public static associate(models: any) {
     DmService.hasMany(models.DmFee, { foreignKey: 'service', sourceKey: 'id', as: 'dmFees' });
@@ -39,6 +41,10 @@ DmService.init(
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 1
+    },
+    validity: {
+      type: DataTypes.STRING(50),
+      allowNull: true
     },
     flag: {
       type: DataTypes.STRING(100),

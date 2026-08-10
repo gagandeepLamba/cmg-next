@@ -23,6 +23,8 @@ const kanbanColumns = [
   { id: 'Could Not Connect', title: 'Could Not Connect', accent: 'bg-orange-500', tint: 'border-orange-100 bg-orange-50/60' },
   { id: 'Call Back', title: 'Call Back', accent: 'bg-violet-500', tint: 'border-violet-100 bg-violet-50/60' },
   { id: 'Abroad Lead', title: 'Abroad Lead', accent: 'bg-emerald-500', tint: 'border-emerald-100 bg-emerald-50/60' },
+  { id: 'Junk', title: 'Junk', accent: 'bg-stone-500', tint: 'border-stone-200 bg-stone-50/70' },
+  { id: 'Duplicate', title: 'Duplicate', accent: 'bg-fuchsia-500', tint: 'border-fuchsia-100 bg-fuchsia-50/60' },
 ] as const;
 
 export default function LeadKanbanSimple({
@@ -95,7 +97,7 @@ export default function LeadKanbanSimple({
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`min-h-72 space-y-3 p-3 transition-colors duration-200 ${
+                      className={`min-h-72 max-h-112 overflow-y-auto space-y-3 p-3 transition-colors duration-200 ${
                         snapshot.isDraggingOver ? 'bg-white/70 ring-2 ring-inset ring-blue-500/30' : ''
                       }`}
                     >
@@ -133,14 +135,16 @@ export default function LeadKanbanSimple({
                                   <Edit3 className="size-3.5" />
                                   Edit
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => onConvertToOpportunity?.(Number(lead.id))}
-                                  className="inline-flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-700 transition hover:border-green-300 hover:bg-green-100"
-                                  title="Start Opportunity Flow"
-                                >
-                                  <Target className="size-3.5" />
-                                </button>
+                                {onConvertToOpportunity && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onConvertToOpportunity(Number(lead.id))}
+                                    className="inline-flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-700 transition hover:border-green-300 hover:bg-green-100"
+                                    title="Start Opportunity Flow"
+                                  >
+                                    <Target className="size-3.5" />
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => onDeleteLead?.(Number(lead.id))}

@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { DmcForumLeadsContracts } from '@/models';
 import { sequelize, connectDB } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 let dbReady = false;
 const ensureDB = async () => { if (!dbReady) { await connectDB(); dbReady = true; } };
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['agreements.create']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureDB();
     const body = await request.json();
@@ -39,6 +42,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['agreements.view']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureDB();
     const { searchParams } = new URL(request.url);
@@ -89,7 +94,7 @@ export async function GET(request: NextRequest) {
         COALESCE(c.verify,0) AS verify,
         c.verify_date, c.remarks,
         COALESCE(c.payment_status,0) AS payment_status,
-        COALESCE(b.name,'N/A') AS branch_name,
+        COALESCE(b.branch,'N/A') AS branch_name,
         COALESCE(e.name,'Unassigned') AS counselor_name,
         COALESCE(l.created, l.regdate) AS created
       FROM dmc_forum_leads_contracts c

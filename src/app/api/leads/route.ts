@@ -4,6 +4,10 @@ import { resolveLeadAutoAssignment } from '@/lib/leadAutoAssignment'
 import { QueryTypes } from 'sequelize'
 import * as XLSX from 'xlsx'
 import { verifyToken } from '@/lib/auth'
+import { isCeo, isFoeOrBranchManagerOrCeo, isBranchManagerOrCeo, isCounsellor } from '@/lib/roleChecks'
+import { checkForDuplicate, findExistingLead, recordDuplicateLeadAttempt, normalizePhone } from '@/lib/duplicateLeadCheck'
+import { resolveLeadReferenceId, resolveLeadReferences } from '@/lib/leadReferenceResolver'
+import { resolveBranchReference } from '@/lib/branchResolver'
 
 interface CountResult {
   total: number
@@ -44,20 +48,12 @@ function validateLeadSubmission(data: Record<string, unknown>): string[] {
   const lastName = String(data.lname ?? data.lastName ?? '').trim();
   const email = String(data.email ?? '').trim();
   const phone = String(data.phone ?? '').replace(/\D/g, '');
-  const gender = String(data.gender ?? data.genderIdentity ?? '').trim();
-  const country = String(data.country_interest ?? data.countryInterest ?? data.programCountry ?? '').trim();
-  const program = String(data.program ?? '').trim();
-  const programType = String(data.programType ?? '').trim();
   const namePattern = /^[\p{L}][\p{L}\s.'-]*$/u;
 
   if (!namePattern.test(firstName)) errors.push('First name is required and contains invalid characters.');
   if (!namePattern.test(lastName)) errors.push('Last name is required and contains invalid characters.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('A valid email address is required.');
   if (phone.length < 7 || phone.length > 15) errors.push('A valid phone number with 7 to 15 digits is required.');
-  if (!gender || gender === '--None--') errors.push('Gender identity is required.');
-  if (!country || country === '--None--') errors.push('Program country is required.');
-  if (!program) errors.push('Program is required.');
-  if (!programType) errors.push('Program type is required.');
 
   const dateOfBirth = data.dob ?? data.dateOfBirth;
   if (dateOfBirth) {
@@ -72,7 +68,7 @@ export async function GET(request: NextRequest) {
   try {
     // Ensure database connection is established
     await ensureDBConnection();
-    
+
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
@@ -101,12 +97,14 @@ export async function GET(request: NextRequest) {
 
     const role = String(currentUser.type || '').toLowerCase().replace(/[\s-]+/g, '_')
     const canViewAll = currentUser.role === 1 || [
-      'admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos'
+      'admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos',
+      'director_of_operations', 'operation_manager'
     ].includes(role)
     // Receptionists and FOEs share branch-scoped visibility with branch managers so
     // they can see and (re)assign leads at their own front desk without exposing other branches.
     const isBranchManager = ['branch_manager', 'bm', 'receptionist', 'foe'].includes(role) && !canViewAll
     const isRegionalManager = ['regional_manager', 'rm'].includes(role) && !canViewAll && !isBranchManager
+    const isMyLeadsView = opportunityView === 'my-leads'
 
     const offset = (page - 1) * limit
 
@@ -120,11 +118,12 @@ export async function GET(request: NextRequest) {
         OR l.email LIKE ?
         OR l.phone LIKE ?
         OR l.mobile LIKE ?
+        OR l.whatsapp_number LIKE ?
         OR CAST(l.id AS CHAR) LIKE ?
         OR l.id_number LIKE ?
       )`)
       const searchTerm = `%${search}%`
-      replacements.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm)
+      replacements.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm)
     }
 
     if (status) {
@@ -183,17 +182,39 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const CLIENT_STATUS_SQL = `(l.status IN ('Retained','Client','converted','retained','client') OR l.opportunity_status = 'won' OR EXISTS (SELECT 1 FROM dmc_opportunities oc WHERE oc.leadId = l.id AND oc.status = 'won'))`
-    const HAS_OPP_SQL = `((l.opportunity_id IS NOT NULL AND l.opportunity_id <> 0) OR EXISTS (SELECT 1 FROM dmc_opportunities o WHERE o.leadId = l.id))`
+    // A lead becomes a client once BOTH finance and compliance sign off on its
+    // opportunity (dm_opportunity_workflow_reviews - see the table-name note
+    // near the `wr` join below), in addition to the older status-based signals
+    // this already recognized.
+    // COALESCE around every l.status/l.opportunity_status comparison below is
+    // load-bearing, not stylistic: these clauses get wrapped in NOT elsewhere
+    // (Leads tab, Opportunity Draft tab), and in SQL, FALSE OR NULL = NULL, so
+    // NOT(... OR l.opportunity_status = 'draft' ...) evaluates to NULL - not
+    // TRUE - for every lead where that column is NULL (i.e. every fresh lead).
+    // WHERE treats a NULL result the same as FALSE, so those rows silently
+    // vanish. COALESCE(...,'') keeps every comparison a clean boolean.
+    const CLIENT_STATUS_SQL = `(COALESCE(l.status,'') IN ('Retained','Client','converted','retained','client') OR COALESCE(l.opportunity_status,'') = 'won' OR EXISTS (SELECT 1 FROM dmc_opportunities oc WHERE oc.leadId = l.id AND oc.status = 'won') OR EXISTS (SELECT 1 FROM dmc_opportunities occ JOIN dm_opportunity_workflow_reviews wrc ON wrc.opportunity_id = occ.id WHERE occ.leadId = l.id AND wrc.finance_status = 'approved' AND wrc.compliance_status = 'approved'))`
+    // opportunity_status = 'draft' is set the instant a counselor starts the
+    // Opportunity Flow wizard (LeadManagement.tsx handleBulkConvertToOpportunity),
+    // before any dmc_opportunities row exists - see that function for why the
+    // row itself isn't created until the wizard's Payment stage.
+    const HAS_OPP_SQL = `((l.opportunity_id IS NOT NULL AND l.opportunity_id <> 0) OR COALESCE(l.opportunity_status,'') = 'draft' OR EXISTS (SELECT 1 FROM dmc_opportunities o WHERE o.leadId = l.id))`
 
-    if (opportunityView === 'clients') {
+    if (isMyLeadsView) {
+      if (!isBranchManagerOrCeo(currentUser)) {
+        return NextResponse.json({ error: 'Only Branch Manager or CEO can view My Leads' }, { status: 403 })
+      }
+      whereConditions.push(`NOT ${HAS_OPP_SQL}`)
+      whereConditions.push('(l.Counsilor = ? OR l.assignTo = ?)')
+      replacements.push(currentUser.id, currentUser.id)
+    } else if (opportunityView === 'clients') {
       whereConditions.push(HAS_OPP_SQL)
       whereConditions.push(CLIENT_STATUS_SQL)
       if (isBranchManager) {
-        whereConditions.push('(l.branch = ? OR l.branch IS NULL)')
+        whereConditions.push('l.branch = ?')
         replacements.push(currentUser.branch)
       } else if (isRegionalManager) {
-        whereConditions.push('(l.region = ? OR l.region IS NULL)')
+        whereConditions.push('l.region = ?')
         replacements.push(currentUser.region)
       } else if (!canViewAll) {
         whereConditions.push(`(l.Counsilor = ? OR l.assignTo = ? OR EXISTS (SELECT 1 FROM dmc_opportunities o WHERE o.leadId = l.id AND (o.assignedTo = ? OR o.createdBy = ?)))`)
@@ -203,10 +224,10 @@ export async function GET(request: NextRequest) {
       whereConditions.push(HAS_OPP_SQL)
       whereConditions.push(`NOT ${CLIENT_STATUS_SQL}`)
       if (isBranchManager) {
-        whereConditions.push('(l.branch = ? OR l.branch IS NULL)')
+        whereConditions.push('l.branch = ?')
         replacements.push(currentUser.branch)
       } else if (isRegionalManager) {
-        whereConditions.push('(l.region = ? OR l.region IS NULL)')
+        whereConditions.push('l.region = ?')
         replacements.push(currentUser.region)
       } else if (!canViewAll) {
         whereConditions.push(`(
@@ -220,21 +241,37 @@ export async function GET(request: NextRequest) {
         )`)
         replacements.push(currentUser.id, currentUser.id, currentUser.id, currentUser.id)
       }
+    } else if (opportunityView === 'duplicates') {
+      whereConditions.push('l.duplicate = 1')
+      whereConditions.push(`NOT ${CLIENT_STATUS_SQL}`)
+      if (isBranchManager) {
+        whereConditions.push('l.branch = ?')
+        replacements.push(currentUser.branch)
+      } else if (isRegionalManager) {
+        whereConditions.push('l.region = ?')
+        replacements.push(currentUser.region)
+      } else if (!canViewAll) {
+        whereConditions.push('(l.Counsilor = ? OR l.assignTo = ?)')
+        replacements.push(currentUser.id, currentUser.id)
+      }
     } else {
       // Leads tab: show only leads (no opportunities) for all roles
       if (!canViewAll && !isBranchManager && !isRegionalManager) {
-        // Counselors: their own leads + unassigned leads, no opportunity
-        whereConditions.push(`((l.opportunity_id IS NULL OR l.opportunity_id = 0) AND NOT EXISTS (SELECT 1 FROM dmc_opportunities o WHERE o.leadId = l.id))`)
-        whereConditions.push('(l.Counsilor = ? OR l.assignTo = ? OR (l.Counsilor IS NULL AND l.assignTo IS NULL))')
+        // Counselors: only leads assigned to them, no opportunity. Unassigned
+        // leads are intentionally excluded here - only CEO (canViewAll),
+        // Branch Manager, and FOE (isBranchManager) should see/triage new
+        // unassigned leads before handing them off to a counselor.
+        whereConditions.push(`NOT ${HAS_OPP_SQL}`)
+        whereConditions.push('(l.Counsilor = ? OR l.assignTo = ?)')
         replacements.push(currentUser.id, currentUser.id)
       } else {
         // Admin/DS/BM/RM: all leads but exclude those with opportunities
-        whereConditions.push(`((l.opportunity_id IS NULL OR l.opportunity_id = 0) AND NOT EXISTS (SELECT 1 FROM dmc_opportunities o WHERE o.leadId = l.id))`)
+        whereConditions.push(`NOT ${HAS_OPP_SQL}`)
         if (isBranchManager) {
-          whereConditions.push('(l.branch = ? OR l.branch IS NULL)')
+          whereConditions.push('l.branch = ?')
           replacements.push(currentUser.branch)
         } else if (isRegionalManager) {
-          whereConditions.push('(l.region = ? OR l.region IS NULL)')
+          whereConditions.push('l.region = ?')
           replacements.push(currentUser.region)
         }
       }
@@ -244,9 +281,15 @@ export async function GET(request: NextRequest) {
 
     // If export is requested, return all data without pagination
     if (exportType === 'excel') {
+      // Export is restricted to CEO (full company, unfiltered by the branch
+      // scoping above) and Branch Manager (their own branch only, via the
+      // same whereConditions branch-scoping every other role already gets).
+      if (!isBranchManagerOrCeo(currentUser)) {
+        return NextResponse.json({ error: 'Only the CEO or a Branch Manager can export leads' }, { status: 403 })
+      }
       const leads = await sequelize.query<any>(`
-        SELECT 
-          l.id, l.fname, l.mname, l.lname, l.email, l.phone, l.mobile, l.nationality,
+        SELECT
+          l.id, l.fname, l.mname, l.lname, l.email, l.phone, l.mobile, l.whatsapp_number, l.nationality,
           l.address, l.dob, l.gender, l.id_number, l.id_expiry, l.country_interest,
           l.service_interest, l.market_source, l.priority, l.status, l.lead_quality,
           l.regdate, l.payTotal, l.paidYet, l.payBalance, l.lead_remark, l.created,
@@ -256,7 +299,7 @@ export async function GET(request: NextRequest) {
           COALESCE(s.name, pt.type, l.service_interest) as service_interest_label,
           COALESCE(ms.name, l.market_source) as market_source_label,
           COALESCE(l.opportunity_id, (SELECT MAX(o.id) FROM dmc_opportunities o WHERE o.leadId = l.id)) as resolved_opportunity_id,
-          e1.name as assigned_to_name, b.name as branch_name
+          e1.name as assigned_to_name, b.branch as branch_name
         FROM dmc_forum_leads l
         LEFT JOIN dm_employee e1 ON l.assignTo = e1.id
         LEFT JOIN dm_branch b ON l.branch = b.id
@@ -327,18 +370,21 @@ export async function GET(request: NextRequest) {
     // Get leads with pagination
     const buildLeadsQuery = (withWorkflow: boolean) => `
         SELECT
-        l.id, l.fname, l.mname, l.lname, l.email, l.phone, l.mobile, l.nationality,
+        l.id, l.fname, l.mname, l.lname, l.email, l.phone, l.mobile, l.whatsapp_number, l.nationality,
         l.address, l.dob, l.gender, l.id_number, l.id_expiry, l.country_interest,
         l.service_interest, l.market_source, l.priority, l.status, l.lead_quality,
         l.regdate, l.payTotal, l.paidYet, l.payBalance, l.lead_remark, l.created,
         l.assignTo, l.branch, l.region, l.stepComplete,
         l.opportunity_id, l.opportunity_status, l.campaign,
-        (SELECT remark FROM dmc_forum_leads_remarks WHERE \`lead\` = l.id ORDER BY created DESC, id DESC LIMIT 1) as latest_remark,
+        (SELECT remark FROM dmc_forum_leads_remarks WHERE \`lead\` = l.id ORDER BY id DESC LIMIT 1) as latest_remark,
         COALESCE(cp.name, l.country_interest) as country_interest_label,
         COALESCE(s.name, pt.type, l.service_interest) as service_interest_label,
         COALESCE(ms.name, l.market_source) as market_source_label,
         COALESCE(l.opportunity_id, (SELECT MAX(o.id) FROM dmc_opportunities o WHERE o.leadId = l.id)) as resolved_opportunity_id,
-        e1.name as assigned_to_name, b.name as branch_name,
+        e1.name as assigned_to_name, b.branch as branch_name,
+        b.ar_name as branch_name_ar, b.address as branch_address, b.email as branch_email,
+        b.mobile as branch_mobile, b.license_number as branch_license_number,
+        b.vat_gst_percent as branch_vat_gst_percent,
         o.status AS opp_status, o.stage AS opp_stage,
         o.paymentReceived, o.agreementSigned, o.retentionStatus,
         (SELECT agr.agreementNumber FROM dm_opportunity_agreements agr WHERE agr.opportunityId = o.id ORDER BY agr.id DESC LIMIT 1) as agreementNumber${withWorkflow ? `,
@@ -351,7 +397,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN dm_program_type pt ON pt.id = CAST(l.service_interest AS UNSIGNED)
       LEFT JOIN dm_source ms ON ms.id = CAST(l.market_source AS UNSIGNED)
       LEFT JOIN dmc_opportunities o ON o.id = COALESCE(l.opportunity_id, (SELECT MAX(o2.id) FROM dmc_opportunities o2 WHERE o2.leadId = l.id))${withWorkflow ? `
-      LEFT JOIN dmc_opportunity_workflow_reviews wr ON wr.opportunity_id = o.id` : ''}
+      LEFT JOIN dm_opportunity_workflow_reviews wr ON wr.opportunity_id = o.id` : ''}
       ${whereClause}
       ORDER BY l.created DESC
       LIMIT ? OFFSET ?
@@ -365,7 +411,7 @@ export async function GET(request: NextRequest) {
       });
     } catch (queryErr: any) {
       const errMsg = String(queryErr?.message || queryErr?.original?.message || '');
-      if (errMsg.includes('dmc_opportunity_workflow_reviews') || errMsg.includes('ER_NO_SUCH_TABLE')) {
+      if (errMsg.includes('dm_opportunity_workflow_reviews') || errMsg.includes('ER_NO_SUCH_TABLE')) {
         console.warn('Workflow reviews table missing, retrying without it');
         leads = await sequelize.query<any>(buildLeadsQuery(false), {
           replacements: [...replacements, limit, offset],
@@ -382,7 +428,16 @@ export async function GET(request: NextRequest) {
     const formattedLeads = (Array.isArray(finalLeads) ? finalLeads : []).map((lead: any) => ({
       ...lead,
       dmEmployeeByASSIGNTo: lead.assigned_to_name ? { id: lead.assignTo, name: lead.assigned_to_name } : null,
-      dmBranch: lead.branch_name ? { id: lead.branch, name: lead.branch_name } : null
+      dmBranch: lead.branch_name ? {
+        id: lead.branch,
+        name: lead.branch_name,
+        nameAr: lead.branch_name_ar,
+        address: lead.branch_address,
+        email: lead.branch_email,
+        mobile: lead.branch_mobile,
+        licenseNumber: lead.branch_license_number,
+        vatGstPercent: lead.branch_vat_gst_percent
+      } : null
     }))
 
     return NextResponse.json({
@@ -407,11 +462,22 @@ export async function POST(request: NextRequest) {
   try {
     // Ensure database connection is established
     await ensureDBConnection();
-    
+
+    const authorization = request.headers.get('authorization')
+    const token = request.cookies.get('auth-token')?.value || authorization?.replace(/^Bearer\s+/i, '')
+    const currentUser = token ? verifyToken(token) : null
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Authentication is required' }, { status: 401 })
+    }
+
     const data = await request.json()
 
     // Check if this is an Excel import
     if (data.importType === 'excel' && data.fileData) {
+      if (!isFoeOrBranchManagerOrCeo(currentUser) && !isCounsellor(currentUser)) {
+        return NextResponse.json({ error: 'Only FOE, Branch Manager, CEO, or Counsellor can bulk-upload leads' }, { status: 403 })
+      }
+      const uploaderBranchId = Number(currentUser.branch || 0) || 1
       try {
         const workbook = XLSX.read(data.fileData, { type: 'base64' })
         const worksheet = workbook.Sheets[workbook.SheetNames[0]]
@@ -419,16 +485,48 @@ export async function POST(request: NextRequest) {
 
         const createdLeads = []
         const errors = []
+        const skipped: Array<{ row: number; reason: string }> = []
+        // Duplicates already inserted from *this same file* aren't in the DB
+        // yet when checkForDuplicate runs for a later row, so two rows in one
+        // upload sharing an email/phone would otherwise both pass the DB-only check.
+        const seenInBatch = new Set<string>()
 
         for (const [index, row] of jsonData.entries()) {
           try {
             const typedRow = row as Record<string, any>
+
+            // "Name" is the single-column fallback from the sample template
+            // (src/app/api/leads/sample-template/route.ts); split on first
+            // whitespace when the richer First/Last Name columns aren't present.
+            const nameParts = String(typedRow['Name'] || '').trim().split(/\s+/).filter(Boolean)
+            const nameFallbackFirst = nameParts[0] || ''
+            const nameFallbackLast = nameParts.slice(1).join(' ')
+
+            const rowPhone = typedRow['Phone'] || typedRow['phone'] || ''
+            const rowEmail = typedRow['Email'] || typedRow['email'] || ''
+
+            // Reject rather than flag: a lead whose phone or email already
+            // exists (in the DB, or earlier in this same file) doesn't get
+            // created at all, so the CRM never ends up with two records for
+            // the same person.
+            const batchKey = [normalizePhone(rowPhone), String(rowEmail || '').trim().toLowerCase()].filter(Boolean).join('|')
+            if (batchKey && seenInBatch.has(batchKey)) {
+              skipped.push({ row: index + 1, reason: 'Duplicate of another row earlier in this file (same email/phone)' })
+              continue
+            }
+            const duplicateCheck = await checkForDuplicate({ phone: rowPhone, email: rowEmail })
+            if (duplicateCheck.isDuplicate) {
+              skipped.push({ row: index + 1, reason: 'A lead with this email or phone already exists in the CRM' })
+              continue
+            }
+            if (batchKey) seenInBatch.add(batchKey)
+
             const leadData = {
-              fname: typedRow['First Name'] || typedRow['fname'] || '',
+              fname: typedRow['First Name'] || typedRow['fname'] || nameFallbackFirst,
               mname: typedRow['Middle Name'] || typedRow['mname'] || '',
-              lname: typedRow['Last Name'] || typedRow['lname'] || '',
-              email: typedRow['Email'] || typedRow['email'] || '',
-              phone: typedRow['Phone'] || typedRow['phone'] || '',
+              lname: typedRow['Last Name'] || typedRow['lname'] || nameFallbackLast,
+              email: rowEmail,
+              phone: rowPhone,
               mobile: typedRow['Mobile'] || typedRow['mobile'] || '',
               nationality: typedRow['Nationality'] || typedRow['nationality'] || '',
               address: typedRow['Address'] || typedRow['address'] || '',
@@ -437,10 +535,10 @@ export async function POST(request: NextRequest) {
               id_number: typedRow['ID Number'] || typedRow['id_number'] || '',
               id_expiry: typedRow['ID Expiry'] || typedRow['id_expiry'] ? new Date(typedRow['ID Expiry'] || typedRow['id_expiry']) : new Date(),
               id_issue_date: new Date(),
-              country_interest: typedRow['Country Interest'] || typedRow['country_interest'] || '',
+              country_interest: typedRow['Country Interest'] || typedRow['country_interest'] || typedRow['Country'] || typedRow['country'] || '',
               sub_country_interest: 0,
               service_interest: typedRow['Service Interest'] || typedRow['service_interest'] || '',
-              market_source: typedRow['Market Source'] || typedRow['market_source'] || '',
+              market_source: typedRow['Market Source'] || typedRow['market_source'] || typedRow['Source'] || typedRow['source'] || '',
               sub_market_source: 0,
               priority: typedRow['Priority'] || typedRow['priority'] || 'Medium',
               status: typedRow['Status'] || typedRow['status'] || 'New',
@@ -451,11 +549,15 @@ export async function POST(request: NextRequest) {
               regtime: new Date(),
               last_updated: new Date().toLocaleDateString(),
               last_updtd_time: new Date().toTimeString().split(' ')[0],
+              followup: new Date(),
+              folowuptime: new Date().toTimeString().split(' ')[0],
+              sf: 0,
               stepComplete: 1,
-              assignTo: data.assignTo || 1,
-              case_officer: data.case_officer || 1,
-              Counsilor: data.Counsilor || 1,
-              branch: data.branch || 1,
+              // Imported leads enter unassigned; a FOE/Branch Manager/CEO assigns them afterward.
+              assignTo: null,
+              case_officer: null,
+              Counsilor: null,
+              branch: uploaderBranchId,
               region: data.region || 1,
               payTotal: parseFloat(typedRow['Total Payment'] || typedRow['payTotal']) || 0,
               discount: 0,
@@ -493,8 +595,8 @@ export async function POST(request: NextRequest) {
               tele_caller_remark_by: 1,
               tele_date: new Date(),
               lead_date: new Date(),
-              duplicate: 0,
-              duplicate_count: 0,
+              duplicate: duplicateCheck.isDuplicate ? 1 : 0,
+              duplicate_count: duplicateCheck.duplicateCount,
               ref_remark: '',
               na_record: 0,
               old_assgined: 0,
@@ -504,12 +606,15 @@ export async function POST(request: NextRequest) {
               status_date: new Date()
             }
 
+            const resolvedLeadData = await resolveLeadReferences(leadData)
+
             const insertResult = await sequelize.query(`
               INSERT INTO dmc_forum_leads (
                 fname, mname, lname, email, phone, mobile, nationality, address, dob, gender,
                 id_number, id_expiry, id_issue_date, country_interest, sub_country_interest,
                 service_interest, market_source, sub_market_source, priority, status, lead_quality,
-                enquiry, convet, regdate, regtime, last_updated, last_updtd_time, stepComplete,
+                enquiry, convet, regdate, regtime, last_updated, last_updtd_time, followup,
+                folowuptime, sf, stepComplete,
                 assignTo, case_officer, Counsilor, branch, region, payTotal, discount, paidYet,
                 payBalance, demandAmt, notf, type, transfered_by, transfer_time, exist,
                 no_of_applicants, advanced, do_status, arm_status, gm_status, discount_status,
@@ -519,43 +624,46 @@ export async function POST(request: NextRequest) {
                 tele_caller_remark, tele_caller_remark_by, tele_date, lead_date, duplicate,
                 duplicate_count, ref_remark, na_record, old_assgined, nal_count, campaign_id,
                 old_branch, status_date
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ) VALUES (${Array(81).fill('?').join(', ')})
             `, {
               replacements: [
                 leadData.fname, leadData.mname, leadData.lname, leadData.email, leadData.phone, leadData.mobile,
                 leadData.nationality, leadData.address, leadData.dob, leadData.gender, leadData.id_number,
-                leadData.id_expiry, leadData.id_issue_date, leadData.country_interest, leadData.sub_country_interest,
-                leadData.service_interest, leadData.market_source, leadData.sub_market_source, leadData.priority,
-                leadData.status, leadData.lead_quality, leadData.enquiry, leadData.convet, leadData.regdate,
-                leadData.regtime, leadData.last_updated, leadData.last_updtd_time, leadData.stepComplete,
-                leadData.assignTo, leadData.case_officer, leadData.Counsilor, leadData.branch, leadData.region,
-                leadData.payTotal, leadData.discount, leadData.paidYet, leadData.payBalance, leadData.demandAmt,
-                leadData.notf, leadData.type, leadData.transfered_by, leadData.transfer_time, leadData.exist,
-                leadData.no_of_applicants, leadData.advanced, leadData.do_status, leadData.arm_status,
-                leadData.gm_status, leadData.discount_status, leadData.discount_remarks, leadData.discount_by,
-                leadData.discount_date, leadData.campaign, leadData.campaign_group, leadData.pa_fname,
-                leadData.pa_lname, leadData.lead_remark, leadData.created, leadData.created_by, leadData.alert,
-                leadData.area, leadData.transferred_remark_update, leadData.untouch_transfer, leadData.lead_nq_reason,
-                leadData.tele_caller_alert, leadData.tele_caller_remark, leadData.tele_caller_remark_by,
-                leadData.tele_date, leadData.lead_date, leadData.duplicate, leadData.duplicate_count,
-                leadData.ref_remark, leadData.na_record, leadData.old_assgined, leadData.nal_count,
-                leadData.campaign_id, leadData.old_branch, leadData.status_date
+                resolvedLeadData.id_expiry, resolvedLeadData.id_issue_date, resolvedLeadData.country_interest, resolvedLeadData.sub_country_interest,
+                resolvedLeadData.service_interest, resolvedLeadData.market_source, resolvedLeadData.sub_market_source, resolvedLeadData.priority,
+                resolvedLeadData.status, resolvedLeadData.lead_quality, resolvedLeadData.enquiry, resolvedLeadData.convet, resolvedLeadData.regdate,
+                resolvedLeadData.regtime, resolvedLeadData.last_updated, resolvedLeadData.last_updtd_time,
+                resolvedLeadData.followup, resolvedLeadData.folowuptime, resolvedLeadData.sf, resolvedLeadData.stepComplete,
+                resolvedLeadData.assignTo, resolvedLeadData.case_officer, resolvedLeadData.Counsilor, resolvedLeadData.branch, resolvedLeadData.region,
+                resolvedLeadData.payTotal, resolvedLeadData.discount, resolvedLeadData.paidYet, resolvedLeadData.payBalance, resolvedLeadData.demandAmt,
+                resolvedLeadData.notf, resolvedLeadData.type, resolvedLeadData.transfered_by, resolvedLeadData.transfer_time, resolvedLeadData.exist,
+                resolvedLeadData.no_of_applicants, resolvedLeadData.advanced, resolvedLeadData.do_status, resolvedLeadData.arm_status,
+                resolvedLeadData.gm_status, resolvedLeadData.discount_status, resolvedLeadData.discount_remarks, resolvedLeadData.discount_by,
+                resolvedLeadData.discount_date, resolvedLeadData.campaign, resolvedLeadData.campaign_group, resolvedLeadData.pa_fname,
+                resolvedLeadData.pa_lname, resolvedLeadData.lead_remark, resolvedLeadData.created, resolvedLeadData.created_by, resolvedLeadData.alert,
+                resolvedLeadData.area, resolvedLeadData.transferred_remark_update, resolvedLeadData.untouch_transfer, resolvedLeadData.lead_nq_reason,
+                resolvedLeadData.tele_caller_alert, resolvedLeadData.tele_caller_remark, resolvedLeadData.tele_caller_remark_by,
+                resolvedLeadData.tele_date, resolvedLeadData.lead_date, resolvedLeadData.duplicate, resolvedLeadData.duplicate_count,
+                resolvedLeadData.ref_remark, resolvedLeadData.na_record, resolvedLeadData.old_assgined, resolvedLeadData.nal_count,
+                resolvedLeadData.campaign_id, resolvedLeadData.old_branch, resolvedLeadData.status_date
               ],
               type: QueryTypes.INSERT
             })
 
             const leadId = getInsertId(insertResult)
             if (!leadId) throw new Error('Lead was created but the new lead ID could not be resolved')
-            createdLeads.push({ id: leadId, ...leadData })
+            createdLeads.push({ id: leadId, ...resolvedLeadData })
           } catch (error) {
-            errors.push({ row: index + 1, error: (error as Error).message })
+            const dbMessage = (error as any)?.original?.sqlMessage || (error as any)?.parent?.sqlMessage
+            errors.push({ row: index + 1, error: dbMessage || (error as Error).message })
           }
         }
 
         return NextResponse.json({
-          message: `Import completed. ${createdLeads.length} leads created, ${errors.length} errors.`,
+          message: `Import completed. ${createdLeads.length} leads created, ${skipped.length} duplicates skipped, ${errors.length} errors.`,
           createdLeads,
-          errors
+          errors,
+          skipped
         })
       } catch (error) {
         return NextResponse.json(
@@ -565,7 +673,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const requestedBranchId = Number.parseInt(String(data.branch || data.branchId || ''), 10)
+    const requestedBranch = await resolveBranchReference(data.branch || data.branchId || '')
+    const requestedBranchId = requestedBranch?.id || 0
     if (!requestedBranchId) {
       return NextResponse.json({ error: 'A branch is required to create a lead. Select the branch where the lead should enter the unassigned queue.' }, { status: 422 })
     }
@@ -573,20 +682,104 @@ export async function POST(request: NextRequest) {
     if (validationErrors.length > 0) {
       return NextResponse.json({ error: 'Lead validation failed', errors: validationErrors }, { status: 422 })
     }
-    const requestedOwnerId = Number.parseInt(String(data.assignTo || data.leadOwner || 0), 10) || null
+    let requestedOwnerId = Number.parseInt(String(data.assignTo || data.leadOwner || 0), 10) || null
+    // A Branch Manager or CEO who creates a lead without picking a counselor
+    // gets it assigned to themselves by default, rather than leaving it
+    // unassigned — mirrors the self-assignment default a plain counselor
+    // already gets client-side (see create/page.tsx), extended server-side
+    // to these roles too since the Add Lead form doesn't default the
+    // Counselor picker for them (they're expected to explicitly hand leads
+    // off to counselors, but an unassigned lead is still the wrong default).
+    if (!requestedOwnerId && isBranchManagerOrCeo(currentUser)) {
+      requestedOwnerId = currentUser.id
+    }
+    // A plain counselor (not FOE/Branch Manager/CEO) can only ever create a
+    // lead assigned to themselves — the Add Lead form already hides the
+    // Counselor picker for them, but that's client-side only, so enforce it
+    // here too against a direct API call.
+    if (requestedOwnerId && requestedOwnerId !== currentUser.id && !isFoeOrBranchManagerOrCeo(currentUser)) {
+      return NextResponse.json({ error: 'You can only create a lead assigned to yourself' }, { status: 403 })
+    }
+    // FOE/Branch Manager can only hand a new lead to a counselor in their own
+    // branch — the Add Lead form already hides other branches, but that's
+    // client-side only, so enforce it here too. CEO is unrestricted.
+    if (requestedOwnerId && isFoeOrBranchManagerOrCeo(currentUser) && !isCeo(currentUser)) {
+      const [ownerRow] = await sequelize.query<{ branch: number | null }>(
+        'SELECT branch FROM dm_employee WHERE id = :id LIMIT 1',
+        { replacements: { id: requestedOwnerId }, type: QueryTypes.SELECT }
+      )
+      if (Number(ownerRow?.branch || 0) !== Number(currentUser?.branch || 0)) {
+        return NextResponse.json({ error: 'You can only assign a lead to a counselor in your own branch' }, { status: 403 })
+      }
+    }
+    // A plain counselor's lead is always self-assigned — round-robin/auto-assign
+    // would otherwise be able to hand it to a different counselor, which defeats
+    // that guarantee. Only FOE/Branch Manager/CEO may request round-robin.
+    const wantsAutoAssign = Boolean(data.autoAssign || data.roundrobin) && isFoeOrBranchManagerOrCeo(currentUser)
     let assignment: Awaited<ReturnType<typeof resolveLeadAutoAssignment>> | null = null
-    try {
-      assignment = await resolveLeadAutoAssignment({
-        branchId: requestedBranchId,
-        preferredEmployeeId: requestedOwnerId,
-        forceAutoAssign: Boolean(data.autoAssign || data.roundrobin || !requestedOwnerId),
-        roundRobin: true,
+    // New leads enter unassigned by default; only resolve an owner when the
+    // caller explicitly named one or explicitly asked for auto-assignment.
+    // A FOE/Branch Manager/CEO assigns the rest afterward from the lead pool.
+    if (requestedOwnerId || wantsAutoAssign) {
+      try {
+        assignment = await resolveLeadAutoAssignment({
+          branchId: requestedBranchId,
+          preferredEmployeeId: requestedOwnerId,
+          forceAutoAssign: wantsAutoAssign,
+          roundRobin: true,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : ''
+        if (!message.includes('No active employees are available')) throw error
+        // Keep the lead in the branch's unassigned queue until a manager marks
+        // an employee present; never reject a customer lead because the office is empty.
+      }
+    }
+
+    // A lead with this email/phone already exists — block creation rather
+    // than silently inserting a second row (the old behavior just tagged the
+    // new row duplicate=1 and let it through, which meant two counselors could
+    // both "own" the same client). Point the requester at whoever already has
+    // it so they can go through the lead-transfer flow instead.
+    const existingLead = await findExistingLead({ phone: data.phone, email: data.email })
+    if (existingLead) {
+      await recordDuplicateLeadAttempt({
+        existingLead,
+        actorId: currentUser.id,
+        actorRole: currentUser.roleName || currentUser.type,
       })
+      const ownerLabel = existingLead.ownerName || 'an unassigned queue — contact your Branch Manager'
+      return NextResponse.json({
+        error: `A lead with this email or phone already exists (Lead #${existingLead.id}, currently with ${ownerLabel}). Request a transfer instead of creating a duplicate.`,
+        duplicateLeadId: existingLead.id,
+        duplicateLeadOwner: existingLead.ownerName,
+        duplicateLeadOwnerId: existingLead.ownerId,
+        duplicateLeadStatus: existingLead.status || 'New',
+      }, { status: 409 })
+    }
+    const duplicateCheck = await checkForDuplicate({ phone: data.phone, email: data.email })
+    let resolvedCountryInterest: number | null = null
+    let resolvedServiceInterest: number | null = null
+    let resolvedMarketSource: number | null = null
+
+    try {
+      resolvedCountryInterest = await resolveLeadReferenceId(
+        'country_interest',
+        data.country_interest || data.countryInterest || data.programCountry || null
+      )
+      resolvedServiceInterest = await resolveLeadReferenceId(
+        'service_interest',
+        data.service_interest || data.serviceInterest || data.program || null
+      )
+      resolvedMarketSource = await resolveLeadReferenceId(
+        'market_source',
+        data.market_source || data.leadSource || null
+      )
     } catch (error) {
-      const message = error instanceof Error ? error.message : ''
-      if (!message.includes('No active employees are available')) throw error
-      // Keep the lead in the branch's unassigned queue until a manager marks
-      // an employee present; never reject a customer lead because the office is empty.
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Invalid lead reference value' },
+        { status: 422 }
+      )
     }
 
     // Regular lead creation - provide defaults for all required fields
@@ -597,7 +790,8 @@ export async function POST(request: NextRequest) {
       lname: data.lname || data.lastName || '',
       email: data.email || '',
       phone: data.phone || '',
-      mobile: data.mobile || data.whatsappNumber || data.phone || '',
+      mobile: data.mobile || data.phone || '',
+      whatsapp_number: data.whatsapp_number || data.whatsappNumber || '',
       nationality: data.nationality || 'UAE',
       address: data.address || data.street || '',
       dob: data.dob || data.dateOfBirth || null,
@@ -605,15 +799,18 @@ export async function POST(request: NextRequest) {
       id_number: data.id_number || data.idNumber || '',
       id_expiry: data.id_expiry || data.idExpiry || new Date('2025-12-31'),
       id_issue_date: data.id_issue_date || data.idIssueDate || new Date('2015-01-01'),
-      country_interest: data.country_interest || data.countryInterest || data.programCountry || data.country || 'Canada',
+      // Interest/Source are optional on the Add Lead form — leaving them
+      // unselected must store null, not a fake default value.
+      country_interest: resolvedCountryInterest,
       sub_country_interest: data.sub_country_interest || 0,
-      service_interest: data.service_interest || data.serviceInterest || data.program || data.programType || 'Student Visa',
-      market_source: data.market_source || data.leadSource || 'Website',
+      service_interest: resolvedServiceInterest,
+      market_source: resolvedMarketSource,
       sub_market_source: data.sub_market_source || 0,
       appointment: data.appointment || null,
       followup: data.followup || data.prospectFollowUp || new Date(),
       folowuptime: data.folowuptime || data.followupTime || new Date().toTimeString().split(' ')[0],
       followupstat: data.followupstat || 0,
+      sf: data.sf || 0,
       enquiry: data.enquiry || data.enquiry || 'New lead enquiry',
       convet: data.convet || 'New',
       priority: data.priority || 'Medium',
@@ -623,11 +820,13 @@ export async function POST(request: NextRequest) {
       last_updtd_time: new Date().toTimeString().split(' ')[0],
       stepComplete: data.stepComplete || 1,
       payType: data.payType || null,
-      assignTo: assignment?.assignedEmployeeId || 0,
-      case_officer: data.case_officer || 0,
-      Counsilor: assignment?.counselorId || 0,
+      // New leads enter unassigned; a FOE/Branch Manager/CEO assigns them
+      // afterward, unless an owner/auto-assignment was explicitly requested above.
+      assignTo: assignment?.assignedEmployeeId || null,
+      case_officer: data.case_officer || assignment?.assignedEmployeeId || null,
+      Counsilor: assignment?.counselorId || null,
       branch: assignment?.branchId || requestedBranchId,
-      region: data.region || 1,
+      region: data.region || requestedBranch?.region || 1,
       payTotal: data.payTotal || 0,
       discount: data.discount || 0,
       paidYet: data.paidYet || 0,
@@ -691,8 +890,8 @@ export async function POST(request: NextRequest) {
       tele_caller_remark_by: data.tele_caller_remark_by || 1,
       tele_date: data.tele_date || new Date(),
       lead_date: data.lead_date || new Date(),
-      duplicate: data.duplicate || 0,
-      duplicate_count: data.duplicate_count || 0,
+      duplicate: duplicateCheck.isDuplicate ? 1 : 0,
+      duplicate_count: duplicateCheck.duplicateCount,
       ref_remark: data.ref_remark || '',
       na_record: data.na_record || 0,
       old_assgined: data.old_assgined || 0,
@@ -719,10 +918,10 @@ export async function POST(request: NextRequest) {
     // Insert the lead using raw SQL
     const insertResult = await sequelize.query(`
       INSERT INTO dmc_forum_leads (
-        fname, mname, lname, email, phone, mobile, nationality, address, dob, gender,
+        fname, mname, lname, email, phone, mobile, whatsapp_number, nationality, address, dob, gender,
         id_number, id_expiry, id_issue_date, country_interest, sub_country_interest,
         service_interest, market_source, sub_market_source, appointment, followup, folowuptime,
-        followupstat, enquiry, convet, priority, regdate, regtime, last_updated, last_updtd_time,
+        followupstat, sf, enquiry, convet, priority, regdate, regtime, last_updated, last_updtd_time,
         stepComplete, payType, assignTo, case_officer, Counsilor, branch, region, payTotal,
         discount, paidYet, payBalance, feeAgreeDate, demandAmt, dueDate, demdRemark, agreeDate,
         renDate, renExpiryDate, renew_type, status, status_date, notf, type, password, novat,
@@ -736,6 +935,7 @@ export async function POST(request: NextRequest) {
         duplicate, duplicate_count, ref_remark, na_record, old_assgined, nal_count, campaign_id,
         old_branch
       ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -743,16 +943,16 @@ export async function POST(request: NextRequest) {
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `, {
       replacements: [
         leadData.fname, leadData.mname, leadData.lname, leadData.email, leadData.phone, leadData.mobile,
+        leadData.whatsapp_number,
         leadData.nationality, leadData.address, leadData.dob, leadData.gender, leadData.id_number,
         leadData.id_expiry, leadData.id_issue_date, leadData.country_interest, leadData.sub_country_interest,
         leadData.service_interest, leadData.market_source, leadData.sub_market_source, leadData.appointment,
-        leadData.followup, leadData.folowuptime, leadData.followupstat, leadData.enquiry, leadData.convet,
+        leadData.followup, leadData.folowuptime, leadData.followupstat, leadData.sf, leadData.enquiry, leadData.convet,
         leadData.priority, leadData.regdate, leadData.regtime, leadData.last_updated, leadData.last_updtd_time,
         leadData.stepComplete, leadData.payType, leadData.assignTo, leadData.case_officer, leadData.Counsilor,
         leadData.branch, leadData.region, leadData.payTotal, leadData.discount, leadData.paidYet, leadData.payBalance,
@@ -780,9 +980,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the created lead with relations
-    const [leadWithRelations] = await sequelize.query(`
-      SELECT 
-        l.*, e1.name as assigned_to_name, e2.name as counselor_name, b.name as branch_name
+    const leadWithRelations = await sequelize.query<any>(`
+      SELECT
+        l.*, e1.name as assigned_to_name, e2.name as counselor_name, b.branch as branch_name
       FROM dmc_forum_leads l
       LEFT JOIN dm_employee e1 ON l.assignTo = e1.id
       LEFT JOIN dm_employee e2 ON l.Counsilor = e2.id
@@ -793,7 +993,7 @@ export async function POST(request: NextRequest) {
       type: QueryTypes.SELECT
     });
 
-    const createdLead = (leadWithRelations as any[])[0] || { id: insertId }
+    const createdLead = leadWithRelations[0] || { id: insertId }
     return NextResponse.json({ ...createdLead, assignment }, { status: 201 })
   } catch (error: any) {
     console.error('Error creating lead:', error)
@@ -807,14 +1007,21 @@ export async function POST(request: NextRequest) {
 // PUT endpoint for updating leads
 export async function PUT(request: NextRequest) {
   try {
+    const token = request.cookies.get('auth-token')?.value
+      || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Authentication is required' }, { status: 401 })
+    }
+
     // Ensure database connection is established
     await ensureDBConnection();
-    
+
     const { searchParams } = new URL(request.url)
     const pathId = request.url.split('/').pop()
     const queryId = searchParams.get('id')
     const id = pathId || queryId
-    
+
     if (!id) {
       return NextResponse.json(
         { error: 'Lead ID is required' },
@@ -841,12 +1048,29 @@ export async function PUT(request: NextRequest) {
     const updateFields: string[] = []
     const updateValues: unknown[] = []
 
-    Object.keys(data).forEach(key => {
+    for (const key of Object.keys(data)) {
       if (data[key] !== undefined && key !== 'id') {
         updateFields.push(`${key} = ?`)
-        updateValues.push(data[key])
+        if (key === 'country_interest' || key === 'service_interest' || key === 'market_source') {
+          try {
+            updateValues.push(await resolveLeadReferenceId(key, data[key]))
+          } catch (error) {
+            return NextResponse.json(
+              { error: error instanceof Error ? error.message : 'Invalid lead reference value' },
+              { status: 422 }
+            )
+          }
+        } else if (key === 'branch') {
+          const branch = await resolveBranchReference(data[key])
+          if (!branch) {
+            return NextResponse.json({ error: `No matching branch found for "${String(data[key]).trim()}"` }, { status: 422 })
+          }
+          updateValues.push(branch.id)
+        } else {
+          updateValues.push(data[key])
+        }
       }
-    })
+    }
 
     // Add timestamp updates
     updateFields.push('last_updated = ?')
@@ -867,7 +1091,7 @@ export async function PUT(request: NextRequest) {
     // Get updated lead with relations
     const updatedLeads = await sequelize.query(`
       SELECT
-        l.*, e1.name as assigned_to_name, e2.name as counselor_name, b.name as branch_name
+        l.*, e1.name as assigned_to_name, e2.name as counselor_name, b.branch as branch_name
       FROM dmc_forum_leads l
       LEFT JOIN dm_employee e1 ON l.assignTo = e1.id
       LEFT JOIN dm_employee e2 ON l.Counsilor = e2.id
@@ -900,14 +1124,21 @@ export async function PUT(request: NextRequest) {
 // DELETE endpoint for deleting leads
 export async function DELETE(request: NextRequest) {
   try {
+    const token = request.cookies.get('auth-token')?.value
+      || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    if (!currentUser || !isCeo(currentUser)) {
+      return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+    }
+
     // Ensure database connection is established
     await ensureDBConnection();
-    
+
     const { searchParams } = new URL(request.url)
     const pathId = request.url.split('/').pop()
     const queryId = searchParams.get('id')
     const id = pathId || queryId
-    
+
     if (!id) {
       return NextResponse.json(
         { error: 'Lead ID is required' },

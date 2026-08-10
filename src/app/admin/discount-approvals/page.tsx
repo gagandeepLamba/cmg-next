@@ -1,7 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { Fragment, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { isCeo, isBranchManagerOrCeo } from '@/lib/roleChecks';
+import { getDiscountTier, canApproveDiscountTier, discountTierLabel, DEFAULT_DISCOUNT_TIER_THRESHOLDS, type DiscountTierThresholds } from '@/lib/discountApproval';
 import {
   CheckCircle, XCircle, Clock, DollarSign, User,
   AlertCircle, Search, RefreshCw, ChevronDown, ChevronUp, Filter
@@ -62,12 +66,59 @@ export default function DiscountApprovalsPage() {
   // Approval/rejection modal state
   const [modal, setModal] = useState<{ id: number; action: 'approve' | 'reject' } | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
-  const normalizedRole = String(user?.type || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-  const canApproveDiscounts = [
-    'director_of_sales', 'director', 'dos', 'ds', 'sales_director', 'super_admin',
-    'bm', 'branch_manager', 'manager', 'rm', 'regional_manager', 'dgm', 'om', 'gom',
-    'admin', 'administrator',
-  ].includes(normalizedRole) || user?.permissions?.includes('admin.access') || user?.permissions?.includes('sales.update');
+  // Tiered policy thresholds, staff-editable (see the Tier Settings panel
+  // below, CEO only) rather than fixed in code — fetched once and reused for
+  // every row, since a single list can mix requests across all three tiers.
+  // The backend enforces this too (see /api/discount-approvals[/id] PUT);
+  // this just controls button visibility.
+  const [thresholds, setThresholds] = useState<DiscountTierThresholds>(DEFAULT_DISCOUNT_TIER_THRESHOLDS);
+  const [thresholdsDraft, setThresholdsDraft] = useState<{ autoMaxPercent: string; bmCeoMaxPercent: string } | null>(null);
+  const [savingThresholds, setSavingThresholds] = useState(false);
+
+  const fetchThresholds = useCallback(async () => {
+    try {
+      const res = await fetch('/api/discount-approvals/tier-config');
+      const data = await res.json();
+      if (res.ok && data.success) setThresholds(data.data);
+    } catch {
+      // Keep the default thresholds if this fails — same fallback the
+      // backend uses, so button visibility stays consistent with enforcement.
+    }
+  }, []);
+
+  useEffect(() => { fetchThresholds(); }, [fetchThresholds]);
+
+  const canApprove = (a: DiscountApproval) =>
+    canApproveDiscountTier(getDiscountTier(Number(a.discountAmount), Number(a.originalAmount), thresholds), user as any);
+
+  const saveThresholds = async () => {
+    if (!thresholdsDraft) return;
+    setSavingThresholds(true);
+    setError('');
+    try {
+      const res = await fetch('/api/discount-approvals/tier-config', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          autoMaxPercent: Number(thresholdsDraft.autoMaxPercent),
+          bmCeoMaxPercent: Number(thresholdsDraft.bmCeoMaxPercent),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to update thresholds');
+      setThresholds(data.data);
+      setThresholdsDraft(null);
+      setSuccess('Discount approval thresholds updated');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update thresholds');
+    } finally {
+      setSavingThresholds(false);
+    }
+  };
 
   const fetchApprovals = useCallback(async () => {
     try {
@@ -94,7 +145,7 @@ export default function DiscountApprovalsPage() {
       setActionLoading(modal.id);
       const body: any = {
         status: modal.action === 'approve' ? 'approved' : 'rejected',
-        approverRole: 'director_of_sales',
+        approverRole: 'ceo',
         approvedBy: user?.id || 1,
       };
       if (modal.action === 'approve') {
@@ -140,6 +191,19 @@ export default function DiscountApprovalsPage() {
            (a.requestedEmployeeName || '').toLowerCase().includes(s);
   });
 
+  const { sorted: sortedApprovals, sortKey: discountSortKey, sortDirection: discountSortDirection, toggleSort: toggleDiscountSort } = useSortableData(
+    filtered,
+    {
+      id: (a) => a.id,
+      client: (a) => `${a.fname || ''} ${a.lname || ''}`,
+      discount: (a) => pct(a),
+      amount: (a) => a.discountedAmount,
+      requestedBy: (a) => a.requestedEmployeeName || a.requestedBy,
+      status: (a) => a.status,
+      date: (a) => a.createdAt,
+    },
+  );
+
   const summary = {
     total:    approvals.length,
     pending:  approvals.filter(a => a.status === 'pending').length,
@@ -159,7 +223,9 @@ export default function DiscountApprovalsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Discount Approvals</h1>
-          <p className="text-gray-500 mt-1">Manager, Director of Sales or Super Admin approval is required for counselor discount requests</p>
+          <p className="text-gray-500 mt-1">
+            0-{thresholds.autoMaxPercent}% is auto-approved. {thresholds.autoMaxPercent}-{thresholds.bmCeoMaxPercent}% needs Branch Manager or CEO. Above {thresholds.bmCeoMaxPercent}% needs the CEO.
+          </p>
         </div>
         <button onClick={fetchApprovals}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
@@ -167,10 +233,53 @@ export default function DiscountApprovalsPage() {
         </button>
       </div>
 
-      {canApproveDiscounts && (
+      {isBranchManagerOrCeo(user as any) && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <CheckCircle className="h-5 w-5 shrink-0" />
-          You are logged in as an authorized approver. Pending requests below can be approved or rejected.
+          You are logged in as an authorized approver{isCeo(user as any) ? '' : ` for ${thresholds.autoMaxPercent}-${thresholds.bmCeoMaxPercent}% requests`}. Pending requests you're authorized for can be approved or rejected below.
+        </div>
+      )}
+
+      {isCeo(user as any) && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          {thresholdsDraft ? (
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Auto-approve up to (%)</label>
+                <input type="number" min={0} max={100} value={thresholdsDraft.autoMaxPercent}
+                  onChange={e => setThresholdsDraft({ ...thresholdsDraft, autoMaxPercent: e.target.value })}
+                  className="w-28 px-2 py-1.5 border border-gray-300 rounded text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Branch Manager/CEO up to (%)</label>
+                <input type="number" min={0} max={100} value={thresholdsDraft.bmCeoMaxPercent}
+                  onChange={e => setThresholdsDraft({ ...thresholdsDraft, bmCeoMaxPercent: e.target.value })}
+                  className="w-28 px-2 py-1.5 border border-gray-300 rounded text-sm" />
+              </div>
+              <p className="text-xs text-gray-500">Above this is CEO only.</p>
+              <div className="flex gap-2 ml-auto">
+                <button onClick={() => setThresholdsDraft(null)}
+                  className="px-3 py-1.5 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button onClick={saveThresholds} disabled={savingThresholds}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
+                  {savingThresholds ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-600">
+                Discount approval tiers: auto-approve up to <strong>{thresholds.autoMaxPercent}%</strong>, Branch Manager/CEO up to <strong>{thresholds.bmCeoMaxPercent}%</strong>, CEO only above that.
+              </p>
+              <button
+                onClick={() => setThresholdsDraft({ autoMaxPercent: String(thresholds.autoMaxPercent), bmCeoMaxPercent: String(thresholds.bmCeoMaxPercent) })}
+                className="px-3 py-1.5 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50">
+                Edit Thresholds
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -206,33 +315,38 @@ export default function DiscountApprovalsPage() {
             value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+        <SearchableSelect value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
           <option value="">All Status</option>
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
-        </select>
+        </SearchableSelect>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {['#', 'Client', 'Discount', 'Amount', 'Requested By', 'Status', 'Date', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
-                ))}
+                <SortableTh label="#" sortKey="id" activeKey={discountSortKey} direction={discountSortDirection} onSort={toggleDiscountSort} />
+                <SortableTh label="Client" sortKey="client" activeKey={discountSortKey} direction={discountSortDirection} onSort={toggleDiscountSort} />
+                <SortableTh label="Discount" sortKey="discount" activeKey={discountSortKey} direction={discountSortDirection} onSort={toggleDiscountSort} />
+                <SortableTh label="Amount" sortKey="amount" activeKey={discountSortKey} direction={discountSortDirection} onSort={toggleDiscountSort} />
+                <SortableTh label="Requested By" sortKey="requestedBy" activeKey={discountSortKey} direction={discountSortDirection} onSort={toggleDiscountSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={discountSortKey} direction={discountSortDirection} onSort={toggleDiscountSort} />
+                <SortableTh label="Date" sortKey="date" activeKey={discountSortKey} direction={discountSortDirection} onSort={toggleDiscountSort} />
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filtered.map(a => {
+              {sortedApprovals.map(a => {
                 const isExpanded = expandedId === a.id;
                 const isPending = a.status === 'pending';
                 return (
-                  <>
-                    <tr key={a.id} className="hover:bg-gray-50">
+                  <Fragment key={a.id}>
+                    <tr className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-500">{a.id}</td>
                       <td className="px-4 py-3">
                         <div className="text-sm font-medium text-gray-900">
@@ -273,7 +387,7 @@ export default function DiscountApprovalsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
-                          {isPending && canApproveDiscounts && (
+                          {isPending && canApprove(a) && (
                             <>
                               <button onClick={() => setModal({ id: a.id, action: 'approve' })}
                                 disabled={actionLoading === a.id}
@@ -287,8 +401,10 @@ export default function DiscountApprovalsPage() {
                               </button>
                             </>
                           )}
-                          {isPending && !canApproveDiscounts && (
-                            <span className="text-xs text-gray-500">Awaiting Manager Approval</span>
+                          {isPending && !canApprove(a) && (
+                            <span className="text-xs text-gray-500">
+                              Awaiting {discountTierLabel(getDiscountTier(Number(a.discountAmount), Number(a.originalAmount), thresholds), thresholds)}
+                            </span>
                           )}
                           <button onClick={() => setExpandedId(isExpanded ? null : a.id)}
                             className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200">
@@ -318,7 +434,7 @@ export default function DiscountApprovalsPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Search, RefreshCw, CheckCircle, XCircle, Clock,
   ChevronLeft, ChevronRight, Eye, FileText, ExternalLink
@@ -54,12 +55,28 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function PaymentVerificationPage() {
   const router = useRouter();
+  const urlSearchParams = useSearchParams();
+  const leadIdFilter = urlSearchParams.get('leadId') || '';
   const [payments, setPayments]   = useState<Payment[]>([]);
+  const { sorted: sortedPayments, sortKey: paymentSortKey, sortDirection: paymentSortDirection, toggleSort: togglePaymentSort } = useSortableData(
+    payments,
+    {
+      client: (p) => p.clientName,
+      paymentNumber: (p) => p.paymentNumber || p.id,
+      service: (p) => p.serviceName || p.opportunityName,
+      total: (p) => p.totalAmount,
+      paid: (p) => p.paidAmount,
+      method: (p) => p.paymentMethod,
+      status: (p) => p.accountantStatus,
+    },
+  );
   const [pagination, setPag]      = useState<Pagination>({ page: 1, limit: 25, total: 0, pages: 0 });
   const [loading, setLoading]     = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [search, setSearch]       = useState('');
-  const [statusFilter, setStatus] = useState('pending');
+  // Deep-linked from the opportunity flow (?leadId=) should show that lead's
+  // payment regardless of review status, not just the default "pending" tab.
+  const [statusFilter, setStatus] = useState(leadIdFilter ? '' : 'pending');
   const [dateFrom, setDateFrom]   = useState('');
   const [dateTo, setDateTo]       = useState('');
   const [selected, setSelected]   = useState<Payment | null>(null);
@@ -74,6 +91,7 @@ export default function PaymentVerificationPage() {
     if (statusFilter) params.set('status', statusFilter);
     if (dateFrom)    params.set('dateFrom', dateFrom);
     if (dateTo)      params.set('dateTo', dateTo);
+    if (leadIdFilter) params.set('leadId', leadIdFilter);
     try {
       setFetchError('');
       const res = await fetch(`/api/admin/payment-verification?${params}`);
@@ -84,7 +102,7 @@ export default function PaymentVerificationPage() {
     } catch (err: any) {
       setFetchError(err.message || 'Failed to load payments');
     } finally { setLoading(false); }
-  }, [search, statusFilter, dateFrom, dateTo]);
+  }, [search, statusFilter, dateFrom, dateTo, leadIdFilter]);
 
   useEffect(() => { load(1); }, [load]);
 
@@ -192,25 +210,25 @@ export default function PaymentVerificationPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-gray-100 bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500">
             <tr>
-              <th className="px-4 py-3 text-left">Client</th>
-              <th className="px-4 py-3 text-left">Payment #</th>
-              <th className="px-4 py-3 text-left">Service</th>
-              <th className="px-4 py-3 text-right">Total</th>
-              <th className="px-4 py-3 text-right">Paid</th>
-              <th className="px-4 py-3 text-left">Method</th>
+              <SortableTh label="Client" sortKey="client" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Payment #" sortKey="paymentNumber" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Service" sortKey="service" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Total" sortKey="total" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-right" />
+              <SortableTh label="Paid" sortKey="paid" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-right" />
+              <SortableTh label="Method" sortKey="method" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-left" />
               <th className="px-4 py-3 text-left">Proof</th>
-              <th className="px-4 py-3 text-left">Status</th>
+              <SortableTh label="Status" sortKey="status" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-left" />
               <th className="px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400">Loading payments...</td></tr>
-            ) : payments.length === 0 ? (
+            ) : sortedPayments.length === 0 ? (
               <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400">
                 No payments found{statusFilter === 'pending' ? ' pending review' : ''}.
               </td></tr>
-            ) : payments.map(p => (
+            ) : sortedPayments.map(p => (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
                   <div className="font-medium text-gray-900">{p.clientName?.trim() || '—'}</div>
@@ -232,9 +250,10 @@ export default function PaymentVerificationPage() {
                 </td>
                 <td className="px-4 py-3">
                   {p.proofOfPaymentUrl ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700">
-                      <FileText className="h-3.5 w-3.5" /> Uploaded
-                    </span>
+                    <a href={p.proofOfPaymentUrl} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:underline">
+                      <FileText className="h-3.5 w-3.5" /> View
+                    </a>
                   ) : (
                     <span className="text-xs text-gray-400">None</span>
                   )}
@@ -332,10 +351,19 @@ export default function PaymentVerificationPage() {
 
               {/* Proof of payment */}
               {selected.proofOfPaymentUrl ? (
-                <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm">
-                  <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
-                  <span className="text-green-800 font-medium">Proof of Payment uploaded:</span>
-                  <span className="truncate text-green-700 text-xs">{selected.proofOfPaymentUrl.split('/').pop()}</span>
+                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                    <span className="text-green-800 font-medium">Proof of Payment uploaded:</span>
+                    <a href={selected.proofOfPaymentUrl} target="_blank" rel="noreferrer"
+                      className="truncate text-green-700 text-xs underline hover:text-green-900">
+                      {selected.proofOfPaymentUrl.split('/').pop()}
+                    </a>
+                  </div>
+                  {/^https?:\/\/.*\.(png|jpe?g|gif|webp)$/i.test(selected.proofOfPaymentUrl) && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={selected.proofOfPaymentUrl} alt="Proof of payment" className="mt-2 max-h-64 rounded-lg border border-green-200 object-contain" />
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2.5 text-sm text-yellow-800">

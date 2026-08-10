@@ -1,19 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
+import { QueryTypes } from 'sequelize';
 import { verifyToken } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
+import { getDiscountTier, canApproveDiscountTier, discountTierLabel } from '@/lib/discountApproval';
+import { getDiscountTierThresholds } from '@/lib/discountTierConfig';
+import { notifyUser } from '@/lib/notify';
 
-function getDirectorOfSales(request: NextRequest) {
+// roleName is the only reliable signal for CEO (see lib/roleChecks.ts: CEO
+// shares `type: 'director'` with Director/Founder/Super Admin, so a `type`
+// string match can't tell them apart).
+function getAuthenticatedUser(request: NextRequest) {
   const authorization = request.headers.get('authorization');
   const token = request.cookies.get('auth-token')?.value || authorization?.replace(/^Bearer\s+/i, '');
-  const user = token ? verifyToken(token) : null;
-  const role = String(user?.type || '').toLowerCase().replace(/[_-]/g, ' ').trim();
-
-  // "director" is the legacy name for Director of Sales in existing data.
-  return user && ['director of sales', 'director', 'dos', 'ds', 'super admin', 'super_admin', 'administrator', 'admin'].includes(role) ? user : null;
+  return token ? verifyToken(token) : null;
+}
+function getCeoApprover(request: NextRequest) {
+  const user = getAuthenticatedUser(request);
+  return user && isCeo(user) ? user : null;
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    if (!getAuthenticatedUser(request)) {
+      return NextResponse.json({ success: false, error: 'Authentication is required' }, { status: 401 });
+    }
     const { id: discountId } = await params;
 
     if (!discountId) {
@@ -75,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const [existingResult] = await sequelize.query(`
-      SELECT id, leadId, opportunityId, discountedAmount, discountAmount FROM dm_discount_approvals WHERE id = ?
+      SELECT id, leadId, opportunityId, discountedAmount, discountAmount, originalAmount, requestedBy FROM dm_discount_approvals WHERE id = ?
     `, {
       replacements: [discountId]
     });
@@ -87,19 +98,22 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
+    const existingForAuth = (existingResult as any[])[0];
     const updateData: any = {
       updatedAt: new Date()
     };
 
     if (['approved', 'rejected'].includes(body.status)) {
-      const director = getDirectorOfSales(request);
-      if (!director) {
+      const reviewer = getAuthenticatedUser(request);
+      const thresholds = await getDiscountTierThresholds();
+      const tier = getDiscountTier(Number(existingForAuth.discountAmount), Number(existingForAuth.originalAmount), thresholds);
+      if (!reviewer || !canApproveDiscountTier(tier, reviewer as any)) {
         return NextResponse.json(
-          { success: false, error: 'Only the Director of Sales can approve or reject discounts' },
+          { success: false, error: `This is a ${discountTierLabel(tier, thresholds)} discount request — you're not authorized to approve or reject it.` },
           { status: 403 }
         );
       }
-      updateData.approvedBy = director.id;
+      updateData.approvedBy = reviewer.id;
     }
 
     // Add approval timestamps based on status
@@ -123,15 +137,40 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
 
     const existingApproval = (existingResult as any[])[0];
+
+    if (['approved', 'rejected'].includes(body.status) && existingApproval?.leadId) {
+      const [leadRow] = await sequelize.query<{ fname: string; lname: string }>(
+        `SELECT fname, lname FROM dmc_forum_leads WHERE id = ? LIMIT 1`,
+        { replacements: [existingApproval.leadId], type: QueryTypes.SELECT }
+      );
+      const clientName = leadRow ? `${leadRow.fname || ''} ${leadRow.lname || ''}`.trim() : `Lead #${existingApproval.leadId}`;
+      await notifyUser({
+        userId: existingApproval.requestedBy,
+        type: 'discount_reviewed',
+        title: body.status === 'approved' ? 'Discount approved' : 'Discount rejected',
+        message: body.status === 'approved'
+          ? `Your discount request for ${clientName} was approved.`
+          : `Your discount request for ${clientName} was rejected.`,
+        priority: body.status === 'approved' ? 'medium' : 'high',
+        link: `/admin/leads/${existingApproval.leadId}/edit`,
+        relatedId: existingApproval.leadId,
+        relatedType: 'lead',
+      });
+    }
+
     if (body.status === 'approved' && existingApproval?.leadId) {
+      // payTotal must itself shrink by the discount — otherwise it's left
+      // stale at the pre-discount amount while payBalance silently accounts
+      // for a discount that payTotal never reflects.
       await sequelize.query(
         `UPDATE dmc_forum_leads
-         SET discount = ?, payBalance = GREATEST(COALESCE(payTotal, 0) - ? - COALESCE(paidYet, 0), 0)
+         SET discount = ?, payTotal = ?, payBalance = GREATEST(? - COALESCE(paidYet, 0), 0)
          WHERE id = ?`,
         {
           replacements: [
             existingApproval.discountAmount,
-            existingApproval.discountAmount,
+            existingApproval.discountedAmount,
+            existingApproval.discountedAmount,
             existingApproval.leadId,
           ],
         }
@@ -169,6 +208,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    if (!getCeoApprover(request)) {
+      return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+    }
+
     const { id: discountId } = await params;
 
     if (!discountId) {

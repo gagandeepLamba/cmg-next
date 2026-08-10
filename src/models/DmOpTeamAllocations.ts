@@ -12,12 +12,12 @@ interface DmOpTeamAllocationsAttributes {
 interface DmOpTeamAllocationsCreationAttributes extends Optional<DmOpTeamAllocationsAttributes, never> {}
 
 class DmOpTeamAllocations extends Model<DmOpTeamAllocationsAttributes, DmOpTeamAllocationsCreationAttributes> implements DmOpTeamAllocationsAttributes {
-  public id!: number;
-  public emp_id!: number;
-  public teams!: string;
-  public status!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare emp_id: number;
+  declare teams: string;
+  declare status: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

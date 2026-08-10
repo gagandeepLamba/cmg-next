@@ -1,7 +1,7 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -252,37 +252,37 @@ export default function ContractArchivePage() {
   }
 
   const handleBulkAction = (action: string) => {
-    alert(`Performing ${action} on ${selectedContracts.length} contracts`)
+    window.toast.warning(`Performing ${action} on ${selectedContracts.length} contracts`)
   }
 
   const handleDownload = (contract: ArchivedContract) => {
-    alert(`Downloading contract: ${contract.contractNumber}`)
+    window.toast.info(`Downloading contract: ${contract.contractNumber}`)
   }
 
   const handlePreview = (contract: ArchivedContract) => {
-    alert(`Previewing contract: ${contract.contractNumber}`)
+    window.toast.info(`Previewing contract: ${contract.contractNumber}`)
   }
 
   const handleRestore = (contract: ArchivedContract) => {
-    alert(`Restoring contract: ${contract.contractNumber}`)
+    window.toast.info(`Restoring contract: ${contract.contractNumber}`)
   }
 
   const handleDelete = (contract: ArchivedContract) => {
-    alert(`Deleting contract: ${contract.contractNumber}`)
+    window.toast.info(`Deleting contract: ${contract.contractNumber}`)
   }
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -374,7 +374,7 @@ export default function ContractArchivePage() {
                 />
               </div>
 
-              <select
+              <SearchableSelect
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -384,9 +384,9 @@ export default function ContractArchivePage() {
                 <option value="expired">Expired</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
-              </select>
+              </SearchableSelect>
 
-              <select
+              <SearchableSelect
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -396,9 +396,9 @@ export default function ContractArchivePage() {
                 <option value="Student Visa">Student Visa</option>
                 <option value="Work Permit">Work Permit</option>
                 <option value="Family Sponsorship">Family Sponsorship</option>
-              </select>
+              </SearchableSelect>
 
-              <select
+              <SearchableSelect
                 value={accessFilter}
                 onChange={(e) => setAccessFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -407,9 +407,9 @@ export default function ContractArchivePage() {
                 <option value="public">Public</option>
                 <option value="restricted">Restricted</option>
                 <option value="confidential">Confidential</option>
-              </select>
+              </SearchableSelect>
 
-              <select
+              <SearchableSelect
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -419,7 +419,7 @@ export default function ContractArchivePage() {
                 <option value="clientName">Client Name</option>
                 <option value="serviceFee">Service Fee</option>
                 <option value="fileSize">File Size</option>
-              </select>
+              </SearchableSelect>
 
               <Button variant="outline" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
                 {sortOrder === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
@@ -646,7 +646,7 @@ export default function ContractArchivePage() {
           </Card>
         )}
       </div>
-    </MainLayout>
+    </>
   )
 }
 

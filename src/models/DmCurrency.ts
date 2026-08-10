@@ -12,12 +12,12 @@ interface DmCurrencyAttributes {
 interface DmCurrencyCreationAttributes extends Optional<DmCurrencyAttributes, never> {}
 
 class DmCurrency extends Model<DmCurrencyAttributes, DmCurrencyCreationAttributes> implements DmCurrencyAttributes {
-  public id!: number;
-  public country!: string;
-  public currency_code!: string;
-  public rate!: number;
-  public status!: number;
-  public created!: Date;
+  declare id: number;
+  declare country: string;
+  declare currency_code: string;
+  declare rate: number;
+  declare status: number;
+  declare created: Date;
 
   public static associate(models: any) {
     DmCurrency.hasMany(models.DmFee, { foreignKey: 'currency', sourceKey: 'id', as: 'dmFees' });

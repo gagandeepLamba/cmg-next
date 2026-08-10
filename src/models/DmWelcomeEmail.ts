@@ -17,17 +17,17 @@ interface DmWelcomeEmailAttributes {
 interface DmWelcomeEmailCreationAttributes extends Optional<DmWelcomeEmailAttributes, never> {}
 
 class DmWelcomeEmail extends Model<DmWelcomeEmailAttributes, DmWelcomeEmailCreationAttributes> implements DmWelcomeEmailAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public remarks!: string;
-  public teer_code!: string;
-  public subject!: string;
-  public email_from!: string;
-  public to!: string;
-  public cc!: string;
-  public bcc!: string;
-  public created_by!: number;
-  public created!: Date;
+  declare id: number;
+  declare lead_id: number;
+  declare remarks: string;
+  declare teer_code: string;
+  declare subject: string;
+  declare email_from: string;
+  declare to: string;
+  declare cc: string;
+  declare bcc: string;
+  declare created_by: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

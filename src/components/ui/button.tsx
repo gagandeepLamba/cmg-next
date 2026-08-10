@@ -9,7 +9,7 @@ const buttonVariants = {
   default: "bg-[var(--cmg-blue)] text-white hover:bg-[var(--cmg-blue-dark)]",
   destructive: "bg-[var(--cmg-red)] text-white hover:bg-[var(--cmg-red-dark)]",
   outline: "border border-[var(--cmg-border)] bg-white text-[var(--cmg-ink)] hover:bg-[var(--cmg-blue-soft)]",
-  secondary: "bg-[var(--cmg-blue-soft)] text-[var(--cmg-blue)] hover:bg-[#CBD9F5]",
+  secondary: "bg-[var(--cmg-blue-soft)] text-[var(--cmg-blue)] hover:bg-[#C8ECC0]",
   ghost: "text-[var(--cmg-muted)] hover:bg-[var(--cmg-blue-soft)] hover:text-[var(--cmg-blue)]",
   link: "text-[var(--cmg-blue)] underline-offset-4 hover:text-[var(--cmg-red)] hover:underline"
 }

@@ -9,9 +9,9 @@ interface DmUserBranchesAttributes {
 interface DmUserBranchesCreationAttributes extends Optional<DmUserBranchesAttributes, never> {}
 
 class DmUserBranches extends Model<DmUserBranchesAttributes, DmUserBranchesCreationAttributes> implements DmUserBranchesAttributes {
-  public id!: number;
-  public user_id!: number;
-  public branch_id!: number;
+  declare id: number;
+  declare user_id: number;
+  declare branch_id: number;
 
   public static associate(models: any) {
   }

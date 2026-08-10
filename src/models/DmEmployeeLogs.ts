@@ -13,13 +13,13 @@ interface DmEmployeeLogsAttributes {
 interface DmEmployeeLogsCreationAttributes extends Optional<DmEmployeeLogsAttributes, never> {}
 
 class DmEmployeeLogs extends Model<DmEmployeeLogsAttributes, DmEmployeeLogsCreationAttributes> implements DmEmployeeLogsAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public employee_id!: number;
-  public log!: string;
-  public created!: Date;
-  public ip!: string;
-  public browser!: string;
+  declare id: number;
+  declare lead_id: number;
+  declare employee_id: number;
+  declare log: string;
+  declare created: Date;
+  declare ip: string;
+  declare browser: string;
 
   public static associate(models: any) {
   }

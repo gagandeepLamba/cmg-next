@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -217,7 +216,7 @@ export default function ContractGeneratorPage() {
 
   const handleDownloadPDF = () => {
     if (!currentContract?.pdfUrl) return
-    alert(`Downloading PDF: ${currentContract.pdfUrl}`)
+    window.toast.info(`Downloading PDF: ${currentContract.pdfUrl}`)
   }
 
   const getStatusBadge = (status: string) => {
@@ -235,16 +234,16 @@ export default function ContractGeneratorPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -626,7 +625,7 @@ export default function ContractGeneratorPage() {
           </Card>
         )}
       </div>
-    </MainLayout>
+    </>
   )
 }
 

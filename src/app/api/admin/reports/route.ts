@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { Op } from 'sequelize';
 import { DmcForumLeads } from '@/models';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const toPlain = (row: any) => row?.get ? row.get({ plain: true }) : row;
 const toPlainArray = (rows: any[]) => rows.map(toPlain);
@@ -36,6 +37,29 @@ async function getReferenceMaps() {
   return { countryMap, serviceMap };
 }
 
+let savedReportsTableReady: Promise<void> | null = null;
+const ensureSavedReportsTable = async () => {
+  if (!savedReportsTableReady) {
+    savedReportsTableReady = sequelize.query(`
+      CREATE TABLE IF NOT EXISTS dm_saved_reports (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        report_name VARCHAR(255) NOT NULL,
+        report_type VARCHAR(50) NOT NULL,
+        filters TEXT NULL,
+        columns TEXT NULL,
+        group_by VARCHAR(50) NULL,
+        created_by INT NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `).then(() => undefined).catch((error) => {
+      savedReportsTableReady = null;
+      throw error;
+    });
+  }
+  await savedReportsTableReady;
+};
+
 const labelFor = (map: Map<string, string>, value: unknown) => {
   const key = String(value || '').trim();
   if (!key) return 'Unknown';
@@ -50,27 +74,54 @@ const decorateLeadLabels = (items: any[], maps: Awaited<ReturnType<typeof getRef
   }))
 );
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['reports.view']);
+  if (isAuthError(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
 
-    // Saved report definitions are only returned from live storage when a table is configured.
     if (action === 'getSavedReports') {
+      await ensureSavedReportsTable();
+      const rows = await sequelize.query<any>(
+        `SELECT id, report_name, report_type, filters, columns, group_by, created_by, created_at, updated_at
+         FROM dm_saved_reports ORDER BY created_at DESC`,
+        { type: QueryTypes.SELECT }
+      );
       return NextResponse.json({
         success: true,
-        data: []
+        data: rows.map((row) => ({
+          ...row,
+          name: row.report_name,
+          type: row.report_type,
+          createdOn: row.created_at,
+          filters: row.filters ? JSON.parse(row.filters) : {},
+          columns: row.columns ? JSON.parse(row.columns) : [],
+        })),
       });
     }
 
-    // Do not return hardcoded saved report details.
     if (action === 'getReport') {
       const reportId = searchParams.get('reportId');
       if (!reportId) {
         return NextResponse.json({ success: false, error: 'Report ID required' }, { status: 400 });
       }
 
-      return NextResponse.json({ success: false, error: 'Saved report not found' }, { status: 404 });
+      await ensureSavedReportsTable();
+      const rows = await sequelize.query<any>(
+        `SELECT id, report_name, report_type, filters, columns, group_by, created_by, created_at, updated_at
+         FROM dm_saved_reports WHERE id = :reportId LIMIT 1`,
+        { replacements: { reportId: Number(reportId) }, type: QueryTypes.SELECT }
+      );
+      if (!rows[0]) {
+        return NextResponse.json({ success: false, error: 'Saved report not found' }, { status: 404 });
+      }
+      const row = rows[0];
+      return NextResponse.json({
+        success: true,
+        data: { ...row, filters: row.filters ? JSON.parse(row.filters) : {}, columns: row.columns ? JSON.parse(row.columns) : [] },
+      });
     }
 
     // Generate custom report
@@ -213,30 +264,71 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['reports.create']);
+  if (isAuthError(auth)) return auth;
+
   try {
     const body = await request.json();
-    const { action, reportName, reportType, filters, columns, groupBy, userId } = body;
+    const { action, reportName, reportType, filters, columns, groupBy, userId, reportId } = body;
 
     if (action === 'saveReport') {
-      return NextResponse.json({
-        success: false,
-        error: 'Saved report storage table is not configured. Generated reports still use live database data.'
-      }, { status: 501 });
+      if (!reportName || !reportType) {
+        return NextResponse.json({ success: false, error: 'reportName and reportType are required' }, { status: 400 });
+      }
+      await ensureSavedReportsTable();
+      const [insertId] = await sequelize.query(
+        `INSERT INTO dm_saved_reports (report_name, report_type, filters, columns, group_by, created_by)
+         VALUES (:reportName, :reportType, :filters, :columns, :groupBy, :createdBy)`,
+        {
+          replacements: {
+            reportName,
+            reportType,
+            filters: JSON.stringify(filters || {}),
+            columns: JSON.stringify(columns || []),
+            groupBy: groupBy || null,
+            createdBy: Number(userId || 1),
+          },
+          type: QueryTypes.INSERT,
+        }
+      );
+      return NextResponse.json({ success: true, data: { id: insertId } }, { status: 201 });
     }
 
     if (action === 'deleteReport') {
-      return NextResponse.json({
-        success: false,
-        error: 'Saved report storage table is not configured.'
-      }, { status: 501 });
+      if (!reportId) {
+        return NextResponse.json({ success: false, error: 'reportId is required' }, { status: 400 });
+      }
+      await ensureSavedReportsTable();
+      await sequelize.query(`DELETE FROM dm_saved_reports WHERE id = :reportId`, { replacements: { reportId: Number(reportId) } });
+      return NextResponse.json({ success: true });
     }
 
     if (action === 'updateReport') {
-      return NextResponse.json({
-        success: false,
-        error: 'Saved report storage table is not configured.'
-      }, { status: 501 });
+      if (!reportId) {
+        return NextResponse.json({ success: false, error: 'reportId is required' }, { status: 400 });
+      }
+      await ensureSavedReportsTable();
+      await sequelize.query(
+        `UPDATE dm_saved_reports
+         SET report_name = COALESCE(:reportName, report_name),
+             report_type = COALESCE(:reportType, report_type),
+             filters = COALESCE(:filters, filters),
+             columns = COALESCE(:columns, columns),
+             group_by = COALESCE(:groupBy, group_by)
+         WHERE id = :reportId`,
+        {
+          replacements: {
+            reportId: Number(reportId),
+            reportName: reportName || null,
+            reportType: reportType || null,
+            filters: filters ? JSON.stringify(filters) : null,
+            columns: columns ? JSON.stringify(columns) : null,
+            groupBy: groupBy || null,
+          },
+        }
+      );
+      return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });

@@ -12,12 +12,12 @@ interface DmEmailAttachmentsAttributes {
 interface DmEmailAttachmentsCreationAttributes extends Optional<DmEmailAttachmentsAttributes, never> {}
 
 class DmEmailAttachments extends Model<DmEmailAttachmentsAttributes, DmEmailAttachmentsCreationAttributes> implements DmEmailAttachmentsAttributes {
-  public id!: number;
-  public email_template_id!: number;
-  public attachments!: string;
-  public status!: number;
-  public created_by!: number;
-  public created!: Date;
+  declare id: number;
+  declare email_template_id: number;
+  declare attachments: string;
+  declare status: number;
+  declare created_by: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

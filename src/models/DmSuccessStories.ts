@@ -13,13 +13,13 @@ interface DmSuccessStoriesAttributes {
 interface DmSuccessStoriesCreationAttributes extends Optional<DmSuccessStoriesAttributes, never> {}
 
 class DmSuccessStories extends Model<DmSuccessStoriesAttributes, DmSuccessStoriesCreationAttributes> implements DmSuccessStoriesAttributes {
-  public id!: number;
-  public folder_id!: number;
-  public files!: string;
-  public sub_folder_id!: number;
-  public created_by!: number;
-  public created!: Date;
-  public is_deleted!: number;
+  declare id: number;
+  declare folder_id: number;
+  declare files: string;
+  declare sub_folder_id: number;
+  declare created_by: number;
+  declare created: Date;
+  declare is_deleted: number;
 
   public static associate(models: any) {
   }

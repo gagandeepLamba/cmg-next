@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DmCountryProces } from '@/models/DmCountryProces';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = requireAuth(request);
+    if (isAuthError(auth)) return auth;
+
     const countries = await DmCountryProces.findAll({
       where: {
         status: 1

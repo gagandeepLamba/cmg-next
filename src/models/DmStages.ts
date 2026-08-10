@@ -13,13 +13,13 @@ interface DmStagesAttributes {
 interface DmStagesCreationAttributes extends Optional<DmStagesAttributes, 'status' | 'is_deleted'> {}
 
 class DmStages extends Model<DmStagesAttributes, DmStagesCreationAttributes> implements DmStagesAttributes {
-  public id!: number;
-  public stage!: string;
-  public duration!: number;
-  public duration_type!: string;
-  public status!: number;
-  public created!: Date;
-  public is_deleted!: number;
+  declare id: number;
+  declare stage: string;
+  declare duration: number;
+  declare duration_type: string;
+  declare status: number;
+  declare created: Date;
+  declare is_deleted: number;
 
   public static associate(models: any) {
   }

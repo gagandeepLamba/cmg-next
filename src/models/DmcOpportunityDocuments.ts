@@ -26,25 +26,25 @@ interface DmcOpportunityDocumentsAttributes {
 interface DmcOpportunityDocumentsCreationAttributes extends Optional<DmcOpportunityDocumentsAttributes, 'id' | 'verifiedDate' | 'verifiedBy' | 'expiryDate'> {}
 
 class DmcOpportunityDocuments extends Model<DmcOpportunityDocumentsAttributes, DmcOpportunityDocumentsCreationAttributes> implements DmcOpportunityDocumentsAttributes {
-  public id!: number;
-  public opportunityId!: number;
-  public documentType!: string;
-  public documentName!: string;
-  public fileName!: string;
-  public filePath!: string;
-  public fileSize!: number;
-  public mimeType!: string;
-  public category!: string;
-  public status!: 'pending' | 'uploaded' | 'verified' | 'rejected' | 'expired';
-  public uploadDate!: Date;
-  public verifiedDate!: Date | null;
-  public verifiedBy!: number | null;
-  public expiryDate!: Date | null;
-  public required!: boolean;
-  public notes!: string;
-  public uploadedBy!: number;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare opportunityId: number;
+  declare documentType: string;
+  declare documentName: string;
+  declare fileName: string;
+  declare filePath: string;
+  declare fileSize: number;
+  declare mimeType: string;
+  declare category: string;
+  declare status: 'pending' | 'uploaded' | 'verified' | 'rejected' | 'expired';
+  declare uploadDate: Date;
+  declare verifiedDate: Date | null;
+  declare verifiedBy: number | null;
+  declare expiryDate: Date | null;
+  declare required: boolean;
+  declare notes: string;
+  declare uploadedBy: number;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmcOpportunityDocuments.belongsTo(models.DmcOpportunities, { foreignKey: 'opportunityId', targetKey: 'id', as: 'dmcOpportunity' });

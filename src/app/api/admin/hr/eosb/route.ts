@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { HRService } from '@/services/hr-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const separationReasons = ['Resignation', 'Termination', 'Retirement', 'Death', 'Mutual'] as const;
 type SeparationReason = typeof separationReasons[number];
@@ -42,6 +43,8 @@ const readPayload = (body: Record<string, unknown>) => {
 };
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.eosb', 'hr.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const settlements = await HRService.listEOSBSettlements({
@@ -68,6 +71,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.eosb']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const result = readPayload(body);
@@ -83,6 +88,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.eosb']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const result = readPayload(body);
@@ -95,5 +102,22 @@ export async function PUT(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to create EOSB settlement';
     console.error('Failed to create EOSB settlement:', error);
     return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.delete']);
+  if (isAuthError(auth)) return auth;
+  try {
+    const { searchParams } = new URL(request.url);
+    const eosbId = searchParams.get('eosb_id');
+    if (!eosbId) {
+      return NextResponse.json({ error: 'eosb_id is required' }, { status: 400 });
+    }
+    await HRService.deleteEosbSettlement(eosbId);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete EOSB settlement:', error);
+    return NextResponse.json({ error: 'Failed to delete EOSB settlement' }, { status: 500 });
   }
 }

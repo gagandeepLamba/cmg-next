@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CrmWorkflowService } from '@/services/crm-workflow-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['finance.view', 'finance.manage']);
+    if (isAuthError(auth)) return auth;
+
     const body = await request.json();
-    const { opportunityId, decision, checklist, reason, actorId, actorRole } = body;
+    const { opportunityId, decision, checklist, reason } = body;
 
     if (!opportunityId) {
       return NextResponse.json(
@@ -32,8 +36,8 @@ export async function POST(request: NextRequest) {
       decision,
       checklist,
       reason,
-      actorId: actorId || 0,
-      actorRole: actorRole || 'finance_officer',
+      actorId: auth.id,
+      actorRole: auth.roleName || auth.type || 'finance_officer',
     });
 
     if (!result.success) {

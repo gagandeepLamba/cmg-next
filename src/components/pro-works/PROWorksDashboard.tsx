@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import { DataTable } from '@/components/ui/data-table';
 import {
   AlertTriangle,
   CalendarClock,
@@ -160,7 +161,14 @@ const badge = (status: string) => {
 };
 
 export default function PROWorksDashboard() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, currencyCode } = useAuth();
+  const formatMoney = (value: number) => {
+    try {
+      return new Intl.NumberFormat('en-AE', { style: 'currency', currency: currencyCode, maximumFractionDigits: 0 }).format(value);
+    } catch {
+      return `${currencyCode} ${Number(value || 0).toLocaleString()}`;
+    }
+  };
   const [data, setData] = useState<PRODashboardData>(emptyDashboardData);
   const [compliance, setCompliance] = useState<UAEComplianceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -428,30 +436,6 @@ function MetricCard({
   );
 }
 
-function DataTable({ headers, rows, className = '' }: { headers: string[]; rows: Array<Array<ReactNode>>; className?: string }) {
-  return (
-    <div className={`overflow-hidden rounded-lg border border-slate-200 bg-white ${className}`}>
-      <table className="min-w-full divide-y divide-slate-200">
-        <thead className="bg-slate-50">
-          <tr>
-            {headers.map((header) => (
-              <th key={header} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{header}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {rows.map((row, index) => (
-            <tr key={index} className="hover:bg-slate-50">
-              {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="px-4 py-3 text-sm text-slate-700">{cell}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 function RecordTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return (

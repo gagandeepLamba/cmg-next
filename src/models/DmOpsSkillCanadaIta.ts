@@ -29,29 +29,29 @@ interface DmOpsSkillCanadaItaAttributes {
 interface DmOpsSkillCanadaItaCreationAttributes extends Optional<DmOpsSkillCanadaItaAttributes, never> {}
 
 class DmOpsSkillCanadaIta extends Model<DmOpsSkillCanadaItaAttributes, DmOpsSkillCanadaItaCreationAttributes> implements DmOpsSkillCanadaItaAttributes {
-  public id!: number;
-  public leadId!: number;
-  public itaReceDate!: string;
-  public itaSubLastDate!: string;
-  public itaDocReceDate!: string;
-  public itaDocSts!: string;
-  public itaSubDate!: string;
-  public itaSts!: string;
-  public itaAddiReqDate!: string;
-  public itaexpdate!: string;
-  public itaFile!: string;
-  public visaReqDate!: string;
-  public passSentDate!: string;
-  public passReceDate!: string;
-  public visaFile!: string;
-  public landDate!: string;
-  public landService!: string;
-  public landFile!: string;
-  public remark!: string;
-  public qualification!: string;
-  public specialization!: string;
-  public university!: string;
-  public comments!: string;
+  declare id: number;
+  declare leadId: number;
+  declare itaReceDate: string;
+  declare itaSubLastDate: string;
+  declare itaDocReceDate: string;
+  declare itaDocSts: string;
+  declare itaSubDate: string;
+  declare itaSts: string;
+  declare itaAddiReqDate: string;
+  declare itaexpdate: string;
+  declare itaFile: string;
+  declare visaReqDate: string;
+  declare passSentDate: string;
+  declare passReceDate: string;
+  declare visaFile: string;
+  declare landDate: string;
+  declare landService: string;
+  declare landFile: string;
+  declare remark: string;
+  declare qualification: string;
+  declare specialization: string;
+  declare university: string;
+  declare comments: string;
 
   public static associate(models: any) {
   }

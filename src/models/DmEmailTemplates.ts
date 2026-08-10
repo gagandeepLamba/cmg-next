@@ -14,14 +14,14 @@ interface DmEmailTemplatesAttributes {
 interface DmEmailTemplatesCreationAttributes extends Optional<DmEmailTemplatesAttributes, never> {}
 
 class DmEmailTemplates extends Model<DmEmailTemplatesAttributes, DmEmailTemplatesCreationAttributes> implements DmEmailTemplatesAttributes {
-  public id!: number;
-  public program!: string;
-  public template!: string;
-  public created!: Date;
-  public status!: number;
-  public ops!: number;
-  public sales!: number;
-  public created_by!: number;
+  declare id: number;
+  declare program: string;
+  declare template: string;
+  declare created: Date;
+  declare status: number;
+  declare ops: number;
+  declare sales: number;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

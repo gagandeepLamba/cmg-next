@@ -1,27 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  /* ── CMG Brand Palette (from logo) ──────────────────────────────────
-     Wordmark blue  →  #003399
-     Bird/mark red  →  #D52B1E
+  /* ── CMG Brand Palette (from logo) ──────────────────────────
+     Sampled directly from public/cmg-logo.png (solid fills):
+       "CMG" wordmark       →  #003399  (royal blue)
+       Bird / accent mark   →  #D52B1E  (red)
+     The rest of the scale is derived from those two exact hexes.
   ────────────────────────────────────────────────────────────────── */
-  --cmg-blue:           #003399;   /* primary – logo wordmark blue           */
-  --cmg-blue-dark:      #002266;   /* hover / sidebar header / dark panels   */
-  --cmg-blue-medium:    #0044B3;   /* mid-range – borders, secondary buttons */
-  --cmg-blue-light:     #3366CC;   /* highlight / active indicator           */
-  --cmg-blue-soft:      #E8EEFB;   /* page & card background tint            */
-  --cmg-blue-softer:    #F3F6FC;   /* subtler surface bg                     */
+  --cmg-blue:           #003399;   /* primary – exact logo blue              */
+  --cmg-blue-dark:      #001F5C;   /* darkest – hover / sidebar header       */
+  --cmg-blue-medium:    #002A80;   /* mid-range – borders, secondary buttons */
+  --cmg-blue-light:     #1A66FF;   /* highlight / active indicator           */
+  --cmg-blue-soft:      #EBF1FF;   /* page & card background tint            */
+  --cmg-blue-softer:    #F4F8FF;   /* subtler surface bg                     */
 
   /* Neutral / text */
-  --cmg-ink:            #0A1A33;   /* primary text – dark navy               */
-  --cmg-muted:          #4A5A75;   /* secondary text / labels                */
-  --cmg-border:         #C7D3EA;   /* borders                                */
+  --cmg-ink:            #0B1E3D;   /* primary text – very dark blue          */
+  --cmg-muted:          #55647F;   /* secondary text / labels                */
+  --cmg-border:         #C7D6EE;   /* borders                                */
   --cmg-surface:        #FFFFFF;   /* card / panel surface                   */
 
   /* Semantic */
-  --cmg-red:            #D52B1E;   /* logo bird mark – CTAs / errors         */
-  --cmg-red-dark:       #A81F15;
-  --cmg-gold:           #C49A3C;   /* kept for warning accents / badges      */
+  --cmg-red:            #D52B1E;   /* exact logo red (bird mark)             */
+  --cmg-red-dark:       #A8241A;
+  --cmg-gold:           #C49A3C;   /* kept for accents / warning badges      */
   --cmg-gold-soft:      #FBF5E7;
 
   /* Page background */
@@ -42,6 +44,26 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.dm-form-invalid {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.16) !important;
+}
+
+.dm-form-error-message {
+  animation: dm-form-error-in 140ms ease-out;
+}
+
+@keyframes dm-form-error-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 ::selection {
   background: rgba(0, 51, 153, 0.18);
   color: var(--cmg-ink);
@@ -50,7 +72,7 @@ body {
 /* ── Page shell ─────────────────────────────────────────────────── */
 .cmg-page-shell {
   background:
-    linear-gradient(180deg, rgba(232, 238, 251, 0.92), rgba(243, 246, 252, 0.98) 240px),
+    linear-gradient(180deg, rgba(235, 241, 255, 0.92), rgba(244, 248, 255, 0.98) 240px),
     var(--background);
 }
 
@@ -58,24 +80,24 @@ body {
 .cmg-card {
   background: var(--cmg-surface);
   border: 1px solid var(--cmg-border);
-  box-shadow: 0 10px 30px rgba(10, 26, 51, 0.07);
+  box-shadow: 0 10px 30px rgba(10, 26, 61, 0.08);
 }
 
-/* ── Focus ── ──────────────────────────────────────────────────── */
+/* ── Focus ring ─────────────────────────────────────────────────── */
 .cmg-focus { outline: none; }
 .cmg-focus:focus {
   box-shadow: 0 0 0 3px rgba(0, 51, 153, 0.22);
 }
 
-/* ── Tailwind blue → CMG brand blue remaps ───────────────────────── */
-/* These override Tailwind's blue utilities so legacy JSX that still
-   uses e.g. "bg-blue-600" renders with the exact CMG brand blue.     */
+/* ── Tailwind blue → exact CMG blue remaps ───────────────────────── */
+/* These override Tailwind's default blue utilities so legacy JSX that
+   uses e.g. "bg-blue-600" renders with the exact brand blue instead. */
 .bg-blue-600  { background-color: var(--cmg-blue) !important; }
 .bg-blue-700  { background-color: var(--cmg-blue-medium) !important; }
 .bg-blue-800  { background-color: var(--cmg-blue-dark) !important; }
 .bg-blue-50,
 .bg-blue-100  { background-color: var(--cmg-blue-soft) !important; }
-.bg-blue-200  { background-color: #CBD9F5 !important; }
+.bg-blue-200  { background-color: #D3E1FA !important; }
 
 .hover\:bg-blue-700:hover { background-color: var(--cmg-blue-medium) !important; }
 .hover\:bg-blue-800:hover { background-color: var(--cmg-blue-dark) !important; }
@@ -99,20 +121,28 @@ body {
 
 .ring-blue-500 { --tw-ring-color: rgba(0, 51, 153, 0.40) !important; }
 
-/* ── Indigo / violet → CMG brand blue remaps ─────────────────────── */
+/* ── Indigo / violet → CMG blue remaps ────────────────────────────── */
 .bg-indigo-600,
 .bg-indigo-700  { background-color: var(--cmg-blue) !important; }
 .text-indigo-600,
 .text-indigo-700 { color: var(--cmg-blue) !important; }
 
 /* ── Scrollbar ──────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* Wide enough (both axes) to see and grab without hunting for it —
+   6px was easy to miss entirely, especially the horizontal one on wide
+   tables (leads, invoices, reports, etc). */
+::-webkit-scrollbar { width: 12px; height: 12px; }
 ::-webkit-scrollbar-track { background: var(--cmg-blue-softer); }
 ::-webkit-scrollbar-thumb {
-  background: #A9BEE0;
-  border-radius: 3px;
+  background: #A9C3EE;
+  border-radius: 6px;
+  border: 2px solid var(--cmg-blue-softer);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--cmg-blue-medium); }
+::-webkit-scrollbar-corner { background: var(--cmg-blue-softer); }
+
+/* Firefox */
+* { scrollbar-width: auto; scrollbar-color: #A9C3EE var(--cmg-blue-softer); }
 
 /* ── Sidebar nav scrollbar (always visible, styled) ─────────────── */
 .sidebar-nav {
@@ -123,7 +153,7 @@ body {
   width: 5px;
 }
 .sidebar-nav::-webkit-scrollbar-track {
-  background: #eef1f8;
+  background: #eef2f9;
   border-radius: 4px;
 }
 .sidebar-nav::-webkit-scrollbar-thumb {
@@ -132,4 +162,75 @@ body {
 }
 .sidebar-nav::-webkit-scrollbar-thumb:hover {
   background: var(--cmg-blue);
+}
+
+.cmg-brand-header {
+  position: relative;
+  min-height: 104px;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(235, 241, 255, 0.95), rgba(255, 255, 255, 0.96) 46%, rgba(255, 235, 232, 0.5)),
+    #ffffff;
+}
+
+.cmg-brand-header::before {
+  content: "";
+  position: absolute;
+  inset: -60% auto -60% -45%;
+  width: 62%;
+  background: linear-gradient(100deg, transparent, rgba(26, 102, 255, 0.22), transparent);
+  transform: rotate(14deg);
+  animation: cmg-brand-sheen 5.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.cmg-logo-frame {
+  /* The logo image is a fully self-contained mark (its own white fill,
+     no card/shadow/gradient backdrop behind it, or it reads as a
+     rounded-rect card nested around the mark, which fights its own
+     shape. Just a subtle float to match the rest of the brand block's motion. */
+  animation: cmg-logo-float 4.8s ease-in-out infinite;
+}
+
+.cmg-brand-title {
+  color: var(--cmg-ink);
+  font-size: 1.34rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.cmg-brand-subtitle {
+  color: var(--cmg-blue-dark);
+  background: rgba(235, 241, 255, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(199, 214, 238, 0.9);
+}
+
+@keyframes cmg-brand-sheen {
+  0%, 58% {
+    transform: translateX(0) rotate(14deg);
+    opacity: 0;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(310%) rotate(14deg);
+    opacity: 0;
+  }
+}
+
+@keyframes cmg-logo-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmg-brand-header::before,
+  .cmg-logo-frame {
+    animation: none;
+  }
 }

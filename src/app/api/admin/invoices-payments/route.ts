@@ -141,12 +141,21 @@ async function getPayments(search: string, status: string, dateFrom: string, dat
       l.fname, l.lname, l.phone, l.email,
       o.opportunityName, o.estimatedValue,
       e.name AS counselorName,
-      ae.name AS accountantName
+      ae.name AS accountantName,
+      b.name AS dmBranchName,
+      b.address AS dmBranchAddress,
+      b.email AS dmBranchEmail,
+      b.license_number AS dmBranchLicenseNumber,
+      b.vat_gst_percent AS dmBranchVatGstPercent,
+      (SELECT a.agreementNumber FROM dm_opportunity_agreements a
+       WHERE a.opportunityId = p.opportunityId
+       ORDER BY a.createdAt DESC LIMIT 1) AS agreementNumber
     FROM dm_opportunity_payments p
     LEFT JOIN dmc_forum_leads l ON p.leadId = l.id
     LEFT JOIN dmc_opportunities o ON p.opportunityId = o.id
     LEFT JOIN dm_employee e ON o.assignedTo = e.id
     LEFT JOIN dm_employee ae ON p.accountantId = ae.id
+    LEFT JOIN dm_branch b ON b.id = COALESCE(p.branchId, o.branchId, l.branch)
     ${where}
     ORDER BY p.createdAt DESC
     LIMIT :limit OFFSET :offset
@@ -183,6 +192,10 @@ async function getInvoices(search: string, status: string, dateFrom: string, dat
     SELECT
       i.*,
       b.name AS branchName,
+      b.address AS branchAddress,
+      b.email AS branchEmail,
+      b.license_number AS branchLicenseNumber,
+      b.vat_gst_percent AS branchVatGstPercent,
       e.name AS counselorName,
       p.paymentNumber, p.paidAmount, p.proofOfPaymentUrl, p.paymentMethod, p.paymentDate,
       p.clientName AS oppClientName, p.clientEmail AS oppClientEmail, p.clientPhone AS oppClientPhone,

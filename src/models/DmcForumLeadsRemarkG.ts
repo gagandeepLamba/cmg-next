@@ -10,10 +10,10 @@ interface DmcForumLeadsRemarkGAttributes {
 interface DmcForumLeadsRemarkGCreationAttributes extends Optional<DmcForumLeadsRemarkGAttributes, never> {}
 
 class DmcForumLeadsRemarkG extends Model<DmcForumLeadsRemarkGAttributes, DmcForumLeadsRemarkGCreationAttributes> implements DmcForumLeadsRemarkGAttributes {
-  public id!: number;
-  public lead!: number;
-  public date!: Date;
-  public remark!: string;
+  declare id: number;
+  declare lead: number;
+  declare date: Date;
+  declare remark: string;
 
   public static associate(models: any) {
   }

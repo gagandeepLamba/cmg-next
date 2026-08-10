@@ -1,5 +1,6 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,6 +19,7 @@ import {
   Receipt,
   AlertCircle
 } from 'lucide-react'
+import { BANK_PAYMENT_OPTIONS, CARD_PAYMENT_OPTIONS } from '@/lib/paymentOptions'
 
 interface Payment {
   id: number
@@ -401,14 +403,14 @@ export default function PaymentManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Lead</label>
-                  <select
+                  <SearchableSelect
                     value={formData.leadId}
                     onChange={(e) => setFormData({ ...formData, leadId: parseInt(e.target.value) })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                   >
                     <option value={0}>Select Lead</option>
                     {/* Add lead options here */}
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Date</label>
@@ -441,7 +443,7 @@ export default function PaymentManagement() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-                  <select
+                  <SearchableSelect
                     value={formData.payMethod}
                     onChange={(e) => setFormData({ ...formData, payMethod: e.target.value })}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -451,7 +453,17 @@ export default function PaymentManagement() {
                     <option value="card">Card</option>
                     <option value="transfer">Bank Transfer</option>
                     <option value="online">Online</option>
-                  </select>
+                    <optgroup label="Bank">
+                      {BANK_PAYMENT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Card / POS">
+                      {CARD_PAYMENT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </optgroup>
+                  </SearchableSelect>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Receipt Number</label>

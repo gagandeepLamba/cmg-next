@@ -23,23 +23,23 @@ interface DmEuropeCasesAttributes {
 interface DmEuropeCasesCreationAttributes extends Optional<DmEuropeCasesAttributes, never> {}
 
 class DmEuropeCases extends Model<DmEuropeCasesAttributes, DmEuropeCasesCreationAttributes> implements DmEuropeCasesAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public registration!: number;
-  public jol!: number;
-  public loc!: number;
-  public wp!: number;
-  public wp_hc!: number;
-  public dl!: number;
-  public payment_status_jol!: number;
-  public payment_status_loc!: number;
-  public payment_status_wp!: number;
-  public created_by!: number;
-  public created!: Date;
-  public ops!: number;
-  public sales!: number;
-  public reject!: number;
-  public approve!: number;
+  declare id: number;
+  declare lead_id: number;
+  declare registration: number;
+  declare jol: number;
+  declare loc: number;
+  declare wp: number;
+  declare wp_hc: number;
+  declare dl: number;
+  declare payment_status_jol: number;
+  declare payment_status_loc: number;
+  declare payment_status_wp: number;
+  declare created_by: number;
+  declare created: Date;
+  declare ops: number;
+  declare sales: number;
+  declare reject: number;
+  declare approve: number;
 
   public static associate(models: any) {
     DmEuropeCases.belongsTo(models.DmcForumLeads, { foreignKey: 'lead_id', targetKey: 'id', as: 'dmcForumLeads' });

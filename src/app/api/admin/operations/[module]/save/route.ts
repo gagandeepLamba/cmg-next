@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DmOperationStageData } from '@/models';
 import { apiError, invalidRequest } from '@/lib/apiError';
 import { QueryTypes } from 'sequelize';
-import { sequelize } from '@/lib/sequelize';
+import { sequelize, connectDB } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const allowedModules = new Set([
   'business',
@@ -17,6 +18,7 @@ const allowedModules = new Set([
   'skill-canada-pip',
   'poland-visa',
   'eip-canada',
+  'cbi',
   'europe-cases',
   'family-sponsorship',
   'ict-canada',
@@ -26,14 +28,27 @@ const allowedModules = new Set([
   'work',
   'work-permit',
   'rms',
+  'germany-jobseeker',
 ]);
 
 type RouteContext = {
   params: Promise<{ module: string }>;
 };
 
+let dbReady = false;
+const ensureDB = async () => {
+  if (!dbReady) {
+    await connectDB();
+    dbReady = true;
+  }
+};
+
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
+    const auth = requireAuth(request, ['operations.view', 'operations.manage']);
+    if (isAuthError(auth)) return auth;
+    await ensureDB();
+
     const params = await context.params;
     const operationsModule = params.module;
 
@@ -101,6 +116,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
+    const auth = requireAuth(request, ['operations.view', 'operations.manage']);
+    if (isAuthError(auth)) return auth;
+    await ensureDB();
+
     const { module: operationsModule } = await context.params;
     if (!allowedModules.has(operationsModule)) {
       return invalidRequest('Unsupported operations module');
@@ -114,13 +133,24 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return invalidRequest('A valid leadId is required');
     }
 
-    const rows = await DmOperationStageData.findAll({
-      where: { module: operationsModule, leadId, opportunityId },
-      order: [['updatedAt', 'DESC']],
-    });
+    const opportunityFilter = opportunityId === null
+      ? 'opportunityId IS NULL'
+      : '(opportunityId IS NULL OR opportunityId = :opportunityId)';
+    const rows = await sequelize.query<{ stage: string; stageData: string; opportunityId: number | null }>(
+      `SELECT stage, stageData, opportunityId
+       FROM dm_operation_stage_data
+       WHERE module = :operationsModule
+         AND leadId = :leadId
+         AND ${opportunityFilter}
+       ORDER BY CASE WHEN opportunityId IS NULL THEN 0 ELSE 1 END, updatedAt ASC`,
+      {
+        replacements: { operationsModule, leadId, opportunityId },
+        type: QueryTypes.SELECT,
+      },
+    );
     const data = rows.reduce<Record<string, unknown>>((stages, row) => {
-      const stage = row.getDataValue('stage');
-      const stageData = row.getDataValue('stageData');
+      const stage = row.stage;
+      const stageData = row.stageData;
       try { stages[stage] = JSON.parse(stageData); }
       catch { stages[stage] = {}; }
       return stages;

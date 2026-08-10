@@ -20,20 +20,20 @@ interface DmRefundsAttributes {
 interface DmRefundsCreationAttributes extends Optional<DmRefundsAttributes, never> {}
 
 class DmRefunds extends Model<DmRefundsAttributes, DmRefundsCreationAttributes> implements DmRefundsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public refund_amount!: number;
-  public refund_file!: string;
-  public refund_approved_by!: number;
-  public refund_date!: Date;
-  public refund_department!: number;
-  public revenue_adjust!: number;
-  public revenue_deduct!: number;
-  public refund_approved_date!: Date;
-  public refund_remarks!: string;
-  public refund_type!: string;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare leadId: number;
+  declare refund_amount: number;
+  declare refund_file: string;
+  declare refund_approved_by: number;
+  declare refund_date: Date;
+  declare refund_department: number;
+  declare revenue_adjust: number;
+  declare revenue_deduct: number;
+  declare refund_approved_date: Date;
+  declare refund_remarks: string;
+  declare refund_type: string;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

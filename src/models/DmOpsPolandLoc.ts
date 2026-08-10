@@ -18,18 +18,18 @@ interface DmOpsPolandLocAttributes {
 interface DmOpsPolandLocCreationAttributes extends Optional<DmOpsPolandLocAttributes, never> {}
 
 class DmOpsPolandLoc extends Model<DmOpsPolandLocAttributes, DmOpsPolandLocCreationAttributes> implements DmOpsPolandLocAttributes {
-  public id!: number;
-  public leadId!: number;
-  public loc_received!: string;
-  public loc_received_date!: Date;
-  public loc_designation!: string;
-  public loc_company_name!: string;
-  public loc_salary!: string;
-  public handover_status!: string;
-  public handover_date!: Date;
-  public created_by!: number;
-  public created!: Date;
-  public wp_pay!: number;
+  declare id: number;
+  declare leadId: number;
+  declare loc_received: string;
+  declare loc_received_date: Date;
+  declare loc_designation: string;
+  declare loc_company_name: string;
+  declare loc_salary: string;
+  declare handover_status: string;
+  declare handover_date: Date;
+  declare created_by: number;
+  declare created: Date;
+  declare wp_pay: number;
 
   public static associate(models: any) {
   }

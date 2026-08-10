@@ -10,10 +10,10 @@ interface EscalationLogsAttributes {
 interface EscalationLogsCreationAttributes extends Optional<EscalationLogsAttributes, 'lead' | 'emp' | 'date'> {}
 
 class EscalationLogs extends Model<EscalationLogsAttributes, EscalationLogsCreationAttributes> implements EscalationLogsAttributes {
-  public id!: number;
-  public lead!: number | null;
-  public emp!: number | null;
-  public date!: string | null;
+  declare id: number;
+  declare lead: number | null;
+  declare emp: number | null;
+  declare date: string | null;
 
   public static associate(models: any) {
   }

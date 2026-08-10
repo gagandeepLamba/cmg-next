@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { HRService } from '@/services/hr-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 type LineItem = { label: string; amount: number };
 
@@ -26,10 +27,17 @@ const readLineItems = (value: unknown): LineItem[] => {
 };
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.payroll', 'hr.self']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
+    // A caller with only hr.self (no hr.payroll/hr.view) can only ever see their own
+    // payslips - employee_id is forced to their own id, never taken from the query string,
+    // the same self-service boundary already used by /api/hr/self/leave.
+    const canSeeOthers = auth.permissions?.includes('all') || auth.permissions?.includes('hr.payroll') || auth.permissions?.includes('hr.view');
+    const employeeId = canSeeOthers ? (searchParams.get('employee_id') || undefined) : String(auth.id);
     const payslips = await HRService.listPayslips({
-      employeeId: searchParams.get('employee_id') || undefined,
+      employeeId,
       payYear: searchParams.get('pay_year') ? Number.parseInt(searchParams.get('pay_year') || '', 10) : undefined,
       payMonth: searchParams.get('pay_month') ? Number.parseInt(searchParams.get('pay_month') || '', 10) : undefined,
       limit: Number.parseInt(searchParams.get('limit') || '100', 10),
@@ -43,6 +51,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.payroll']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const employeeId = readString(body, 'employee_id');
@@ -61,6 +71,7 @@ export async function POST(request: NextRequest) {
       pay_month: payMonth,
       designation: readString(body, 'designation') || null,
       department: readString(body, 'department') || null,
+      currency_code: readString(body, 'currency_code') || undefined,
       basic_salary: basicSalary,
       allowances: readLineItems(body.allowances),
       overtime_hours: readNumber(body, 'overtime_hours'),
@@ -77,5 +88,22 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to generate payslip';
     console.error('Failed to generate payslip:', error);
     return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.delete']);
+  if (isAuthError(auth)) return auth;
+  try {
+    const { searchParams } = new URL(request.url);
+    const payslipId = searchParams.get('payslip_id');
+    if (!payslipId) {
+      return NextResponse.json({ error: 'payslip_id is required' }, { status: 400 });
+    }
+    await HRService.deletePayslip(payslipId);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete payslip:', error);
+    return NextResponse.json({ error: 'Failed to delete payslip' }, { status: 500 });
   }
 }

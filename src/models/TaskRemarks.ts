@@ -12,12 +12,12 @@ interface TaskRemarksAttributes {
 interface TaskRemarksCreationAttributes extends Optional<TaskRemarksAttributes, 'taskid' | 'date' | 'remarks' | 'emp' | 'notf'> {}
 
 class TaskRemarks extends Model<TaskRemarksAttributes, TaskRemarksCreationAttributes> implements TaskRemarksAttributes {
-  public id!: number;
-  public taskid!: number | null;
-  public date!: string | null;
-  public remarks!: string | null;
-  public emp!: string | null;
-  public notf!: number | null;
+  declare id: number;
+  declare taskid: number | null;
+  declare date: string | null;
+  declare remarks: string | null;
+  declare emp: string | null;
+  declare notf: number | null;
 
   public static associate(models: any) {
   }

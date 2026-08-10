@@ -11,11 +11,11 @@ interface DmProgramTypeAttributes {
 interface DmProgramTypeCreationAttributes extends Optional<DmProgramTypeAttributes, never> {}
 
 class DmProgramType extends Model<DmProgramTypeAttributes, DmProgramTypeCreationAttributes> implements DmProgramTypeAttributes {
-  public id!: number;
-  public type!: string;
-  public status!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare type: string;
+  declare status: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
     DmProgramType.hasMany(models.DmCountriesTypeProgram, { foreignKey: 'type', sourceKey: 'id', as: 'countryPrograms' });

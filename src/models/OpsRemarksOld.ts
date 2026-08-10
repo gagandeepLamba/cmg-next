@@ -12,12 +12,12 @@ interface OpsRemarksOldAttributes {
 interface OpsRemarksOldCreationAttributes extends Optional<OpsRemarksOldAttributes, 'agreeNo' | 'added_by' | 'tab' | 'remark'> {}
 
 class OpsRemarksOld extends Model<OpsRemarksOldAttributes, OpsRemarksOldCreationAttributes> implements OpsRemarksOldAttributes {
-  public id!: number;
-  public agreeNo!: number | null;
-  public date!: string;
-  public added_by!: string | null;
-  public tab!: number | null;
-  public remark!: string | null;
+  declare id: number;
+  declare agreeNo: number | null;
+  declare date: string;
+  declare added_by: string | null;
+  declare tab: number | null;
+  declare remark: string | null;
 
   public static associate(models: any) {
   }

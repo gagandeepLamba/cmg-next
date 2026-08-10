@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
 import { DollarSign, TrendingUp, CreditCard, Building, Target } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
@@ -32,6 +33,7 @@ interface ProgramRevenue {
 }
 
 export default function TotalRevenueReport() {
+  const { currencyCode } = useAuth();
   const [monthlyData, setMonthlyData] = useState<RevenueData[]>([]);
   const [branchData, setBranchData] = useState<BranchRevenue[]>([]);
   const [programData, setProgramData] = useState<ProgramRevenue[]>([]);
@@ -165,7 +167,7 @@ export default function TotalRevenueReport() {
             <div>
               <p className="text-sm text-gray-600">Total Revenue</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${(totalRevenue / 1000000).toFixed(2)}M
+                {currencyCode} {(totalRevenue / 1000000).toFixed(2)}M
               </p>
             </div>
           </div>
@@ -305,7 +307,7 @@ export default function TotalRevenueReport() {
                 {programData.map((program, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{program.program}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${(program.revenue / 1000).toFixed(0)}K</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{currencyCode} {(program.revenue / 1000).toFixed(0)}K</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{program.percentage}%</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`text-sm font-medium ${program.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -338,8 +340,8 @@ export default function TotalRevenueReport() {
                 {branchData.map((branch, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{branch.branch}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${(branch.revenue / 1000).toFixed(0)}K</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${(branch.target / 1000).toFixed(0)}K</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{currencyCode} {(branch.revenue / 1000).toFixed(0)}K</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{currencyCode} {(branch.target / 1000).toFixed(0)}K</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`text-sm font-medium ${branch.achievement >= 100 ? 'text-green-600' : 'text-yellow-600'}`}>
                         {branch.achievement}%

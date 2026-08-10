@@ -18,18 +18,18 @@ interface DmJsOpsMonthlyStatusAttributes {
 interface DmJsOpsMonthlyStatusCreationAttributes extends Optional<DmJsOpsMonthlyStatusAttributes, never> {}
 
 class DmJsOpsMonthlyStatus extends Model<DmJsOpsMonthlyStatusAttributes, DmJsOpsMonthlyStatusCreationAttributes> implements DmJsOpsMonthlyStatusAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public invitation_received_date!: number;
-  public last_date_of_submission!: number;
-  public documents_received_from_client!: number;
-  public documents_status!: number;
-  public application_submission_date!: number;
-  public application_status!: number;
-  public additional_requirement_sent_to_client!: number;
-  public document_file!: number;
-  public created!: number;
-  public created_by!: number;
+  declare id: number;
+  declare lead_id: number;
+  declare invitation_received_date: number;
+  declare last_date_of_submission: number;
+  declare documents_received_from_client: number;
+  declare documents_status: number;
+  declare application_submission_date: number;
+  declare application_status: number;
+  declare additional_requirement_sent_to_client: number;
+  declare document_file: number;
+  declare created: number;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

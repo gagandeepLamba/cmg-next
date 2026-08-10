@@ -9,9 +9,9 @@ interface DmEnquiryAttributes {
 interface DmEnquiryCreationAttributes extends Optional<DmEnquiryAttributes, 'status'> {}
 
 class DmEnquiry extends Model<DmEnquiryAttributes, DmEnquiryCreationAttributes> implements DmEnquiryAttributes {
-  public id!: number;
-  public name!: string;
-  public status!: number;
+  declare id: number;
+  declare name: string;
+  declare status: number;
 
   public static associate(models: any) {
   }

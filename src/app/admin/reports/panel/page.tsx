@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { 
   FolderOpen, FileText, Users, Calendar, Download, Eye, 
   Search, Filter, Plus, Star, Share2, Clock, ChevronRight,
@@ -78,6 +79,18 @@ export default function ReportsPanel() {
     const matchesFolder = selectedFolder === 'all' || report.folder.includes(selectedFolder);
     return matchesSearch && matchesFolder;
   });
+
+  const { sorted: sortedReports, sortKey: reportSortKey, sortDirection: reportSortDirection, toggleSort: toggleReportSort } = useSortableData(
+    filteredReports,
+    {
+      name: (r) => r.name,
+      description: (r) => r.description,
+      folder: (r) => r.folder,
+      createdBy: (r) => r.createdBy,
+      createdOn: (r) => r.createdOn,
+      subscribed: (r) => r.subscribed,
+    },
+  );
 
   const toggleSubscription = (reportId: number) => {
     setReports(reports.map(report => 
@@ -207,31 +220,19 @@ export default function ReportsPanel() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Report Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Description
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Folder
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Created By
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Created On
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Subscribed
-                      </th>
+                      <SortableTh label="Report Name" sortKey="name" activeKey={reportSortKey} direction={reportSortDirection} onSort={toggleReportSort} />
+                      <SortableTh label="Description" sortKey="description" activeKey={reportSortKey} direction={reportSortDirection} onSort={toggleReportSort} />
+                      <SortableTh label="Folder" sortKey="folder" activeKey={reportSortKey} direction={reportSortDirection} onSort={toggleReportSort} />
+                      <SortableTh label="Created By" sortKey="createdBy" activeKey={reportSortKey} direction={reportSortDirection} onSort={toggleReportSort} />
+                      <SortableTh label="Created On" sortKey="createdOn" activeKey={reportSortKey} direction={reportSortDirection} onSort={toggleReportSort} />
+                      <SortableTh label="Subscribed" sortKey="subscribed" activeKey={reportSortKey} direction={reportSortDirection} onSort={toggleReportSort} />
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredReports.map((report) => (
+                    {sortedReports.map((report) => (
                       <tr key={report.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">

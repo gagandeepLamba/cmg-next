@@ -37,37 +37,37 @@ interface DmcForumLeadsAssesmentsAttributes {
 interface DmcForumLeadsAssesmentsCreationAttributes extends Optional<DmcForumLeadsAssesmentsAttributes, 'Type' | 'cob' | 'phOffice' | 'marStatus' | 'haveChild' | 'noOfChild' | 'spfname' | 'spmname' | 'splname' | 'spgender' | 'spdob' | 'spcob' | 'spcitizenof' | 'spaddress' | 'spmobile' | 'spphHome' | 'spphOffice' | 'spemail' | 'relName' | 'reRelation' | 'reCountry' | 'reAddress' | 'reStatus' | 'moveAsset' | 'inmoveAsset' | 'interestIn' | 'ownership' | 'document' | 'assesment'> {}
 
 class DmcForumLeadsAssesments extends Model<DmcForumLeadsAssesmentsAttributes, DmcForumLeadsAssesmentsCreationAttributes> implements DmcForumLeadsAssesmentsAttributes {
-  public Id!: number;
-  public leadId!: number;
-  public Type!: string | null;
-  public cob!: string | null;
-  public phOffice!: string | null;
-  public marStatus!: string | null;
-  public haveChild!: string | null;
-  public noOfChild!: string | null;
-  public spfname!: string | null;
-  public spmname!: string | null;
-  public splname!: string | null;
-  public spgender!: string | null;
-  public spdob!: Date | null;
-  public spcob!: string | null;
-  public spcitizenof!: string | null;
-  public spaddress!: string | null;
-  public spmobile!: string | null;
-  public spphHome!: string | null;
-  public spphOffice!: string | null;
-  public spemail!: string | null;
-  public relName!: string | null;
-  public reRelation!: string | null;
-  public reCountry!: string | null;
-  public reAddress!: string | null;
-  public reStatus!: string | null;
-  public moveAsset!: string | null;
-  public inmoveAsset!: string | null;
-  public interestIn!: string | null;
-  public ownership!: string | null;
-  public document!: string | null;
-  public assesment!: string | null;
+  declare Id: number;
+  declare leadId: number;
+  declare Type: string | null;
+  declare cob: string | null;
+  declare phOffice: string | null;
+  declare marStatus: string | null;
+  declare haveChild: string | null;
+  declare noOfChild: string | null;
+  declare spfname: string | null;
+  declare spmname: string | null;
+  declare splname: string | null;
+  declare spgender: string | null;
+  declare spdob: Date | null;
+  declare spcob: string | null;
+  declare spcitizenof: string | null;
+  declare spaddress: string | null;
+  declare spmobile: string | null;
+  declare spphHome: string | null;
+  declare spphOffice: string | null;
+  declare spemail: string | null;
+  declare relName: string | null;
+  declare reRelation: string | null;
+  declare reCountry: string | null;
+  declare reAddress: string | null;
+  declare reStatus: string | null;
+  declare moveAsset: string | null;
+  declare inmoveAsset: string | null;
+  declare interestIn: string | null;
+  declare ownership: string | null;
+  declare document: string | null;
+  declare assesment: string | null;
 
   public static associate(models: any) {
     DmcForumLeadsAssesments.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLeads' });

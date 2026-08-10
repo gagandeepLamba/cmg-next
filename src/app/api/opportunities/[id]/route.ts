@@ -1,8 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
+import { verifyToken } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+
+async function createClientIfMissing(leadId: number, userId: number | null) {
+  const [leadRows] = await sequelize.query(
+    `SELECT id, fname, lname, email, dob, address, case_officer, assignTo, area, nationality
+     FROM dmc_forum_leads
+     WHERE id = ?
+     LIMIT 1`,
+    { replacements: [leadId] },
+  );
+  const lead = (leadRows as any[])[0];
+  if (!lead) return null;
+
+  const [existingRows] = await sequelize.query(
+    'SELECT id FROM dm_clients WHERE leadId = ? LIMIT 1',
+    { replacements: [leadId] },
+  );
+  const existing = (existingRows as any[])[0];
+  if (existing?.id) {
+    await sequelize.query(
+      `UPDATE dm_clients
+       SET status = 1, accept = 1, is_deleted = 0, case_manager = COALESCE(NULLIF(case_manager, 0), ?), backend_person = COALESCE(NULLIF(backend_person, 0), ?)
+       WHERE id = ?`,
+      {
+        replacements: [
+          lead.case_officer || lead.assignTo || userId || 0,
+          lead.assignTo || userId || 0,
+          existing.id,
+        ],
+      },
+    );
+    return existing.id;
+  }
+
+  const [idRows] = await sequelize.query('SELECT COALESCE(MAX(id), 0) + 1 AS id FROM dm_clients');
+  const clientId = Number((idRows as any[])[0]?.id || 0);
+  await sequelize.query(
+    `INSERT INTO dm_clients
+      (id, leadId, first_name, last_name, email, image, dob, address, full_address, token, token_validity, verify, password, hash_password, status, accept, created, case_manager, backend_person, is_deleted, city, nationality)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 1, 1, NOW(), ?, ?, 0, ?, ?)`,
+    {
+      replacements: [
+        clientId,
+        leadId,
+        lead.fname || '',
+        lead.lname || '',
+        lead.email || '',
+        '',
+        lead.dob || new Date('1970-01-01'),
+        lead.address || '',
+        lead.address || '',
+        `CMG-${leadId}-${Date.now()}`,
+        new Date(Date.now() + 90 * 86400000),
+        '',
+        '',
+        lead.case_officer || lead.assignTo || userId || 0,
+        lead.assignTo || userId || 0,
+        lead.area || '',
+        lead.nationality || '',
+      ],
+    },
+  );
+  return clientId;
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = requireAuth(request, ['leads.view']);
+    if (isAuthError(auth)) return auth;
+
     const { id: opportunityId } = await params;
 
     if (!opportunityId) {
@@ -75,6 +144,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = requireAuth(request, ['leads.view', 'leads.update']);
+    if (isAuthError(auth)) return auth;
+
     const { id: opportunityId } = await params;
     const body = await request.json();
 
@@ -102,7 +174,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Check if opportunity exists
     const [existingResult] = await sequelize.query(`
-      SELECT id FROM dmc_opportunities WHERE id = ?
+      SELECT id, leadId FROM dmc_opportunities WHERE id = ?
     `, {
       replacements: [opportunityId]
     });
@@ -151,12 +223,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       
       await sequelize.query(`
         UPDATE dmc_forum_leads 
-        SET status = ?, opportunity_status = ?, conversion_date = ?, 
+        SET status = ?, convet = ?, opportunity_status = ?, conversion_date = ?, 
             conversion_reason = ?, last_updated = ?, last_updtd_time = ?
         WHERE id = (SELECT leadId FROM dmc_opportunities WHERE id = ?)
       `, {
         replacements: [
           leadStatus,
+          body.status === 'won' ? 'Client' : 'Opportunity',
           body.status,
           new Date().toISOString().split('T')[0],
           body.status === 'won' ? 'Successfully converted and retained client' : 'Opportunity lost',
@@ -165,6 +238,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           opportunityId
         ]
       });
+
+      if (body.status === 'won') {
+        const existingOpportunity = (existingResult as any[])[0];
+        await createClientIfMissing(Number(existingOpportunity.leadId), Number(auth.id || 0) || null);
+      }
     }
 
     // Get updated opportunity
@@ -196,6 +274,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const token = request.cookies.get('auth-token')?.value
+      || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    if (!currentUser || !isCeo(currentUser)) {
+      return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+    }
+
     const { id: opportunityId } = await params;
 
     if (!opportunityId) {

@@ -21,21 +21,21 @@ interface DmOpsStudentVisaAttributes {
 interface DmOpsStudentVisaCreationAttributes extends Optional<DmOpsStudentVisaAttributes, 'remark2'> {}
 
 class DmOpsStudentVisa extends Model<DmOpsStudentVisaAttributes, DmOpsStudentVisaCreationAttributes> implements DmOpsStudentVisaAttributes {
-  public id!: number;
-  public leadId!: number;
-  public retnDate!: string;
-  public agreeNo!: string;
-  public docSubDate!: string;
-  public planTravDate!: string;
-  public descountry!: string;
-  public university!: string;
-  public docReceDate!: string;
-  public appSub!: string;
-  public appStatus!: string;
-  public remark1!: string;
-  public docFile!: string;
-  public appFile!: string;
-  public remark2!: string | null;
+  declare id: number;
+  declare leadId: number;
+  declare retnDate: string;
+  declare agreeNo: string;
+  declare docSubDate: string;
+  declare planTravDate: string;
+  declare descountry: string;
+  declare university: string;
+  declare docReceDate: string;
+  declare appSub: string;
+  declare appStatus: string;
+  declare remark1: string;
+  declare docFile: string;
+  declare appFile: string;
+  declare remark2: string | null;
 
   public static associate(models: any) {
   }

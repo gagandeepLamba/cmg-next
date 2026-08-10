@@ -1,6 +1,8 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useEuropeBatches } from '@/hooks/useOperationsQueries';
 import {
   Package, Users, FileText, FileCheck, DollarSign, Eye,
@@ -79,6 +81,30 @@ export default function EuropeBatchesPage() {
     const totalCompleted = batch.stage1Verified + batch.stage2Verified + batch.stage3Verified;
     return totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0;
   };
+
+  const { sorted: sortedBatches, sortKey: batchSortKey, sortDirection: batchSortDirection, toggleSort: toggleBatchSort } = useSortableData(
+    filteredBatches,
+    {
+      batch: (batch) => batch.batchName,
+      vendor: (batch) => batch.vendorName,
+      created: (batch) => batch.createdDate,
+      cases: (batch) => batch.totalCases,
+      progress: (batch) => getProgressPercentage(batch),
+      status: (batch) => batch.status,
+    },
+  );
+
+  const { sorted: sortedCases, sortKey: caseSortKey, sortDirection: caseSortDirection, toggleSort: toggleCaseSort } = useSortableData(
+    filteredCases,
+    {
+      client: (c) => c.clientName,
+      country: (c) => c.country,
+      agreement: (c) => c.agreementNumber,
+      passport: (c) => c.passportNumber,
+      stages: (c) => [c.stage1Complete, c.stage2Complete, c.stage3Complete].filter(Boolean).length,
+      status: (c) => (c.rejected ? 'Rejected' : c.opsVerified ? 'Completed' : 'In Progress'),
+    },
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -184,7 +210,7 @@ export default function EuropeBatchesPage() {
         </div>
 
         {activeTab === 'batches' && (
-          <select
+          <SearchableSelect
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
@@ -193,7 +219,7 @@ export default function EuropeBatchesPage() {
             <option value="active">Active</option>
             <option value="completed">Completed</option>
             <option value="hold">Hold</option>
-          </select>
+          </SearchableSelect>
         )}
 
         <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center">
@@ -208,21 +234,21 @@ export default function EuropeBatchesPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : activeTab === 'batches' ? (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cases</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <SortableTh label="Batch" sortKey="batch" activeKey={batchSortKey} direction={batchSortDirection} onSort={toggleBatchSort} />
+                <SortableTh label="Vendor" sortKey="vendor" activeKey={batchSortKey} direction={batchSortDirection} onSort={toggleBatchSort} />
+                <SortableTh label="Created" sortKey="created" activeKey={batchSortKey} direction={batchSortDirection} onSort={toggleBatchSort} />
+                <SortableTh label="Cases" sortKey="cases" activeKey={batchSortKey} direction={batchSortDirection} onSort={toggleBatchSort} />
+                <SortableTh label="Progress" sortKey="progress" activeKey={batchSortKey} direction={batchSortDirection} onSort={toggleBatchSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={batchSortKey} direction={batchSortDirection} onSort={toggleBatchSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredBatches.map((batch) => (
+              {sortedBatches.map((batch) => (
                 <tr key={batch.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="font-medium text-gray-900">{batch.batchName}</div>
@@ -320,21 +346,21 @@ export default function EuropeBatchesPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agreement</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Passport</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stages</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <SortableTh label="Client" sortKey="client" activeKey={caseSortKey} direction={caseSortDirection} onSort={toggleCaseSort} />
+                  <SortableTh label="Country" sortKey="country" activeKey={caseSortKey} direction={caseSortDirection} onSort={toggleCaseSort} />
+                  <SortableTh label="Agreement" sortKey="agreement" activeKey={caseSortKey} direction={caseSortDirection} onSort={toggleCaseSort} />
+                  <SortableTh label="Passport" sortKey="passport" activeKey={caseSortKey} direction={caseSortDirection} onSort={toggleCaseSort} />
+                  <SortableTh label="Stages" sortKey="stages" activeKey={caseSortKey} direction={caseSortDirection} onSort={toggleCaseSort} />
+                  <SortableTh label="Status" sortKey="status" activeKey={caseSortKey} direction={caseSortDirection} onSort={toggleCaseSort} />
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredCases.map((c) => (
+                {sortedCases.map((c) => (
                   <tr key={c.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900">{c.clientName}</div>

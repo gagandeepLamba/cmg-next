@@ -90,10 +90,10 @@ export default function WebhookIntegrations() {
           : w
       ));
       
-      alert(`Webhook test for ${platform} successful!`);
+      window.toast.success(`Webhook test for ${platform} successful!`);
     } catch (error) {
       console.error('Webhook test failed:', error);
-      alert(`Webhook test for ${platform} failed!`);
+      window.toast.error(`Webhook test for ${platform} failed!`);
     } finally {
       setTesting(null);
     }

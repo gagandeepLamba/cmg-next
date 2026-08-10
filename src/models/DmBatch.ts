@@ -13,13 +13,13 @@ interface DmBatchAttributes {
 interface DmBatchCreationAttributes extends Optional<DmBatchAttributes, never> {}
 
 class DmBatch extends Model<DmBatchAttributes, DmBatchCreationAttributes> implements DmBatchAttributes {
-  public id!: number;
-  public batch_name!: string;
-  public batch_number!: string;
-  public created_by!: number;
-  public created!: Date;
-  public vendor_id!: number;
-  public status!: number;
+  declare id: number;
+  declare batch_name: string;
+  declare batch_number: string;
+  declare created_by: number;
+  declare created: Date;
+  declare vendor_id: number;
+  declare status: number;
 
   public static associate(models: any) {
   }

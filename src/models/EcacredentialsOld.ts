@@ -14,14 +14,14 @@ interface EcacredentialsOldAttributes {
 interface EcacredentialsOldCreationAttributes extends Optional<EcacredentialsOldAttributes, 'agreeNo' | 'ecauid' | 'ecausrpsswrd' | 'regemail' | 'regpsswrd' | 'secq' | 'seca'> {}
 
 class EcacredentialsOld extends Model<EcacredentialsOldAttributes, EcacredentialsOldCreationAttributes> implements EcacredentialsOldAttributes {
-  public id!: number;
-  public agreeNo!: number | null;
-  public ecauid!: string | null;
-  public ecausrpsswrd!: string | null;
-  public regemail!: string | null;
-  public regpsswrd!: string | null;
-  public secq!: string | null;
-  public seca!: string | null;
+  declare id: number;
+  declare agreeNo: number | null;
+  declare ecauid: string | null;
+  declare ecausrpsswrd: string | null;
+  declare regemail: string | null;
+  declare regpsswrd: string | null;
+  declare secq: string | null;
+  declare seca: string | null;
 
   public static associate(models: any) {
   }

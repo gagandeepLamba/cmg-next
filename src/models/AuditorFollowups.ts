@@ -15,15 +15,15 @@ interface AuditorFollowupsAttributes {
 interface AuditorFollowupsCreationAttributes extends Optional<AuditorFollowupsAttributes, never> {}
 
 class AuditorFollowups extends Model<AuditorFollowupsAttributes, AuditorFollowupsCreationAttributes> implements AuditorFollowupsAttributes {
-  public id!: number;
-  public followup_date!: Date;
-  public followup_time!: Date;
-  public followup_remarks!: string;
-  public created!: Date;
-  public created_by!: number;
-  public lead_id!: number;
-  public assign!: number;
-  public na_record!: number;
+  declare id: number;
+  declare followup_date: Date;
+  declare followup_time: Date;
+  declare followup_remarks: string;
+  declare created: Date;
+  declare created_by: number;
+  declare lead_id: number;
+  declare assign: number;
+  declare na_record: number;
 
   public static associate(models: any) {
   }

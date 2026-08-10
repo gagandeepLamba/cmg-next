@@ -14,14 +14,14 @@ interface AusNomAttributes {
 interface AusNomCreationAttributes extends Optional<AusNomAttributes, 'leadid' | 'nomstate' | 'subdate' | 'nomexpdate' | 'file'> {}
 
 class AusNom extends Model<AusNomAttributes, AusNomCreationAttributes> implements AusNomAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public nomstate!: string | null;
-  public subdate!: string | null;
-  public nomexpdate!: string | null;
-  public file!: string | null;
-  public nomStatus!: string;
-  public created!: Date;
+  declare id: number;
+  declare leadid: number | null;
+  declare nomstate: string | null;
+  declare subdate: string | null;
+  declare nomexpdate: string | null;
+  declare file: string | null;
+  declare nomStatus: string;
+  declare created: Date;
 
   public static associate(models: any) {
     AusNom.belongsTo(models.DmcForumLeads, { foreignKey: 'leadid', targetKey: 'id', as: 'dmcForumLeads' });

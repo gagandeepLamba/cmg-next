@@ -17,17 +17,17 @@ interface DmWpFeeAttributes {
 interface DmWpFeeCreationAttributes extends Optional<DmWpFeeAttributes, 'service' | 'country' | 'branch' | 'currency' | 'firstStage' | 'secondStage' | 'thirdStage' | 'forthStage' | 'status'> {}
 
 class DmWpFee extends Model<DmWpFeeAttributes, DmWpFeeCreationAttributes> implements DmWpFeeAttributes {
-  public id!: number;
-  public service!: number | null;
-  public country!: number | null;
-  public branch!: number | null;
-  public currency!: number | null;
-  public firstStage!: number;
-  public secondStage!: number;
-  public thirdStage!: number;
-  public forthStage!: number;
-  public fifthStage!: number;
-  public status!: number;
+  declare id: number;
+  declare service: number | null;
+  declare country: number | null;
+  declare branch: number | null;
+  declare currency: number | null;
+  declare firstStage: number;
+  declare secondStage: number;
+  declare thirdStage: number;
+  declare forthStage: number;
+  declare fifthStage: number;
+  declare status: number;
 
   public static associate(models: any) {
   }

@@ -7,27 +7,33 @@ export interface DmcNotificationsAttributes {
   type: string;
   title: string;
   message: string;
+  related_id: number | null;
+  related_type: string | null;
+  link: string | null;
   is_read: boolean;
   priority: string;
   created_at: Date;
   updated_at: Date;
 }
 
-export interface DmcNotificationsCreationAttributes extends Optional<DmcNotificationsAttributes, 'id' | 'is_read' | 'created_at' | 'updated_at'> {}
+export interface DmcNotificationsCreationAttributes extends Optional<DmcNotificationsAttributes, 'id' | 'related_id' | 'related_type' | 'link' | 'is_read' | 'created_at' | 'updated_at'> {}
 
 export class DmcNotifications extends Model<DmcNotificationsAttributes, DmcNotificationsCreationAttributes> implements DmcNotificationsAttributes {
-  public id!: number;
-  public user_id!: number;
-  public type!: string;
-  public title!: string;
-  public message!: string;
-  public is_read!: boolean;
-  public priority!: string;
-  public created_at!: Date;
-  public updated_at!: Date;
+  declare id: number;
+  declare user_id: number;
+  declare type: string;
+  declare title: string;
+  declare message: string;
+  declare related_id: number | null;
+  declare related_type: string | null;
+  declare link: string | null;
+  declare is_read: boolean;
+  declare priority: string;
+  declare created_at: Date;
+  declare updated_at: Date;
 
   // Associations
-  public dmEmployee?: any;
+  declare dmEmployee?: any;
 
   public static associate(models: any) {
     DmcNotifications.belongsTo(models.DmEmployee, {
@@ -59,6 +65,18 @@ DmcNotifications.init(
     message: {
       type: DataTypes.TEXT,
       allowNull: false,
+    },
+    related_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    related_type: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    link: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
     },
     is_read: {
       type: DataTypes.BOOLEAN,

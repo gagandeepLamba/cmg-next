@@ -23,22 +23,22 @@ interface DmcLeadReassignmentsAttributes {
 interface DmcLeadReassignmentsCreationAttributes extends Optional<DmcLeadReassignmentsAttributes, 'id' | 'approvedBy' | 'approvedAt'> {}
 
 class DmcLeadReassignments extends Model<DmcLeadReassignmentsAttributes, DmcLeadReassignmentsCreationAttributes> implements DmcLeadReassignmentsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public fromEmployeeId!: number;
-  public toEmployeeId!: number;
-  public reassignmentType!: 'manual' | 'automatic' | 'escalation' | 'transfer' | 'reallocation';
-  public reason!: string;
-  public previousStatus!: string;
-  public newStatus!: string;
-  public reassignmentDate!: Date;
-  public notes!: string | null;
-  public approvedBy!: number | null;
-  public status!: 'pending' | 'approved' | 'rejected';
-  public approvedAt!: Date | null;
-  public createdBy!: number;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare leadId: number;
+  declare fromEmployeeId: number;
+  declare toEmployeeId: number;
+  declare reassignmentType: 'manual' | 'automatic' | 'escalation' | 'transfer' | 'reallocation';
+  declare reason: string;
+  declare previousStatus: string;
+  declare newStatus: string;
+  declare reassignmentDate: Date;
+  declare notes: string | null;
+  declare approvedBy: number | null;
+  declare status: 'pending' | 'approved' | 'rejected';
+  declare approvedAt: Date | null;
+  declare createdBy: number;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmcLeadReassignments.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLead' });

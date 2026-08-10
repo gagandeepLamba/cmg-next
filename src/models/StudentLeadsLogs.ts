@@ -10,10 +10,10 @@ interface StudentLeadsLogsAttributes {
 interface StudentLeadsLogsCreationAttributes extends Optional<StudentLeadsLogsAttributes, 'Counsilor' | 'lead' | 'date'> {}
 
 class StudentLeadsLogs extends Model<StudentLeadsLogsAttributes, StudentLeadsLogsCreationAttributes> implements StudentLeadsLogsAttributes {
-  public id!: number;
-  public Counsilor!: number | null;
-  public lead!: number | null;
-  public date!: string | null;
+  declare id: number;
+  declare Counsilor: number | null;
+  declare lead: number | null;
+  declare date: string | null;
 
   public static associate(models: any) {
     StudentLeadsLogs.belongsTo(models.DmEmployee, { foreignKey: 'Counsilor', targetKey: 'id', as: 'dmEmployee' });

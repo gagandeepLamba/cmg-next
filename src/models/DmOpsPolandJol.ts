@@ -13,13 +13,13 @@ interface DmOpsPolandJolAttributes {
 interface DmOpsPolandJolCreationAttributes extends Optional<DmOpsPolandJolAttributes, never> {}
 
 class DmOpsPolandJol extends Model<DmOpsPolandJolAttributes, DmOpsPolandJolCreationAttributes> implements DmOpsPolandJolAttributes {
-  public id!: number;
-  public leadId!: number;
-  public jol_received!: string;
-  public jol_received_date!: Date;
-  public created_by!: number;
-  public created!: Date;
-  public loc_pay!: number;
+  declare id: number;
+  declare leadId: number;
+  declare jol_received: string;
+  declare jol_received_date: Date;
+  declare created_by: number;
+  declare created: Date;
+  declare loc_pay: number;
 
   public static associate(models: any) {
   }

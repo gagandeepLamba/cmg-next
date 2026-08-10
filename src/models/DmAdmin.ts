@@ -10,10 +10,10 @@ interface DmAdminAttributes {
 interface DmAdminCreationAttributes extends Optional<DmAdminAttributes, 'status'> {}
 
 class DmAdmin extends Model<DmAdminAttributes, DmAdminCreationAttributes> implements DmAdminAttributes {
-  public id!: number;
-  public user!: string;
-  public pwd!: string;
-  public status!: number;
+  declare id: number;
+  declare user: string;
+  declare pwd: string;
+  declare status: number;
 
   public static associate(models: any) {
   }

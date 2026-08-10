@@ -14,14 +14,14 @@ interface DmPolBiometricsAttributes {
 interface DmPolBiometricsCreationAttributes extends Optional<DmPolBiometricsAttributes, never> {}
 
 class DmPolBiometrics extends Model<DmPolBiometricsAttributes, DmPolBiometricsCreationAttributes> implements DmPolBiometricsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public country!: number;
-  public bio_status!: string;
-  public biometrics_appointment_date!: Date;
-  public status!: number;
-  public created_by!: number;
-  public created!: Date;
+  declare id: number;
+  declare leadId: number;
+  declare country: number;
+  declare bio_status: string;
+  declare biometrics_appointment_date: Date;
+  declare status: number;
+  declare created_by: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

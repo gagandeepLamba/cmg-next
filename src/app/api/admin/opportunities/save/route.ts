@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
 import { QueryTypes } from 'sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { resolveBranchCurrency } from '@/lib/branchCurrency';
+import { formatDocumentNumber } from '@/lib/documentNumbering';
 
 // Only these columns are allowed in the dynamic UPDATE to prevent accidental overwrites.
 const ALLOWED_LEAD_UPDATE_COLS = new Set([
@@ -11,6 +14,13 @@ const ALLOWED_LEAD_UPDATE_COLS = new Set([
 
 export async function POST(request: NextRequest) {
   try {
+    // Called on every stage transition of the opportunity flow wizard by
+    // whichever counselor/staff member is currently working the opportunity —
+    // auth-only (no specific permission) rather than a narrow permission that
+    // could break a legitimate stage save.
+    const auth = requireAuth(request);
+    if (isAuthError(auth)) return auth;
+
     const body = await request.json();
     const { leadId, stage, data, completeFlow = false } = body;
 
@@ -39,8 +49,24 @@ export async function POST(request: NextRequest) {
     };
 
     if (stage === 'prospect') {
-      updateData.service_interest = data.serviceRequired || lead.service_interest;
-      updateData.payTotal = data.estimatedValue ? parseFloat(data.estimatedValue) : lead.payTotal;
+      if (data.estimatedValue !== undefined && data.estimatedValue !== null && data.estimatedValue !== '') {
+        const estimatedValue = parseFloat(data.estimatedValue);
+        if (!Number.isFinite(estimatedValue) || estimatedValue <= 0) {
+          return NextResponse.json({ message: 'estimatedValue must be a positive number' }, { status: 422 });
+        }
+        updateData.payTotal = estimatedValue;
+      } else {
+        updateData.payTotal = lead.payTotal;
+      }
+      if (data.serviceId !== undefined && data.serviceId !== null && data.serviceId !== '') {
+        const serviceInterestId = parseInt(data.serviceId, 10);
+        if (!Number.isFinite(serviceInterestId)) {
+          return NextResponse.json({ message: 'serviceId must be a valid integer' }, { status: 422 });
+        }
+        updateData.service_interest = serviceInterestId;
+      } else {
+        updateData.service_interest = lead.service_interest;
+      }
       updateData.priority = data.priority || lead.priority;
       updateData.stepComplete = 1;
     } else if (stage === 'quotation') {
@@ -57,6 +83,28 @@ export async function POST(request: NextRequest) {
     } else if (stage === 'agreement') {
       updateData.agreeDate = data.startDate ? new Date(data.startDate) : lead.agreeDate;
       updateData.stepComplete = 2;
+
+      // The Counselor Conversation Summary is typed on this stage, but until
+      // now nothing here persisted it — compliance-approvals then had nothing
+      // to show. Save it as soon as this stage completes rather than relying
+      // on a later, conditional step (signed-agreement submission) to carry it.
+      const conversationSummary = String(data.counselorConversationSummary || '').trim();
+      if (conversationSummary) {
+        await sequelize.query(
+          `INSERT INTO dm_opportunity_handover_notes
+             (lead_id, opportunity_id, counselor_id, conversation_summary, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+          {
+            replacements: [
+              leadId,
+              lead.opportunity_id || null,
+              lead.Counsilor || lead.assignTo || null,
+              conversationSummary,
+              new Date(),
+            ],
+          }
+        );
+      }
     } else if (stage === 'retained') {
       updateData.stepComplete = data.retentionStatus === 'approved' ? 3 : 2;
       updateData.status = data.retentionStatus === 'approved' ? 'Converted' : 'In Progress';
@@ -155,8 +203,15 @@ async function handleCompleteFlow(leadId: number, data: any, lead: any) {
       }
     );
 
-    // Create agreement record
-    await sequelize.query(
+    // Create agreement record. Insert with a placeholder number first (the
+    // real AG/{branch}/{product}/{DDMMYYYY}/{seq} number - the same format
+    // every other agreement-creation path in the app uses - needs this row's
+    // own auto-increment id, which only exists after insert). Leaving this as
+    // the raw `AGR-timestamp-random` placeholder, as it was before, produced
+    // agreement numbers in a different format from every other creation path,
+    // which is exactly the kind of mismatch that makes a later manual number
+    // lookup ("Agreement not found") fail.
+    const [agreementMeta] = await sequelize.query(
       `INSERT INTO dm_opportunity_agreements (
         opportunityId, agreementNumber, agreementType, templateId, status,
         title, description, termsAndConditions, totalAmount, currency,
@@ -167,7 +222,7 @@ async function handleCompleteFlow(leadId: number, data: any, lead: any) {
       {
         replacements: [
           opportunityId,
-          `AGR-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+          `AGR-PENDING-${Date.now()}`,
           'service_agreement',
           null,
           'draft',
@@ -192,6 +247,22 @@ async function handleCompleteFlow(leadId: number, data: any, lead: any) {
         ],
         transaction: t,
       }
+    ) as any;
+
+    const agreementId = (agreementMeta as any)?.insertId;
+    if (!agreementId) throw new Error('Failed to create agreement record — insertId missing');
+
+    const branchCurrency = await resolveBranchCurrency(lead.branch);
+    const agreementNumber = formatDocumentNumber({
+      prefix: 'AG',
+      branchName: branchCurrency?.branchName,
+      branchAddress: branchCurrency?.branchAddress,
+      product: lead.service_interest,
+      sequenceId: agreementId,
+    });
+    await sequelize.query(
+      `UPDATE dm_opportunity_agreements SET agreementNumber = ? WHERE id = ?`,
+      { replacements: [agreementNumber, agreementId], transaction: t }
     );
 
     // Update lead status
@@ -219,6 +290,8 @@ async function handleCompleteFlow(leadId: number, data: any, lead: any) {
       message: 'Lead successfully converted to opportunity with complete flow data',
       data: {
         opportunityId,
+        agreementId,
+        agreementNumber,
         leadStatus: 'opportunity_created',
       },
     });

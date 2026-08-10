@@ -10,10 +10,10 @@ interface DmLeadLiveChatCountsAttributes {
 interface DmLeadLiveChatCountsCreationAttributes extends Optional<DmLeadLiveChatCountsAttributes, never> {}
 
 class DmLeadLiveChatCounts extends Model<DmLeadLiveChatCountsAttributes, DmLeadLiveChatCountsCreationAttributes> implements DmLeadLiveChatCountsAttributes {
-  public id!: number;
-  public branch_id!: number;
-  public emp_id!: number;
-  public lead_count!: number;
+  declare id: number;
+  declare branch_id: number;
+  declare emp_id: number;
+  declare lead_count: number;
 
   public static associate(models: any) {
   }

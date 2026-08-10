@@ -16,16 +16,16 @@ interface OldDataPunAttributes {
 interface OldDataPunCreationAttributes extends Optional<OldDataPunAttributes, 'id' | 'sign_up_date' | 'agreeNo' | 'client_name' | 'mobile' | 'email' | 'country' | 'counselor'> {}
 
 class OldDataPun extends Model<OldDataPunAttributes, OldDataPunCreationAttributes> implements OldDataPunAttributes {
-  public temp_id!: number;
-  public id!: number | null;
-  public sign_up_date!: string | null;
-  public agreeNo!: number | null;
-  public client_name!: string | null;
-  public mobile!: string | null;
-  public email!: string | null;
-  public country!: string | null;
-  public counselor!: string | null;
-  public status!: string;
+  declare temp_id: number;
+  declare id: number | null;
+  declare sign_up_date: string | null;
+  declare agreeNo: number | null;
+  declare client_name: string | null;
+  declare mobile: string | null;
+  declare email: string | null;
+  declare country: string | null;
+  declare counselor: string | null;
+  declare status: string;
 
   public static associate(models: any) {
   }

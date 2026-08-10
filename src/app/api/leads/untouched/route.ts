@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DmcForumLeads } from '@/models';
 import { Op } from 'sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['leads.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const untouchedHours = searchParams.get('untouched_hours') || '6';

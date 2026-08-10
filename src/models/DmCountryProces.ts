@@ -10,10 +10,10 @@ interface DmCountryProcesAttributes {
 interface DmCountryProcesCreationAttributes extends Optional<DmCountryProcesAttributes, 'status'> {}
 
 class DmCountryProces extends Model<DmCountryProcesAttributes, DmCountryProcesCreationAttributes> implements DmCountryProcesAttributes {
-  public id!: number;
-  public name!: string;
-  public status!: number;
-  public sub_counteries!: number;
+  declare id: number;
+  declare name: string;
+  declare status: number;
+  declare sub_counteries: number;
 
   public static associate(models: any) {
     DmCountryProces.hasMany(models.DmFee, { foreignKey: 'country', sourceKey: 'id', as: 'dmFees' });

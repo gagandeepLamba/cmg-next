@@ -4,6 +4,7 @@ import {
   readLegacyAgreementTemplate,
   type LegacyAgreementSection,
 } from '@/lib/legacyAgreementTemplates';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 function parseSection(value: string | null): LegacyAgreementSection | undefined {
   if (value === 'contract' || value === 'annexureA' || value === 'annexureB') return value;
@@ -11,6 +12,8 @@ function parseSection(value: string | null): LegacyAgreementSection | undefined 
 }
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['agreements.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'list';

@@ -1,8 +1,13 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2, Mail, Phone } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { isFoeOrBranchManagerOrCeo, isBranchManagerOrCeo } from '@/lib/roleChecks';
+import { ALL_COUNTRIES } from '@/lib/countries';
+import { calculateAgeFromDob } from '@/lib/utils';
 
 interface LeadFormData {
   salutation: string;
@@ -52,6 +57,7 @@ interface LeadApiData {
   email?: string | null;
   phone?: string | null;
   mobile?: string | null;
+  whatsapp_number?: string | null;
   address?: string | null;
   area?: string | null;
   nationality?: string | null;
@@ -67,11 +73,29 @@ interface LeadApiData {
   lead_quality?: string | null;
   country_interest?: number | string | null;
   service_interest?: number | string | null;
+  salutation?: string | null;
+  suffix?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  age?: number | string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  gclid?: string | null;
+  re_enquiry?: number | boolean | null;
+  re_enquiry_counter?: number | string | null;
+  call_attempt_1?: string | null;
+  call_back_attempts?: number | string | null;
+  call_attempts_deadline?: string | null;
+  watnot_bot?: number | boolean | null;
+  roundrobin?: number | boolean | null;
+  whatsapp?: number | boolean | null;
+  transfer_date?: string | null;
 }
 
 interface SelectOption {
   id?: number | string;
   name?: string;
+  branch?: number | string | null;
 }
 
 interface ProgramTypeOption {
@@ -137,21 +161,41 @@ const formatDateTime = (value?: string | null) => {
 
 const toFormData = (lead: LeadApiData): LeadFormData => ({
   ...emptyForm,
+  salutation: lead.salutation || '--None--',
   firstName: lead.fname || '',
   middleName: lead.mname || '',
   lastName: lead.lname || '',
+  suffix: lead.suffix || '',
   email: lead.email || '',
   phone: lead.phone || '',
-  whatsappNumber: lead.mobile || '',
+  whatsappNumber: lead.whatsapp_number || '',
   street: lead.address || '',
   city: lead.area || '',
-  country: lead.nationality || '',
-  genderIdentity: lead.gender || '',
+  state: lead.state || '',
+  postalCode: lead.postal_code || '',
+  country: lead.nationality || '--None--',
+  genderIdentity: lead.gender || '--None--',
+  age: lead.age ? String(lead.age) : '',
   dateOfBirth: formatDate(lead.dob),
   leadSource: lead.market_source || '',
+  utmSource: lead.utm_source || '',
+  utmMedium: lead.utm_medium || '',
+  gclId: lead.gclid || '',
   leadOwner: lead.assignTo ? String(lead.assignTo) : '',
-  assignedDate: formatDateTime(lead.created),
+  // "Assigned Date" means since-when this lead has belonged to its current
+  // owner, which is what transfer_date tracks (stamped automatically by the
+  // PUT handler on reassignment) - `created` is the lead's original intake
+  // date, not when it was assigned to whoever holds it now.
+  assignedDate: formatDateTime(lead.transfer_date) || formatDateTime(lead.created),
+  reEnquiry: Boolean(lead.re_enquiry),
+  reEnquiryCounter: lead.re_enquiry_counter ? Number(lead.re_enquiry_counter) : 0,
   prospectFollowUp: formatDateTime(lead.followup),
+  callAttempt1: formatDateTime(lead.call_attempt_1),
+  callBackAttempts: lead.call_back_attempts ? Number(lead.call_back_attempts) : 0,
+  callAttemptsDeadline: formatDateTime(lead.call_attempts_deadline),
+  watnotBot: Boolean(lead.watnot_bot),
+  roundrobin: Boolean(lead.roundrobin),
+  whatsapp: Boolean(lead.whatsapp),
   status: lead.status || 'New',
   priority: lead.priority || 'Medium',
   notes: lead.lead_remark || '',
@@ -178,6 +222,21 @@ export default function AdminEditLeadPage() {
   const [loadingPrograms, setLoadingPrograms] = useState(false);
   const [loadingTypes, setLoadingTypes] = useState(false);
 
+  // FOE and Branch Manager only ever reassign leads to their own branch's
+  // counselors; CEO (and anyone else) can pick from every branch.
+  const { user } = useAuth();
+  const isBranchLockedRole = isFoeOrBranchManagerOrCeo(user as any) && String((user as any)?.roleName || '').trim().toLowerCase() !== 'ceo';
+  // Once a lead is in the CRM, only Branch Manager or CEO can change its
+  // contact details - counselors see them read-only here (also enforced
+  // server-side in PUT /api/leads/[id]).
+  const canEditContactInfo = isBranchManagerOrCeo(user as any);
+  // Plain counselors never get to see or change who a lead is assigned to —
+  // only FOE/Branch Manager/CEO may reassign (also enforced server-side).
+  const canEditAssignment = isFoeOrBranchManagerOrCeo(user as any);
+  const leadOwnerOptions = isBranchLockedRole && user?.branch
+    ? employees.filter((e) => String(e.branch ?? '') === String(user.branch))
+    : employees;
+
   useEffect(() => {
     const loadInitialData = async () => {
       if (!leadId) return;
@@ -189,7 +248,7 @@ export default function AdminEditLeadPage() {
           fetch(`/api/leads/${leadId}`),
           fetch('/api/countries'),
           fetch('/api/lead-sources'),
-          fetch('/api/employees/active')
+          fetch('/api/employees/active?role=counsellor')
         ]);
 
         if (!leadRes.ok) {
@@ -261,10 +320,25 @@ export default function AdminEditLeadPage() {
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = event.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (event.target as HTMLInputElement).checked : value
-    }));
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        [name]: type === 'checkbox' ? (event.target as HTMLInputElement).checked : value
+      };
+      if (name === 'dateOfBirth') {
+        next.age = calculateAgeFromDob(value);
+      }
+      // Prospect leads are prioritized P1-P4 instead of the Hot/Warm/Cold/
+      // High/Medium/Low scale, so switching status in/out of Prospect must
+      // re-pick a priority that's actually valid for the now-active options.
+      if (name === 'status') {
+        const wasProspect = prev.status === 'Prospect';
+        const isProspect = value === 'Prospect';
+        if (isProspect && !wasProspect) next.priority = 'P1';
+        else if (!isProspect && wasProspect) next.priority = 'Medium';
+      }
+      return next;
+    });
   };
 
   const handleProgramCountryChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -294,20 +368,43 @@ export default function AdminEditLeadPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          salutation: formData.salutation,
           firstName: formData.firstName,
           middleName: formData.middleName,
           lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          whatsappNumber: formData.whatsappNumber,
+          suffix: formData.suffix,
+          // Omitted entirely for plain counselors, same reason as leadOwner
+          // below: the server's "did this request touch contact info"
+          // guard checks whether these keys are present at all, not whether
+          // their value actually changed — so sending them unconditionally
+          // (even with their unchanged values) 403'd every single edit a
+          // counselor made, not just ones that actually changed contact info.
+          ...(canEditContactInfo ? { email: formData.email, phone: formData.phone, whatsappNumber: formData.whatsappNumber } : {}),
           street: formData.street,
           city: formData.city,
+          state: formData.state,
+          postalCode: formData.postalCode,
           country: formData.country,
           dateOfBirth: formData.dateOfBirth,
           genderIdentity: formData.genderIdentity,
+          age: formData.age,
+          utmSource: formData.utmSource,
+          utmMedium: formData.utmMedium,
+          gclId: formData.gclId,
           leadSource: formData.leadSource,
-          leadOwner: formData.leadOwner,
+          // Omitted entirely for plain counselors: sending it at all (even
+          // unchanged) would trip the server's "only FOE/Branch Manager/CEO
+          // can touch assignment" guard on an otherwise-unrelated edit.
+          ...(canEditAssignment ? { leadOwner: formData.leadOwner } : {}),
+          reEnquiry: formData.reEnquiry,
+          reEnquiryCounter: formData.reEnquiryCounter,
           prospectFollowUp: formData.prospectFollowUp,
+          callAttempt1: formData.callAttempt1,
+          callBackAttempts: formData.callBackAttempts,
+          callAttemptsDeadline: formData.callAttemptsDeadline,
+          watnotBot: formData.watnotBot,
+          roundrobin: formData.roundrobin,
+          whatsapp: formData.whatsapp,
           status: formData.status,
           priority: formData.priority,
           notes: formData.notes,
@@ -324,11 +421,20 @@ export default function AdminEditLeadPage() {
         throw new Error(message);
       }
 
-      alert('Lead updated successfully!');
-      router.push('/admin/leads');
+      window.toast.success('Lead updated successfully!');
+      // router.push('/admin/leads') always landed on the unfiltered list -
+      // the Leads page keeps its status/tab filters in React state, not the
+      // URL, so a fresh navigation there reset whatever filter (e.g. "New
+      // Leads") the user had applied before opening this lead. Going back
+      // returns to that exact page state instead.
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        router.back();
+      } else {
+        router.push('/admin/leads');
+      }
     } catch (submitError) {
       console.error('Error updating lead:', submitError);
-      alert(submitError instanceof Error ? submitError.message : 'Error updating lead. Please try again.');
+      window.toast.error(submitError instanceof Error ? submitError.message : 'Error updating lead. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -336,9 +442,9 @@ export default function AdminEditLeadPage() {
 
   const salutations = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.'];
   const genderOptions = ['--None--', 'Male', 'Female', 'Other', 'Prefer not to say'];
-  const staticCountries = ['--None--', 'United States', 'Canada', 'United Kingdom', 'Australia', 'India', 'UAE', 'Germany', 'France', 'Singapore'];
-  const priorities = ['Hot', 'Warm', 'Cold', 'High', 'Medium', 'Low'];
-  const statuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Closed', 'Prospect', 'Not Interested', 'DNQ', 'Not_answered', 'Could Not Connect', 'Call Back', 'Abroad Lead'];
+  const staticCountries = ALL_COUNTRIES;
+  const priorities = formData.status === 'Prospect' ? ['P1', 'P2', 'P3', 'P4'] : ['Hot', 'Warm', 'Cold', 'High', 'Medium', 'Low'];
+  const statuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Closed', 'Prospect', 'Not Interested', 'DNQ', 'Not_answered', 'Could Not Connect', 'Call Back', 'Abroad Lead', 'Junk', 'Duplicate'];
   const leadQualities = ['Hot', 'Warm', 'Cold'];
 
   if (pageLoading) {
@@ -382,30 +488,30 @@ export default function AdminEditLeadPage() {
           <h2 className="mb-6 border-b pb-3 text-xl font-semibold text-gray-900">Lead Information</h2>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Field label="Salutation">
-              <select name="salutation" value={formData.salutation} onChange={handleInputChange} className={inputClass}>
+              <SearchableSelect name="salutation" value={formData.salutation} onChange={handleInputChange} className={inputClass}>
                 {salutations.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
+              </SearchableSelect>
             </Field>
             <TextField name="firstName" label="First Name" value={formData.firstName} onChange={handleInputChange} required />
             <TextField name="middleName" label="Middle Name" value={formData.middleName} onChange={handleInputChange} />
             <TextField name="lastName" label="Last Name" value={formData.lastName} onChange={handleInputChange} required />
             <TextField name="suffix" label="Suffix" value={formData.suffix} onChange={handleInputChange} />
-            <Field label="Email" required>
+            <Field label={canEditContactInfo ? 'Email' : 'Email (Branch Manager/CEO only)'} required>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                <input type="email" name="email" value={formData.email} onChange={handleInputChange} required className={`${inputClass} pl-10`} />
+                <input type="email" name="email" value={formData.email} onChange={handleInputChange} required disabled={!canEditContactInfo} className={`${inputClass} pl-10 disabled:bg-gray-100 disabled:text-gray-500`} />
               </div>
             </Field>
-            <Field label="Phone" required>
+            <Field label={canEditContactInfo ? 'Phone' : 'Phone (Branch Manager/CEO only)'} required>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} required className={`${inputClass} pl-10`} />
+                <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} required disabled={!canEditContactInfo} className={`${inputClass} pl-10 disabled:bg-gray-100 disabled:text-gray-500`} />
               </div>
             </Field>
-            <Field label="WhatsApp Number">
+            <Field label={canEditContactInfo ? 'WhatsApp Number' : 'WhatsApp Number (Branch Manager/CEO only)'}>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                <input type="tel" name="whatsappNumber" value={formData.whatsappNumber} onChange={handleInputChange} className={`${inputClass} pl-10`} />
+                <input type="tel" name="whatsappNumber" value={formData.whatsappNumber} onChange={handleInputChange} disabled={!canEditContactInfo} className={`${inputClass} pl-10 disabled:bg-gray-100 disabled:text-gray-500`} />
               </div>
             </Field>
           </div>
@@ -421,9 +527,12 @@ export default function AdminEditLeadPage() {
             <TextField name="state" label="State/Province" value={formData.state} onChange={handleInputChange} />
             <TextField name="postalCode" label="Zip/Postal Code" value={formData.postalCode} onChange={handleInputChange} />
             <Field label="Country">
-              <select name="country" value={formData.country} onChange={handleInputChange} className={inputClass}>
+              <SearchableSelect name="country" value={formData.country} onChange={handleInputChange} className={inputClass}>
+                {formData.country && !staticCountries.includes(formData.country as typeof staticCountries[number]) && (
+                  <option value={formData.country}>{formData.country}</option>
+                )}
                 {staticCountries.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
+              </SearchableSelect>
             </Field>
           </div>
         </div>
@@ -431,12 +540,12 @@ export default function AdminEditLeadPage() {
         <div className={sectionClass}>
           <h2 className="mb-6 border-b pb-3 text-xl font-semibold text-gray-900">Personal Information</h2>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <Field label="Gender Identity" required>
-              <select name="genderIdentity" value={formData.genderIdentity} onChange={handleInputChange} required className={inputClass}>
+            <Field label="Gender Identity">
+              <SearchableSelect name="genderIdentity" value={formData.genderIdentity} onChange={handleInputChange} className={inputClass}>
                 {genderOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
+              </SearchableSelect>
             </Field>
-            <TextField name="age" label="Age" type="number" value={formData.age} onChange={handleInputChange} />
+            <TextField name="age" label="Age (auto-calculated)" type="number" value={formData.age} onChange={handleInputChange} disabled />
             <TextField name="dateOfBirth" label="Date of Birth" type="date" value={formData.dateOfBirth} onChange={handleInputChange} />
           </div>
         </div>
@@ -445,7 +554,7 @@ export default function AdminEditLeadPage() {
           <h2 className="mb-6 border-b pb-3 text-xl font-semibold text-gray-900">Lead Details</h2>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Field label="Lead Source">
-              <select name="leadSource" value={formData.leadSource} onChange={handleInputChange} className={inputClass}>
+              <SearchableSelect name="leadSource" value={formData.leadSource} onChange={handleInputChange} className={inputClass}>
                 {formData.leadSource && !leadSources.some((source) => String(source.id ?? source.name ?? '') === formData.leadSource) && (
                   <option value={formData.leadSource}>{formData.leadSource}</option>
                 )}
@@ -454,7 +563,7 @@ export default function AdminEditLeadPage() {
                     {source.name ?? source.id}
                   </option>
                 ))}
-              </select>
+              </SearchableSelect>
             </Field>
             <TextField name="utmSource" label="UTM Source" value={formData.utmSource} onChange={handleInputChange} />
             <TextField name="utmMedium" label="UTM Medium" value={formData.utmMedium} onChange={handleInputChange} />
@@ -465,36 +574,36 @@ export default function AdminEditLeadPage() {
         <div className={sectionClass}>
           <h2 className="mb-6 border-b pb-3 text-xl font-semibold text-gray-900">Program Selection</h2>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <Field label="Country" required>
-              <select name="programCountry" value={formData.programCountry} onChange={handleProgramCountryChange} className={inputClass}>
+            <Field label="Country">
+              <SearchableSelect name="programCountry" value={formData.programCountry} onChange={handleProgramCountryChange} className={inputClass}>
                 <option value="">-- Select Country --</option>
                 {formData.programCountry && !countries.some((country) => String(country.id) === formData.programCountry) && (
                   <option value={formData.programCountry}>{formData.programCountry}</option>
                 )}
                 {countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}
-              </select>
+              </SearchableSelect>
             </Field>
-            <Field label="Program" required>
+            <Field label="Program">
               <div className="relative">
-                <select name="program" value={formData.program} onChange={handleProgramChange} disabled={!formData.programCountry || loadingPrograms} className={`${inputClass} disabled:bg-gray-100`}>
+                <SearchableSelect name="program" value={formData.program} onChange={handleProgramChange} disabled={!formData.programCountry || loadingPrograms} className={`${inputClass} disabled:bg-gray-100`}>
                   <option value="">-- Select Program --</option>
                   {formData.program && !programs.some((program) => String(program.id) === formData.program) && (
                     <option value={formData.program}>{formData.program}</option>
                   )}
                   {programs.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}
-                </select>
+                </SearchableSelect>
                 {loadingPrograms && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-blue-500" />}
               </div>
             </Field>
-            <Field label="Program Type" required>
+            <Field label="Program Type">
               <div className="relative">
-                <select name="programType" value={formData.programType} onChange={handleInputChange} disabled={!formData.program || loadingTypes} className={`${inputClass} disabled:bg-gray-100`}>
+                <SearchableSelect name="programType" value={formData.programType} onChange={handleInputChange} disabled={!formData.program || loadingTypes} className={`${inputClass} disabled:bg-gray-100`}>
                   <option value="">-- Select Type --</option>
                   {formData.programType && !programTypes.some((type) => String(type.id) === formData.programType) && (
                     <option value={formData.programType}>{formData.programType}</option>
                   )}
                   {programTypes.map((type) => <option key={type.id} value={type.id}>{type.type}</option>)}
-                </select>
+                </SearchableSelect>
                 {loadingTypes && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-blue-500" />}
               </div>
             </Field>
@@ -504,13 +613,18 @@ export default function AdminEditLeadPage() {
         <div className={sectionClass}>
           <h2 className="mb-6 border-b pb-3 text-xl font-semibold text-gray-900">Assignment</h2>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <Field label="Lead Owner">
-              <select name="leadOwner" value={formData.leadOwner} onChange={handleInputChange} className={inputClass}>
-                <option value="">Select Lead Owner</option>
-                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
-              </select>
-            </Field>
-            <TextField name="assignedDate" label="Assigned Date" type="datetime-local" value={formData.assignedDate} onChange={handleInputChange} />
+            {canEditAssignment && (
+              <Field label="Counselor">
+                <SearchableSelect name="leadOwner" value={formData.leadOwner} onChange={handleInputChange} className={inputClass}>
+                  <option value="">Select Counselor</option>
+                  {leadOwnerOptions.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
+                </SearchableSelect>
+                {isBranchLockedRole && (
+                  <p className="mt-1 text-xs text-gray-500">Showing counselors in your branch only.</p>
+                )}
+              </Field>
+            )}
+            <TextField name="assignedDate" label="Assigned Date (auto-tracked)" type="datetime-local" value={formData.assignedDate} onChange={handleInputChange} disabled />
             <TextField name="reEnquiryCounter" label="Re-Enquiry Counter" type="number" value={formData.reEnquiryCounter} onChange={handleInputChange} />
             <CheckboxField name="reEnquiry" label="Re-Enquiry" checked={formData.reEnquiry} onChange={handleInputChange} />
           </div>
@@ -539,19 +653,19 @@ export default function AdminEditLeadPage() {
           <h2 className="mb-6 border-b pb-3 text-xl font-semibold text-gray-900">Status & Priority</h2>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <Field label="Status">
-              <select name="status" value={formData.status} onChange={handleInputChange} className={inputClass}>
+              <SearchableSelect name="status" value={formData.status} onChange={handleInputChange} className={inputClass}>
                 {statuses.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
+              </SearchableSelect>
             </Field>
             <Field label="Priority">
-              <select name="priority" value={formData.priority} onChange={handleInputChange} className={inputClass}>
+              <SearchableSelect name="priority" value={formData.priority} onChange={handleInputChange} className={inputClass}>
                 {priorities.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
+              </SearchableSelect>
             </Field>
             <Field label="Lead Quality">
-              <select name="leadQuality" value={formData.leadQuality} onChange={handleInputChange} className={inputClass}>
+              <SearchableSelect name="leadQuality" value={formData.leadQuality} onChange={handleInputChange} className={inputClass}>
                 {leadQualities.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
+              </SearchableSelect>
             </Field>
             <Field label="Notes" wide>
               <textarea name="notes" value={formData.notes} onChange={handleInputChange} rows={4} className={inputClass} />
@@ -589,7 +703,8 @@ function TextField({
   value,
   onChange,
   type = 'text',
-  required = false
+  required = false,
+  disabled = false
 }: {
   name: keyof LeadFormData;
   label: string;
@@ -597,10 +712,11 @@ function TextField({
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   type?: string;
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Field label={label} required={required}>
-      <input type={type} name={name} value={value} onChange={onChange} required={required} className={inputClass} />
+      <input type={type} name={name} value={value} onChange={onChange} required={required} disabled={disabled} className={`${inputClass} disabled:bg-gray-100 disabled:text-gray-500`} />
     </Field>
   );
 }

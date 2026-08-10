@@ -1,11 +1,17 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Filter, FileText, User, Building2, Globe, Calendar, DollarSign, ExternalLink, Eye, Receipt, FileCheck, Activity, ChevronDown, X, Briefcase } from 'lucide-react';
+import ConversationHistoryModal from '@/components/shared/ConversationHistoryModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { deriveProductTypeFromLabel } from '@/lib/clientPortalProducts';
 
 interface DmcForumLeadsContract {
   id: number;
+  opportunityId: number;
   lead_id: number;
   contract: string;
   agreement_date: string;
@@ -257,6 +263,23 @@ const operationModules: OperationModule[] = [
   }
 ];
 
+// Maps dmc_opportunities.product_type (see src/lib/clientPortalProducts.ts,
+// the single source of truth for this classifier) to the wizard page each
+// product is handled by. All six route to leads/*-operations-wizard.tsx pages
+// (the maintained implementation) — the old /admin/ops-skill-canada,
+// /admin/ops-resume-canada, /admin/ops-visit-visa, /admin/ops-eip-canada,
+// /admin/ops-skill-australia and /admin/ops-student-visa pages were a
+// duplicate implementation of the same case-processing workflow and have
+// been removed.
+const PRODUCT_TYPE_OPS_URL: Record<string, string> = {
+  'canada-pr': '/admin/leads/skill-canada-operations',
+  'rms': '/admin/leads/rms-operations',
+  'australia-pr': '/admin/leads/skill-australia-operations',
+  'visit-visa': '/admin/leads/visit-visa-operations',
+  'student-visa': '/admin/leads/student-visa-operations',
+  'eip': '/admin/leads/eip-canada-operations',
+};
+
 interface FilterOptions {
   agreementNumber: string;
   startDate: string;
@@ -280,11 +303,23 @@ interface FilterOptions {
 
 export default function OperationsManagement() {
   const router = useRouter();
+  const { currencyCode } = useAuth();
   const [contracts, setContracts] = useState<DmcForumLeadsContract[]>([]);
   const [filteredContracts, setFilteredContracts] = useState<DmcForumLeadsContract[]>([]);
+  const { sorted: sortedContracts, sortKey: contractSortKey, sortDirection: contractSortDirection, toggleSort: toggleContractSort } = useSortableData(
+    filteredContracts,
+    {
+      agreement: (c) => c.contract,
+      client: (c) => `${c.dmc_forum_lead?.fname || ''} ${c.dmc_forum_lead?.lname || ''}`,
+      program: (c) => c.dmc_forum_lead?.lead_type || c.dmc_forum_lead?.program_type,
+      amount: (c) => c.amount,
+      status: (c) => c.status,
+    },
+  );
   const [loading, setLoading] = useState(false);
   const [selectedContract, setSelectedContract] = useState<DmcForumLeadsContract | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [conversationHistoryLeadId, setConversationHistoryLeadId] = useState<number | null>(null);
   const [showOperationsModal, setShowOperationsModal] = useState(false);
   const [filteredOperations, setFilteredOperations] = useState<OperationModule[]>([]);
   const [hoveredAgreement, setHoveredAgreement] = useState<number | null>(null);
@@ -292,8 +327,8 @@ export default function OperationsManagement() {
   const [showFilters, setShowFilters] = useState(true);
   const [filters, setFilters] = useState<FilterOptions>({
     agreementNumber: '',
-    startDate: '2026-01-31',
-    endDate: '2026-01-31',
+    startDate: '',
+    endDate: '',
     retentionDate: '',
     region: '',
     branch: '',
@@ -316,7 +351,7 @@ export default function OperationsManagement() {
     const loadOperationsClients = async () => {
       setLoading(true);
       try {
-        const response = await fetch('/api/admin/operations/search');
+        const response = await fetch('/api/admin/operations/search?limit=1000');
         const result = await response.json();
         if (!response.ok || !result.success) {
           throw new Error(result.error || 'Failed to load operations clients');
@@ -324,6 +359,7 @@ export default function OperationsManagement() {
 
         const liveContracts: DmcForumLeadsContract[] = result.data.map((row: any) => ({
           id: row.agreementId || row.opportunityId,
+          opportunityId: row.opportunityId,
           lead_id: row.leadId,
           contract: row.agreementNumber || row.opportunityNumber,
           agreement_date: row.generatedDate || row.retentionDate || '',
@@ -514,8 +550,8 @@ export default function OperationsManagement() {
   const clearFilters = () => {
     setFilters({
       agreementNumber: '',
-      startDate: '2026-01-31',
-      endDate: '2026-01-31',
+      startDate: '',
+      endDate: '',
       retentionDate: '',
       region: '',
       branch: '',
@@ -560,90 +596,103 @@ export default function OperationsManagement() {
     const leadId  = lead.id;
     const q       = `?lead=${leadId}`;
 
+    // Preferred routing: the same product_type classifier used to tag
+    // dmc_opportunities.product_type at opportunity-creation time (see
+    // src/lib/clientPortalProducts.ts) reliably identifies the right ops
+    // wizard from the service label alone. This must run before the legacy
+    // type/country/service-ID routing below, because dmc_forum_leads.type
+    // is populated as the literal string "lead" for every row (it's a
+    // generic table discriminator, not a program category), so none of the
+    // 'Skill'/'Work'/'Business'/'Visit'/'Student' checks below ever match.
+    const productType = deriveProductTypeFromLabel(lead.program_type || String(lead.service_interest || ''));
+    if (productType && PRODUCT_TYPE_OPS_URL[productType]) {
+      return `${PRODUCT_TYPE_OPS_URL[productType]}${q}`;
+    }
+
     // Visit Visa
-    if (type === 'Visit') return `/admin/ops-visit-visa${q}`;
+    if (type === 'Visit') return `/admin/leads/visit-visa-operations${q}`;
 
     // Student Visa
-    if (type === 'Student') return `/admin/ops-student-visa${q}`;
+    if (type === 'Student') return `/admin/leads/student-visa-operations${q}`;
 
     // Poland Visa (service-based, overrides type)
-    if (POLAND_ARRAY.includes(service)) return `/admin/ops-visit-visa${q}`;
+    if (POLAND_ARRAY.includes(service)) return `/admin/leads/visit-visa-operations${q}`;
 
     // EIP Canada (Skill or Work + eip service)
     if ((type === 'Skill' || type === 'Work') && EIP_ARRAY.includes(service))
-      return `/admin/ops-eip-canada${q}`;
+      return `/admin/leads/eip-canada-operations${q}`;
 
     // Job Search (Skill or Work + job_search service)
     if ((type === 'Skill' || type === 'Work') && JOB_SEARCH_ARRAY.includes(service))
-      return `/admin/ops-job-search${q}`;
+      return `/admin/leads/job-search-operations${q}`;
 
     // Skill PIP Canada (service_interest == 237)
     if (type === 'Skill' && service === 237 && country === 2)
-      return `/admin/ops-skill-canada-pip${q}`;
+      return `/admin/leads/skill-canada-pip-operations${q}`;
 
     // Skill Australia / Canada (not eip, not resume, not 237, not job_search)
     if (type === 'Skill' && !EIP_ARRAY.includes(service) && !RESUME_ARRAY.includes(service) &&
         !JOB_SEARCH_ARRAY.includes(service) && service !== 237) {
-      if (country === 1 || country === 14) return `/admin/ops-skill-australia${q}`;
-      if (country === 2)                   return `/admin/ops-skill-canada${q}`;
+      if (country === 1 || country === 14) return `/admin/leads/skill-australia-operations${q}`;
+      if (country === 2)                   return `/admin/leads/skill-canada-operations${q}`;
     }
 
     // Work + resume → Resume Canada
     if (type === 'Work' && RESUME_ARRAY.includes(service) && country === 2)
-      return `/admin/ops-resume-canada${q}`;
+      return `/admin/leads/rms-operations${q}`;
 
     // Work + service 35 → Skill Canada
     if (type === 'Work' && service === 35 && country === 2)
-      return `/admin/ops-skill-canada${q}`;
+      return `/admin/leads/skill-canada-operations${q}`;
 
     // Work + service 346 → Skill Australia
     if (type === 'Work' && service === 346)
-      return `/admin/ops-skill-australia${q}`;
+      return `/admin/leads/skill-australia-operations${q}`;
 
     // Work + work_array (Canada/specific countries)
     if (type === 'Work' && !RESUME_ARRAY.includes(service) && WORK_ARRAY.includes(service) &&
         [2, 34, 62, 26].includes(country))
-      return `/admin/ops-work${q}`;
+      return `/admin/leads/work-operations${q}`;
 
     // Work + LMIA
     if (type === 'Work' && LMIA_ARRAY.includes(service))
-      return `/admin/ops-work${q}`;
+      return `/admin/leads/work-operations${q}`;
 
     // Work + UK/Europe countries (not Poland visa service)
     if (type === 'Work' && (country === 3 || country === 8) && service !== 279)
-      return `/admin/ops-visit-visa${q}`;
+      return `/admin/leads/visit-visa-operations${q}`;
 
     // Skill + country 26 (Europe)
     if (type === 'Skill' && country === 26)
-      return `/admin/ops-visit-visa${q}`;
+      return `/admin/leads/visit-visa-operations${q}`;
 
     // Business + startup
     if (type === 'Business' && STARTUP_ARRAY.includes(service))
-      return `/admin/ops-business${q}`;
+      return `/admin/leads/business-operations${q}`;
 
     // Business + Portugal
     if (type === 'Business' && PORT_ARRAY.includes(service))
-      return `/admin/ops-portugal-business${q}`;
+      return `/admin/leads/portugal-business-operations${q}`;
 
     // Business + ICT → ICT Canada
     if (type === 'Business' && ICT_ARRAY.includes(service))
-      return `/admin/ops-ict-canada${q}`;
+      return `/admin/leads/ict-canada-operations${q}`;
 
     // Business + CBI
     if (type === 'Business' && CBI_ARRAY.includes(service))
-      return `/admin/ops-cbi${q}`;
+      return `/admin/leads/cbi-operations${q}`;
 
     // Business by country
     if (type === 'Business') {
-      if (country === 2) return `/admin/ops-business-canada${q}`;
-      if (country === 3) return `/admin/ops-business-uk${q}`;
-      if (country === 4) return `/admin/ops-business-usa${q}`;
-      if (country === 5) return `/admin/ops-business-poland${q}`;
+      if (country === 2) return `/admin/leads/business-canada-operations${q}`;
+      if (country === 3) return `/admin/leads/business-uk-operations${q}`;
+      if (country === 4) return `/admin/leads/business-usa-operations${q}`;
+      if (country === 5) return `/admin/leads/business-poland-operations${q}`;
     }
 
     // Europe cases (country in europe + service in europe service list)
     if (EUROPE_COUNTRY.includes(country) && EUROPE_SERVICE.includes(service))
-      return `/admin/ops-europe-cases${q}`;
+      return `/admin/leads/europe-cases-operations${q}`;
 
     // fallback
     return `/admin/ops-conversations${q}`;
@@ -654,19 +703,34 @@ export default function OperationsManagement() {
     setShowDetailsModal(true);
   };
 
+  const withCaseParams = (url: string, contract: DmcForumLeadsContract) => {
+    const [path, query = ''] = url.split('?');
+    const params = new URLSearchParams(query);
+    const lead = contract.dmc_forum_lead;
+    params.set('lead', String(contract.lead_id));
+    params.set('leadId', String(contract.lead_id));
+    params.set('opportunityId', String(contract.opportunityId || contract.id));
+    if (contract.contract) params.set('agreementNumber', contract.contract);
+    if (lead) {
+      const name = [lead.fname, lead.lname].filter(Boolean).join(' ').trim();
+      if (name) params.set('clientName', name);
+    }
+    return `${path}?${params.toString()}`;
+  };
+
   const handleOpsClick = (contract: DmcForumLeadsContract) => {
-    const url = getOpsUrlForLead(contract.dmc_forum_lead);
+    const url = withCaseParams(getOpsUrlForLead(contract.dmc_forum_lead), contract);
     router.push(url);
   };
 
   const handleShowAgreement = (contract: DmcForumLeadsContract) => {
     // This would open the agreement document
-    alert(`Opening agreement: ${contract.contract}`);
+    window.toast.info(`Opening agreement: ${contract.contract}`);
   };
 
   const handleShowLogs = () => {
     // This would show logs for super admin
-    alert('Showing logs (Super Admin only)');
+    window.toast.info('Showing logs (Super Admin only)');
   };
 
   if (loading) {
@@ -758,7 +822,7 @@ export default function OperationsManagement() {
             {/* Region */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
-              <select
+              <SearchableSelect
                 value={filters.region}
                 onChange={(e) => handleFilterChange('region', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -769,13 +833,13 @@ export default function OperationsManagement() {
                 <option value="3">Asia</option>
                 <option value="4">Middle East</option>
                 <option value="5">Africa</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Branch */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-              <select
+              <SearchableSelect
                 value={filters.branch}
                 onChange={(e) => handleFilterChange('branch', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -785,13 +849,13 @@ export default function OperationsManagement() {
                 <option value="2">Downtown Branch</option>
                 <option value="3">Airport Branch</option>
                 <option value="4">Suburban Branch</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Counselor */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Counselor</label>
-              <select
+              <SearchableSelect
                 value={filters.counselor}
                 onChange={(e) => handleFilterChange('counselor', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -801,25 +865,25 @@ export default function OperationsManagement() {
                 <option value="2">Sarah Johnson</option>
                 <option value="3">Michael Davis</option>
                 <option value="4">Emily Wilson</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Case Officer */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Case Officer</label>
-              <select
+              <SearchableSelect
                 value={filters.caseOfficer}
                 onChange={(e) => handleFilterChange('caseOfficer', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Select</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Escalated */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Escalated</label>
-              <select
+              <SearchableSelect
                 value={filters.escalated}
                 onChange={(e) => handleFilterChange('escalated', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -827,13 +891,13 @@ export default function OperationsManagement() {
                 <option value="">Select</option>
                 <option value="Yes">Yes</option>
                 <option value="No">No</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Program Interested */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Program Interested</label>
-              <select
+              <SearchableSelect
                 value={filters.programInterested}
                 onChange={(e) => handleFilterChange('programInterested', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -844,13 +908,13 @@ export default function OperationsManagement() {
                 <option value="3">Work Permit</option>
                 <option value="4">Family Sponsorship</option>
                 <option value="5">Citizenship</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Program Type */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Program Type</label>
-              <select
+              <SearchableSelect
                 value={filters.programType}
                 onChange={(e) => handleFilterChange('programType', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -861,13 +925,13 @@ export default function OperationsManagement() {
                 <option value="UK Business">UK Business</option>
                 <option value="Work Permit">Work Permit</option>
                 <option value="Family Sponsorship">Family Sponsorship</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Country Interested */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Country Interested</label>
-              <select
+              <SearchableSelect
                 value={filters.countryInterested}
                 onChange={(e) => handleFilterChange('countryInterested', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -878,13 +942,13 @@ export default function OperationsManagement() {
                 <option value="3">USA</option>
                 <option value="4">Australia</option>
                 <option value="5">Germany</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* For RMS JS */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">For RMS JS</label>
-              <select
+              <SearchableSelect
                 value={filters.forRmsJs}
                 onChange={(e) => handleFilterChange('forRmsJs', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -892,13 +956,13 @@ export default function OperationsManagement() {
                 <option value="">Select</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Sort by case */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Sort by case</label>
-              <select
+              <SearchableSelect
                 value={filters.sortByCase}
                 onChange={(e) => handleFilterChange('sortByCase', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -908,13 +972,13 @@ export default function OperationsManagement() {
                 <option value="oldest">Oldest First</option>
                 <option value="amount-high">Amount (High to Low)</option>
                 <option value="amount-low">Amount (Low to High)</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Nationality */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
-              <select
+              <SearchableSelect
                 value={filters.nationality}
                 onChange={(e) => handleFilterChange('nationality', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -926,13 +990,13 @@ export default function OperationsManagement() {
                 <option value="Pakistan">Pakistan</option>
                 <option value="India">India</option>
                 <option value="Philippines">Philippines</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Online Acceptance */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Online Acceptance</label>
-              <select
+              <SearchableSelect
                 value={filters.onlineAcceptance}
                 onChange={(e) => handleFilterChange('onlineAcceptance', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -940,13 +1004,13 @@ export default function OperationsManagement() {
                 <option value="">Select</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Status */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
+              <SearchableSelect
                 value={filters.status}
                 onChange={(e) => handleFilterChange('status', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -956,7 +1020,7 @@ export default function OperationsManagement() {
                 <option value="Pending">Pending</option>
                 <option value="Completed">Completed</option>
                 <option value="Cancelled">Cancelled</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Search */}
@@ -1013,11 +1077,11 @@ export default function OperationsManagement() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agreement</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <SortableTh label="Agreement" sortKey="agreement" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
+                <SortableTh label="Client Name" sortKey="client" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
+                <SortableTh label="Program" sortKey="program" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
+                <SortableTh label="Amount" sortKey="amount" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -1038,7 +1102,7 @@ export default function OperationsManagement() {
                   </td>
                 </tr>
               ) : (
-                filteredContracts.map((contract) => (
+                sortedContracts.map((contract) => (
                   <tr key={contract.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div 
@@ -1176,7 +1240,7 @@ export default function OperationsManagement() {
                     Regular Receipts ({selectedContract.dm_pay_histories?.length || 0})
                   </h4>
                   {selectedContract.dm_pay_histories && selectedContract.dm_pay_histories.length > 0 ? (
-                    <div className="bg-gray-50 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 rounded-lg overflow-x-auto">
                       <table className="min-w-full">
                         <thead className="bg-gray-100">
                           <tr>
@@ -1191,7 +1255,7 @@ export default function OperationsManagement() {
                           {selectedContract.dm_pay_histories.map((payment) => (
                             <tr key={payment.id}>
                               <td className="px-4 py-2 text-sm">{new Date(payment.payment_date).toLocaleDateString()}</td>
-                              <td className="px-4 py-2 text-sm">${payment.amount.toLocaleString()}</td>
+                              <td className="px-4 py-2 text-sm">{currencyCode} {payment.amount.toLocaleString()}</td>
                               <td className="px-4 py-2 text-sm">{payment.payment_method}</td>
                               <td className="px-4 py-2 text-sm">
                                 <span className={`px-2 py-1 text-xs rounded-full ${
@@ -1218,7 +1282,7 @@ export default function OperationsManagement() {
                     Extra Receipts ({selectedContract.dm_3party_payments?.length || 0})
                   </h4>
                   {selectedContract.dm_3party_payments && selectedContract.dm_3party_payments.length > 0 ? (
-                    <div className="bg-gray-50 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 rounded-lg overflow-x-auto">
                       <table className="min-w-full">
                         <thead className="bg-gray-100">
                           <tr>
@@ -1233,7 +1297,7 @@ export default function OperationsManagement() {
                           {selectedContract.dm_3party_payments.map((payment) => (
                             <tr key={payment.id}>
                               <td className="px-4 py-2 text-sm">{new Date(payment.payment_date).toLocaleDateString()}</td>
-                              <td className="px-4 py-2 text-sm">${payment.amount.toLocaleString()}</td>
+                              <td className="px-4 py-2 text-sm">{currencyCode} {payment.amount.toLocaleString()}</td>
                               <td className="px-4 py-2 text-sm">{payment.payment_method}</td>
                               <td className="px-4 py-2 text-sm">
                                 <span className={`px-2 py-1 text-xs rounded-full ${
@@ -1261,6 +1325,12 @@ export default function OperationsManagement() {
                 >
                   <Eye size={18} />
                   View Agreement
+                </button>
+                <button
+                  onClick={() => setConversationHistoryLeadId(selectedContract.lead_id)}
+                  className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50"
+                >
+                  Conversation History
                 </button>
                 <button
                   onClick={() => setShowDetailsModal(false)}
@@ -1331,6 +1401,14 @@ export default function OperationsManagement() {
             </div>
           </div>
         </div>
+      )}
+
+      {conversationHistoryLeadId && (
+        <ConversationHistoryModal
+          leadId={conversationHistoryLeadId}
+          clientName={selectedContract?.dmc_forum_lead ? `${selectedContract.dmc_forum_lead.fname} ${selectedContract.dmc_forum_lead.lname}` : undefined}
+          onClose={() => setConversationHistoryLeadId(null)}
+        />
       )}
     </div>
   );

@@ -24,24 +24,24 @@ interface DmLeaveHistoryAttributes {
 interface DmLeaveHistoryCreationAttributes extends Optional<DmLeaveHistoryAttributes, 'status'> {}
 
 class DmLeaveHistory extends Model<DmLeaveHistoryAttributes, DmLeaveHistoryCreationAttributes> implements DmLeaveHistoryAttributes {
-  public id!: number;
-  public custId!: number;
-  public applyDate!: Date;
-  public fromDate!: Date;
-  public toDate!: Date;
-  public type!: string;
-  public approvBy!: string;
-  public requestedTo!: string;
-  public requested_time_from!: Date;
-  public requested_time_to!: Date;
-  public remark!: string;
-  public status!: number;
-  public file!: string;
-  public reject!: string;
-  public reject_remarks!: string;
-  public notf!: number;
-  public approved_date!: Date;
-  public reject_date!: Date;
+  declare id: number;
+  declare custId: number;
+  declare applyDate: Date;
+  declare fromDate: Date;
+  declare toDate: Date;
+  declare type: string;
+  declare approvBy: string;
+  declare requestedTo: string;
+  declare requested_time_from: Date;
+  declare requested_time_to: Date;
+  declare remark: string;
+  declare status: number;
+  declare file: string;
+  declare reject: string;
+  declare reject_remarks: string;
+  declare notf: number;
+  declare approved_date: Date;
+  declare reject_date: Date;
 
   public static associate(models: any) {
   }

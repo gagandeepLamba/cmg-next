@@ -4,6 +4,7 @@ import { DmcNotifications, DmcFollowUpReminders, DmcMeetingSchedules } from '@/m
 import { Op, QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
 import { verifyToken } from '@/lib/auth';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,7 +52,10 @@ export async function GET(request: NextRequest) {
       ...notification,
       isRead: Boolean(notification.is_read),
       createdAt: notification.created_at,
-      updatedAt: notification.updated_at
+      updatedAt: notification.updated_at,
+      relatedId: notification.related_id,
+      relatedType: notification.related_type,
+      link: notification.link || null
     }));
 
     // Get unread count
@@ -91,7 +95,7 @@ export async function GET(request: NextRequest) {
         STR_TO_DATE(CONCAT(a.date, ' ', TIME_FORMAT(a.appointtime, '%H:%i:%s')), '%Y-%m-%d %H:%i:%s') AS scheduledAt,
         30 AS duration,
         'high' AS priority,
-        COALESCE(b.name, 'Office') AS location,
+        COALESCE(b.branch, 'Office') AS location,
         l.fname,
         l.lname,
         l.email,
@@ -130,9 +134,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
+
   try {
     const body = await request.json();
-    const { userId, type, title, message, priority, data, relatedId, relatedType, scheduledAt } = body;
+    const { userId, type, title, message, priority, relatedId, relatedType, link } = body;
 
     if (!userId || !type || !title || !message) {
       return NextResponse.json(
@@ -146,7 +153,10 @@ export async function POST(request: NextRequest) {
       type,
       title,
       message,
-      priority: priority || 'medium'
+      priority: priority || 'medium',
+      related_id: relatedId ?? null,
+      related_type: relatedType ?? null,
+      link: link ?? null
     });
 
     return NextResponse.json({
@@ -164,6 +174,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
+
   try {
     const body = await request.json();
     const { notificationIds, action } = body;
@@ -227,7 +240,7 @@ export async function PUT(request: NextRequest) {
 
 async function createThirtyMinuteReminderNotifications(userId: number) {
   await sequelize.query(`
-    INSERT INTO dmc_notifications (user_id, type, title, message, is_read, priority, created_at, updated_at)
+    INSERT INTO dmc_notifications (user_id, type, title, message, related_id, related_type, link, is_read, priority, created_at, updated_at)
     SELECT
       r.user_id,
       'followup',
@@ -239,6 +252,9 @@ async function createThirtyMinuteReminderNotifications(userId: number) {
         COALESCE(NULLIF(TRIM(CONCAT(l.fname, ' ', l.lname)), ''), CONCAT('Lead #', r.lead_id)),
         '. ', COALESCE(r.message, '')
       ),
+      r.lead_id,
+      'lead',
+      CONCAT('/admin/leads/', r.lead_id, '/edit'),
       0,
       COALESCE(r.priority, 'high'),
       NOW(),
@@ -258,7 +274,7 @@ async function createThirtyMinuteReminderNotifications(userId: number) {
   `, { replacements: { userId }, type: QueryTypes.INSERT });
 
   await sequelize.query(`
-    INSERT INTO dmc_notifications (user_id, type, title, message, is_read, priority, created_at, updated_at)
+    INSERT INTO dmc_notifications (user_id, type, title, message, related_id, related_type, link, is_read, priority, created_at, updated_at)
     SELECT
       a.counsilorid,
       'appointment',
@@ -269,6 +285,9 @@ async function createThirtyMinuteReminderNotifications(userId: number) {
         ' for ',
         COALESCE(NULLIF(TRIM(CONCAT(l.fname, ' ', l.lname)), ''), CONCAT('Lead #', a.leadid))
       ),
+      a.leadid,
+      'lead',
+      CONCAT('/admin/leads/', a.leadid, '/edit'),
       0,
       'high',
       NOW(),

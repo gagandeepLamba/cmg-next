@@ -1,6 +1,8 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useCallback } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { Search, RefreshCw, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Lead {
@@ -69,6 +71,17 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function MetaLeadsPage() {
   const [leads, setLeads]       = useState<Lead[]>([]);
+  const { sorted: sortedLeads, sortKey: leadSortKey, sortDirection: leadSortDirection, toggleSort: toggleLeadSort } = useSortableData(
+    leads,
+    {
+      name: (l) => l.full_name,
+      contact: (l) => l.email || l.phone,
+      campaign: (l) => l.campaign_name,
+      received: (l) => l.created_at,
+      status: (l) => l.delivery_status,
+      retries: (l) => l.retry_count,
+    },
+  );
   const [pagination, setPag]    = useState<Pagination>({ page: 1, limit: 20, total: 0, pages: 0 });
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
@@ -142,7 +155,7 @@ export default function MetaLeadsPage() {
             className="h-9 rounded-lg border border-gray-300 pl-8 pr-3 text-sm focus:ring-2 focus:ring-blue-500 w-56"
           />
         </div>
-        <select value={statusFilter} onChange={e => setStatus(e.target.value)}
+        <SearchableSelect value={statusFilter} onChange={e => setStatus(e.target.value)}
           className="h-9 rounded-lg border border-gray-300 px-2 text-sm focus:ring-2 focus:ring-blue-500">
           <option value="">All statuses</option>
           <option value="delivered">Delivered</option>
@@ -150,7 +163,7 @@ export default function MetaLeadsPage() {
           <option value="retry_scheduled">Retry Scheduled</option>
           <option value="pending">Pending</option>
           <option value="no_delivery">No Delivery</option>
-        </select>
+        </SearchableSelect>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
           className="h-9 rounded-lg border border-gray-300 px-2 text-sm focus:ring-2 focus:ring-blue-500" />
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
@@ -162,20 +175,20 @@ export default function MetaLeadsPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-gray-100 bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500">
             <tr>
-              <th className="px-4 py-3 text-left">Name</th>
-              <th className="px-4 py-3 text-left">Email / Phone</th>
-              <th className="px-4 py-3 text-left">Campaign</th>
-              <th className="px-4 py-3 text-left">Received</th>
-              <th className="px-4 py-3 text-left">CRM Status</th>
-              <th className="px-4 py-3 text-left">Retries</th>
+              <SortableTh label="Name" sortKey="name" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Email / Phone" sortKey="contact" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Campaign" sortKey="campaign" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Received" sortKey="received" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} className="px-4 py-3 text-left" />
+              <SortableTh label="CRM Status" sortKey="status" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Retries" sortKey="retries" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} className="px-4 py-3 text-left" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
-            ) : leads.length === 0 ? (
+            ) : sortedLeads.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No leads found</td></tr>
-            ) : leads.map(lead => (
+            ) : sortedLeads.map(lead => (
               <tr key={lead.id} onClick={() => openDetail(lead.id)}
                 className="cursor-pointer hover:bg-gray-50">
                 <td className="px-4 py-2.5 font-medium text-gray-900">{lead.full_name || '—'}</td>

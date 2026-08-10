@@ -15,14 +15,14 @@ interface DmProspectDocumentsAttributes {
 interface DmProspectDocumentsCreationAttributes extends Optional<DmProspectDocumentsAttributes, 'id' | 'uploadDate' | 'type' | 'createdAt' | 'updatedAt'> {}
 
 class DmProspectDocuments extends Model<DmProspectDocumentsAttributes, DmProspectDocumentsCreationAttributes> implements DmProspectDocumentsAttributes {
-  public id!: number;
-  public prospectId!: number;
-  public name!: string;
-  public uploadDate!: Date;
-  public url!: string;
-  public type!: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare prospectId: number;
+  declare name: string;
+  declare uploadDate: Date;
+  declare url: string;
+  declare type: string;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmProspectDocuments.belongsTo(models.DmProspects, { foreignKey: 'prospectId', targetKey: 'id', as: 'prospect' });

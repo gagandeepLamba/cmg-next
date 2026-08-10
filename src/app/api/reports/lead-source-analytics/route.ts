@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DmcForumLeads } from '@/models';
 import { Op } from 'sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 interface LeadSourceAnalytics {
   source: string;
@@ -18,6 +19,9 @@ const LEAD_SOURCE_ATTRIBUTES = [
 ];
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['reports.view']);
+  if (isAuthError(auth)) return auth;
+
   try {
     const { searchParams } = new URL(request.url);
     const timeRange = searchParams.get('timeRange') || '6months';
@@ -226,6 +230,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['reports.view']);
+  if (isAuthError(auth)) return auth;
+
   try {
     const body = await request.json();
     const { format, filters } = body;

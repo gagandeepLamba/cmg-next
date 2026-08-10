@@ -171,7 +171,7 @@ export class RenewalReminderService {
     }>(
       `
         SELECT
-          COALESCE(document_id, CAST(id AS CHAR)) AS recordId,
+          COALESCE(document_id, CAST(id AS CHAR) COLLATE utf8mb4_general_ci) AS recordId,
           company_id AS companyId,
           title,
           doc_type AS docType,
@@ -241,7 +241,7 @@ export class RenewalReminderService {
           e.visaExp AS emiratesIdExpiry,
           e.ppExp AS passportExpiry
         FROM dm_pro_employee_immigration p
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = p.employee_id
+        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = p.employee_id
         WHERE p.visa_status <> 'Cancelled'
       `,
       { type: QueryTypes.SELECT }
@@ -266,7 +266,7 @@ export class RenewalReminderService {
           e.visaExp AS emiratesIdExpiry,
           NULL AS passportExpiry
         FROM dm_pro_employee_immigration p
-        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) = p.employee_id
+        LEFT JOIN dm_employee e ON CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci = p.employee_id
         WHERE p.visa_status <> 'Cancelled'
       `,
       { type: QueryTypes.SELECT }

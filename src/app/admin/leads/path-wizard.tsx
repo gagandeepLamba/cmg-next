@@ -1,7 +1,9 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Search, Plus, Edit, Trash2, Download, Upload, CheckCircle, XCircle, Clock, AlertCircle, 
   FileText, Send, Eye, User, Calendar, DollarSign, FileSignature, Shield, X, ChevronRight, 
@@ -319,11 +321,11 @@ function QuotationStage({ lead }: { lead: LeadData | null }) {
           </div>
           <div>
             <label className="block font-medium mb-1">Currency</label>
-            <select className="w-full p-2 border rounded">
+            <SearchableSelect className="w-full p-2 border rounded">
               <option>USD</option>
               <option>EUR</option>
               <option>GBP</option>
-            </select>
+            </SearchableSelect>
           </div>
           <div>
             <label className="block font-medium mb-1">Valid Until</label>
@@ -363,6 +365,7 @@ function QuotationStage({ lead }: { lead: LeadData | null }) {
 }
 
 function PaymentStage({ lead }: { lead: LeadData | null }) {
+  const { currencyCode } = useAuth();
   return (
     <div className="space-y-6">
       <div className="flex items-center mb-6">
@@ -375,12 +378,12 @@ function PaymentStage({ lead }: { lead: LeadData | null }) {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <label className="block font-medium mb-1">Payment Method</label>
-            <select className="w-full p-2 border rounded">
+            <SearchableSelect className="w-full p-2 border rounded">
               <option>Credit Card</option>
               <option>Bank Transfer</option>
               <option>Cash</option>
               <option>Check</option>
-            </select>
+            </SearchableSelect>
           </div>
           <div>
             <label className="block font-medium mb-1">Amount Paid</label>
@@ -402,15 +405,15 @@ function PaymentStage({ lead }: { lead: LeadData | null }) {
         <div className="space-y-2 text-sm">
           <div className="flex justify-between p-2 bg-white rounded">
             <span>Initial Payment</span>
-            <span className="font-medium">$2,500</span>
+            <span className="font-medium">{currencyCode} 2,500</span>
           </div>
           <div className="flex justify-between p-2 bg-white rounded">
             <span>Second Installment</span>
-            <span className="font-medium">$2,500</span>
+            <span className="font-medium">{currencyCode} 2,500</span>
           </div>
           <div className="flex justify-between p-2 bg-white rounded">
             <span>Final Payment</span>
-            <span className="font-medium">$0</span>
+            <span className="font-medium">{currencyCode} 0</span>
           </div>
         </div>
       </div>
@@ -503,11 +506,11 @@ function AgreementStage({ lead }: { lead: LeadData | null }) {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <label className="block font-medium mb-1">Agreement Type</label>
-            <select className="w-full p-2 border rounded">
+            <SearchableSelect className="w-full p-2 border rounded">
               <option>Service Agreement</option>
               <option>Retainer Agreement</option>
               <option>Consultation Agreement</option>
-            </select>
+            </SearchableSelect>
           </div>
           <div>
             <label className="block font-medium mb-1">Duration (months)</label>
@@ -703,6 +706,7 @@ function RetentionRejectedStage({ lead }: { lead: LeadData | null }) {
 }
 
 function ClosedStage({ lead }: { lead: LeadData | null }) {
+  const { currencyCode } = useAuth();
   return (
     <div className="space-y-6">
       <div className="flex items-center mb-6">
@@ -723,7 +727,7 @@ function ClosedStage({ lead }: { lead: LeadData | null }) {
           </div>
           <div className="flex items-center">
             <CheckCircle className="mr-2 text-green-600" size={16} />
-            <span>Total Revenue: $5,000</span>
+            <span>Total Revenue: {currencyCode} 5,000</span>
           </div>
         </div>
       </div>

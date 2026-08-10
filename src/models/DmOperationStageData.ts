@@ -15,14 +15,14 @@ interface DmOperationStageDataAttributes {
 interface DmOperationStageDataCreationAttributes extends Optional<DmOperationStageDataAttributes, 'id' | 'opportunityId' | 'stageData' | 'createdAt' | 'updatedAt'> {}
 
 class DmOperationStageData extends Model<DmOperationStageDataAttributes, DmOperationStageDataCreationAttributes> implements DmOperationStageDataAttributes {
-  public id!: number;
-  public module!: string;
-  public leadId!: number;
-  public opportunityId!: number | null;
-  public stage!: string;
-  public stageData!: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare module: string;
+  declare leadId: number;
+  declare opportunityId: number | null;
+  declare stage: string;
+  declare stageData: string;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmOperationStageData.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'lead' });

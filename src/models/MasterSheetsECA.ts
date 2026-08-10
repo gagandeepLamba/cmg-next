@@ -10,10 +10,10 @@ interface MasterSheetsECAAttributes {
 interface MasterSheetsECACreationAttributes extends Optional<MasterSheetsECAAttributes, 'userid' | 'file' | 'date'> {}
 
 class MasterSheetsECA extends Model<MasterSheetsECAAttributes, MasterSheetsECACreationAttributes> implements MasterSheetsECAAttributes {
-  public id!: number;
-  public userid!: number | null;
-  public file!: string | null;
-  public date!: string | null;
+  declare id: number;
+  declare userid: number | null;
+  declare file: string | null;
+  declare date: string | null;
 
   public static associate(models: any) {
   }

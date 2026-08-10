@@ -20,20 +20,20 @@ interface DmJsResumeWritingAttributes {
 interface DmJsResumeWritingCreationAttributes extends Optional<DmJsResumeWritingAttributes, never> {}
 
 class DmJsResumeWriting extends Model<DmJsResumeWritingAttributes, DmJsResumeWritingCreationAttributes> implements DmJsResumeWritingAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public resume_date!: Date;
-  public resume_draft!: string;
-  public upload_passport!: string;
-  public education!: string;
-  public education_document!: string;
-  public national_id!: string;
-  public created!: Date;
-  public created_by!: number;
-  public level_one_remarks!: string;
-  public level_two_remarks!: string;
-  public final_copy_resume!: string;
-  public tab!: number;
+  declare id: number;
+  declare lead_id: number;
+  declare resume_date: Date;
+  declare resume_draft: string;
+  declare upload_passport: string;
+  declare education: string;
+  declare education_document: string;
+  declare national_id: string;
+  declare created: Date;
+  declare created_by: number;
+  declare level_one_remarks: string;
+  declare level_two_remarks: string;
+  declare final_copy_resume: string;
+  declare tab: number;
 
   public static associate(models: any) {
   }

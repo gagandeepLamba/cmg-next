@@ -12,12 +12,12 @@ interface CanadaStatusAttributes {
 interface CanadaStatusCreationAttributes extends Optional<CanadaStatusAttributes, 'leadid' | 'type' | 'status' | 'date'> {}
 
 class CanadaStatus extends Model<CanadaStatusAttributes, CanadaStatusCreationAttributes> implements CanadaStatusAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public type!: string | null;
-  public status!: string | null;
-  public date!: string | null;
-  public emp!: string;
+  declare id: number;
+  declare leadid: number | null;
+  declare type: string | null;
+  declare status: string | null;
+  declare date: string | null;
+  declare emp: string;
 
   public static associate(models: any) {
   }

@@ -1,7 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { isFoeOrBranchManagerOrCeo, isBranchManagerOrCeo, isCeo } from '@/lib/roleChecks';
+
+function getInsertId(result: unknown): number {
+  const values = Array.isArray(result) ? result : [result];
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
+    if (typeof value === 'string' && Number.isInteger(Number(value)) && Number(value) > 0) return Number(value);
+    if (value && typeof value === 'object') {
+      const insertId = (value as { insertId?: unknown }).insertId;
+      if (typeof insertId === 'number' && Number.isInteger(insertId) && insertId > 0) return insertId;
+      if (typeof insertId === 'string' && Number.isInteger(Number(insertId)) && Number(insertId) > 0) return Number(insertId);
+    }
+  }
+  return 0;
+}
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const leadId = searchParams.get('leadId');
@@ -11,16 +30,17 @@ export async function GET(request: NextRequest) {
     // Build WHERE clause
     let whereClause = '';
     const replacements: any[] = [];
-    
+
     if (leadId) {
       whereClause += ' WHERE r.leadId = ?';
       replacements.push(leadId);
     }
-    
-    if (status && status !== 'pending') {
-      whereClause += whereClause ? ' AND 1 = 0' : ' WHERE 1 = 0';
+
+    if (status) {
+      whereClause += whereClause ? ' AND r.status = ?' : ' WHERE r.status = ?';
+      replacements.push(status);
     }
-    
+
     if (reassignmentType) {
       whereClause += whereClause ? ' AND r.reassignmentType = ?' : ' WHERE r.reassignmentType = ?';
       replacements.push(reassignmentType);
@@ -28,24 +48,21 @@ export async function GET(request: NextRequest) {
 
     // Get reassignments with related data
     const [reassignments] = await sequelize.query(`
-      SELECT 
+      SELECT
         r.*,
-        'pending' as status,
-        NULL as approvedBy,
-        NULL as approvedAt,
-        NULL as notes,
         l.fname as lead_fname,
         l.lname as lead_lname,
         l.email as lead_email,
         l.mobile as lead_mobile,
         fe.name as from_employee_name,
         te.name as to_employee_name,
-        NULL as approved_employee_name,
+        ae.name as approved_employee_name,
         ce.name as created_employee_name
       FROM dm_lead_reassignments r
       LEFT JOIN dmc_forum_leads l ON r.leadId = l.id
       LEFT JOIN dm_employee fe ON r.fromEmployeeId = fe.id
       LEFT JOIN dm_employee te ON r.toEmployeeId = te.id
+      LEFT JOIN dm_employee ae ON r.approvedBy = ae.id
       LEFT JOIN dm_employee ce ON r.createdBy = ce.id
       ${whereClause}
       ORDER BY r.createdAt DESC
@@ -68,9 +85,20 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
-    
+
+    // Immediately reassigning (skipping approval) is restricted to FOE/Branch
+    // Manager/CEO — anyone authenticated can still file a pending request.
+    if (body.autoApprove && !isFoeOrBranchManagerOrCeo(auth)) {
+      return NextResponse.json(
+        { success: false, error: 'Only FOE, Branch Manager, or CEO can auto-approve a lead reassignment' },
+        { status: 403 }
+      );
+    }
+
     // Validate required fields
     const requiredFields = ['leadId', 'fromEmployeeId', 'toEmployeeId', 'reassignmentType', 'reason', 'previousStatus', 'newStatus', 'createdBy'];
     for (const field of requiredFields) {
@@ -110,6 +138,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Duplicate-submission guard: block an identical reassignment request
+    // for this lead created in the last minute.
+    const [recentDuplicate] = await sequelize.query<{ id: number }>(
+      `SELECT id FROM dm_lead_reassignments
+       WHERE leadId = ? AND fromEmployeeId = ? AND toEmployeeId = ?
+         AND createdAt >= (NOW() - INTERVAL 60 SECOND)
+       LIMIT 1`,
+      { replacements: [body.leadId, body.fromEmployeeId, body.toEmployeeId], type: QueryTypes.SELECT }
+    );
+    if (recentDuplicate) {
+      return NextResponse.json(
+        { success: false, error: 'This reassignment was already submitted a moment ago.' },
+        { status: 409 }
+      );
+    }
+
     // Create reassignment record
     const [result] = await sequelize.query(`
       INSERT INTO dm_lead_reassignments (
@@ -130,16 +174,20 @@ export async function POST(request: NextRequest) {
       ]
     });
 
-    const reassignmentId = (result as any).insertId;
+    const reassignmentId = getInsertId(result);
+    if (!reassignmentId) {
+      throw new Error('Lead reassignment was created but the new reassignment ID could not be resolved');
+    }
 
     // Update lead assignment if reassignment is approved or auto-approved
     if (body.autoApprove) {
       await sequelize.query(`
         UPDATE dmc_forum_leads 
-        SET assignTo = ?, last_updated = ?, last_updtd_time = ?, status = ?
+        SET assignTo = ?, Counsilor = ?, last_updated = ?, last_updtd_time = ?, status = ?
         WHERE id = ?
       `, {
         replacements: [
+          body.toEmployeeId,
           body.toEmployeeId,
           new Date().toISOString().split('T')[0],
           new Date().toTimeString().split(' ')[0],
@@ -187,6 +235,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -213,12 +263,42 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    const reassignmentRow = (existingReassignment as any[])[0];
+
+    // Approving a reassignment (which immediately moves the lead) is
+    // restricted to FOE/Branch Manager/CEO — except a 'transfer' request
+    // (filed when a counselor tries to add a lead whose email/mobile already
+    // belongs to someone else), which moves an active client between
+    // counselors and so is narrowed to Branch Manager/CEO only, no FOE.
+    if (body.status === 'approved') {
+      const isTransferRequest = reassignmentRow.reassignmentType === 'transfer';
+      const approverOk = isTransferRequest ? isBranchManagerOrCeo(auth) : isFoeOrBranchManagerOrCeo(auth);
+      if (!approverOk) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: isTransferRequest
+              ? 'Only Branch Manager or CEO can approve a lead transfer request'
+              : 'Only FOE, Branch Manager, or CEO can approve a lead reassignment',
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    const allowedStatuses = ['pending', 'approved', 'rejected'];
+    const nextStatus = allowedStatuses.includes(body.status) ? body.status : undefined;
+
     await sequelize.query(`
       UPDATE dm_lead_reassignments
-      SET updatedAt = NOW()
+      SET status = COALESCE(?, status),
+          approvedBy = COALESCE(?, approvedBy),
+          approvedAt = CASE WHEN ? IS NOT NULL THEN NOW() ELSE approvedAt END,
+          notes = COALESCE(?, notes),
+          updatedAt = NOW()
       WHERE id = ?
     `, {
-      replacements: [id]
+      replacements: [nextStatus || null, body.approvedBy || null, nextStatus || null, body.notes || null, id]
     });
 
     // If approved, update lead assignment
@@ -234,10 +314,11 @@ export async function PUT(request: NextRequest) {
         
         await sequelize.query(`
           UPDATE dmc_forum_leads 
-          SET assignTo = ?, last_updated = ?, last_updtd_time = ?, status = ?
+          SET assignTo = ?, Counsilor = ?, last_updated = ?, last_updtd_time = ?, status = ?
           WHERE id = ?
         `, {
           replacements: [
+            reassign.toEmployeeId,
             reassign.toEmployeeId,
             new Date().toISOString().split('T')[0],
             new Date().toTimeString().split(' ')[0],
@@ -262,6 +343,11 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
+  if (!isCeo(auth)) {
+    return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+  }
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

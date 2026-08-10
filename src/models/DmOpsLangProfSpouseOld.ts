@@ -20,20 +20,20 @@ interface DmOpsLangProfSpouseOldAttributes {
 interface DmOpsLangProfSpouseOldCreationAttributes extends Optional<DmOpsLangProfSpouseOldAttributes, never> {}
 
 class DmOpsLangProfSpouseOld extends Model<DmOpsLangProfSpouseOldAttributes, DmOpsLangProfSpouseOldCreationAttributes> implements DmOpsLangProfSpouseOldAttributes {
-  public id!: number;
-  public agreeNo!: number;
-  public tab!: number;
-  public langTest!: string;
-  public testStatus!: string;
-  public expiryDate!: string;
-  public testDate!: string;
-  public testScore!: string;
-  public rating!: string;
-  public reading!: string;
-  public writing!: string;
-  public listening!: string;
-  public speaking!: string;
-  public meetingreq!: string;
+  declare id: number;
+  declare agreeNo: number;
+  declare tab: number;
+  declare langTest: string;
+  declare testStatus: string;
+  declare expiryDate: string;
+  declare testDate: string;
+  declare testScore: string;
+  declare rating: string;
+  declare reading: string;
+  declare writing: string;
+  declare listening: string;
+  declare speaking: string;
+  declare meetingreq: string;
 
   public static associate(models: any) {
   }

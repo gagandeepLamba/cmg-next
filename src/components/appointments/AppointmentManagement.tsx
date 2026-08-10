@@ -1,5 +1,6 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -324,14 +325,14 @@ export default function AppointmentManagement() {
             <div className="mt-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Lead</label>
-                <select
+                <SearchableSelect
                   value={formData.leadId}
                   onChange={(e) => setFormData({ ...formData, leadId: parseInt(e.target.value) })}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >
                   <option value={0}>Select Lead</option>
                   {/* Add lead options here */}
-                </select>
+                </SearchableSelect>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Date</label>
@@ -353,14 +354,14 @@ export default function AppointmentManagement() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Counselor</label>
-                <select
+                <SearchableSelect
                   value={formData.counsilorid}
                   onChange={(e) => setFormData({ ...formData, counsilorid: parseInt(e.target.value) })}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >
                   <option value={0}>Select Counselor</option>
                   {/* Add counselor options here */}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
             <div className="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse">

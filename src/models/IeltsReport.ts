@@ -11,11 +11,11 @@ interface IeltsReportAttributes {
 interface IeltsReportCreationAttributes extends Optional<IeltsReportAttributes, 'start' | 'end' | 'remarks'> {}
 
 class IeltsReport extends Model<IeltsReportAttributes, IeltsReportCreationAttributes> implements IeltsReportAttributes {
-  public id!: number;
-  public date!: string;
-  public start!: string | null;
-  public end!: string | null;
-  public remarks!: string | null;
+  declare id: number;
+  declare date: string;
+  declare start: string | null;
+  declare end: string | null;
+  declare remarks: string | null;
 
   public static associate(models: any) {
   }

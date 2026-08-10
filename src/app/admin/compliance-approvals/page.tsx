@@ -1,11 +1,15 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle, XCircle, Clock, FileCheck, User,
   Search, RefreshCw, ChevronDown, ChevronUp,
   ExternalLink, AlertCircle, ShieldCheck
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { isBranchManagerOrCeo } from '@/lib/roleChecks';
 
 interface ComplianceApproval {
   id: number;
@@ -23,6 +27,23 @@ interface ComplianceApproval {
   reviewedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  clientName?: string | null;
+  clientEmail?: string | null;
+  clientPhone?: string | null;
+  counselorName?: string | null;
+  counselorId?: number | null;
+  conversationSummary?: string | null;
+  clientCommitments?: string | null;
+  nextAction?: string | null;
+  paymentNumber?: string | null;
+  receiptNumber?: string | null;
+  paidAmount?: number | string | null;
+  totalAmount?: number | string | null;
+  currency?: string | null;
+  accountantStatus?: string | null;
+  accountantVerifiedAt?: string | null;
+  proofOfPaymentUrl?: string | null;
+  counsellorSheetUrl?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -40,6 +61,8 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function ComplianceApprovalsPage() {
+  const { user } = useAuth();
+  const canReview = isBranchManagerOrCeo(user);
   const [approvals, setApprovals] = useState<ComplianceApproval[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
@@ -79,6 +102,7 @@ export default function ComplianceApprovalsPage() {
   const handleAction = async () => {
     if (!modal) return;
     try {
+      setError('');
       setActionLoading(modal.id);
 
       const statusMap = {
@@ -134,9 +158,25 @@ export default function ComplianceApprovalsPage() {
     const s = searchTerm.toLowerCase();
     return String(a.leadId).includes(s) ||
            String(a.opportunityId || '').includes(s) ||
+           (a.clientName || '').toLowerCase().includes(s) ||
+           (a.counselorName || '').toLowerCase().includes(s) ||
+           (a.receiptNumber || '').toLowerCase().includes(s) ||
            (a.reviewedBy || '').toLowerCase().includes(s) ||
            (a.reviewNotes || '').toLowerCase().includes(s);
   });
+
+  const { sorted: sortedApprovals, sortKey: approvalSortKey, sortDirection: approvalSortDirection, toggleSort: toggleApprovalSort } = useSortableData(
+    filtered,
+    {
+      id: (a) => a.id,
+      lead: (a) => a.clientName?.trim() || a.leadId,
+      submitted: (a) => a.submittedAt,
+      status: (a) => a.status,
+      reviewer: (a) => a.reviewedBy,
+    },
+  );
+
+  const activeModalApproval = modal ? approvals.find(a => a.id === modal.id) : null;
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -197,33 +237,37 @@ export default function ComplianceApprovalsPage() {
       <div className="bg-white rounded-lg shadow p-4 flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-52">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Search by lead ID, reviewer, notes..."
+          <input type="text" placeholder="Search by client, lead, counselor, receipt, reviewer..."
             value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+        <SearchableSelect value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
           <option value="">All Status</option>
           <option value="pending">Pending</option>
           <option value="under_review">Under Review</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
-        </select>
+        </SearchableSelect>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {['#', 'Lead / Opportunity', 'Signed Agreement', 'Submitted', 'Status', 'Reviewer', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
-                ))}
+                <SortableTh label="#" sortKey="id" activeKey={approvalSortKey} direction={approvalSortDirection} onSort={toggleApprovalSort} />
+                <SortableTh label="Lead / Opportunity" sortKey="lead" activeKey={approvalSortKey} direction={approvalSortDirection} onSort={toggleApprovalSort} />
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Signed Agreement</th>
+                <SortableTh label="Submitted" sortKey="submitted" activeKey={approvalSortKey} direction={approvalSortDirection} onSort={toggleApprovalSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={approvalSortKey} direction={approvalSortDirection} onSort={toggleApprovalSort} />
+                <SortableTh label="Reviewer" sortKey="reviewer" activeKey={approvalSortKey} direction={approvalSortDirection} onSort={toggleApprovalSort} />
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filtered.map(a => {
+              {sortedApprovals.map(a => {
                 const isExpanded = expandedId === a.id;
                 const isPending = a.status === 'pending' || a.status === 'under_review';
                 return (
@@ -231,9 +275,13 @@ export default function ComplianceApprovalsPage() {
                     <tr key={a.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-500">{a.id}</td>
                       <td className="px-4 py-3">
-                        <div className="text-sm font-medium text-gray-900">Lead #{a.leadId}</div>
+                        <div className="text-sm font-medium text-gray-900">{a.clientName?.trim() || `Lead #${a.leadId}`}</div>
+                        <div className="text-xs text-gray-500">Lead #{a.leadId}</div>
                         {a.opportunityId && (
                           <div className="text-xs text-blue-600">Opp #{a.opportunityId}</div>
+                        )}
+                        {a.counselorName && (
+                          <div className="text-xs text-indigo-600 mt-0.5">Counselor: {a.counselorName}</div>
                         )}
                         {a.signatureDate && (
                           <div className="text-xs text-gray-400 mt-0.5">
@@ -252,6 +300,18 @@ export default function ComplianceApprovalsPage() {
                         )}
                         {a.clientSignature && (
                           <div className="text-xs text-gray-500 mt-0.5">Sig: {a.clientSignature}</div>
+                        )}
+                        {a.proofOfPaymentUrl && (
+                          <a href={a.proofOfPaymentUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-green-700 hover:text-green-900 text-xs mt-1">
+                            <ExternalLink className="w-3 h-3" /> View Receipt Proof
+                          </a>
+                        )}
+                        {a.counsellorSheetUrl && (
+                          <a href={a.counsellorSheetUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-indigo-700 hover:text-indigo-900 text-xs mt-1">
+                            <ExternalLink className="w-3 h-3" /> View Counsellor Sheet
+                          </a>
                         )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -286,43 +346,67 @@ export default function ComplianceApprovalsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
-                          {isPending && (
+                          {isPending && canReview && (
                             <>
-                              <button onClick={() => setModal({ id: a.id, action: 'approve' })}
+                              <button onClick={() => { setError(''); setModal({ id: a.id, action: 'approve' }); }}
                                 disabled={actionLoading === a.id}
                                 className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50">
                                 <CheckCircle className="w-3 h-3" /> Approve
                               </button>
                               {a.status === 'pending' && (
-                                <button onClick={() => setModal({ id: a.id, action: 'under_review' })}
+                                <button onClick={() => { setError(''); setModal({ id: a.id, action: 'under_review' }); }}
                                   disabled={actionLoading === a.id}
                                   className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50">
                                   <AlertCircle className="w-3 h-3" /> Review
                                 </button>
                               )}
-                              <button onClick={() => setModal({ id: a.id, action: 'reject' })}
+                              <button onClick={() => { setError(''); setModal({ id: a.id, action: 'reject' }); }}
                                 disabled={actionLoading === a.id}
                                 className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 disabled:opacity-50">
                                 <XCircle className="w-3 h-3" /> Reject
                               </button>
                             </>
                           )}
-                          {a.reviewNotes && (
-                            <button onClick={() => setExpandedId(isExpanded ? null : a.id)}
-                              className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200">
-                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                              Notes
-                            </button>
-                          )}
+                          <button onClick={() => setExpandedId(isExpanded ? null : a.id)}
+                            className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200">
+                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            Details
+                          </button>
                         </div>
                       </td>
                     </tr>
-                    {isExpanded && a.reviewNotes && (
+                    {isExpanded && (
                       <tr key={`${a.id}-notes`} className="bg-gray-50">
                         <td colSpan={7} className="px-6 py-3">
-                          <div className="text-sm">
-                            <span className="font-medium text-gray-700">Review Notes: </span>
-                            <span className="text-gray-600">{a.reviewNotes}</span>
+                          <div className="grid gap-3 md:grid-cols-4 text-sm">
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <div className="font-semibold text-gray-800 mb-1">Receipt Verification</div>
+                              <div className="text-gray-600">Receipt: {a.receiptNumber || a.paymentNumber || 'N/A'}</div>
+                              <div className="text-gray-600">Paid: {a.currency || 'AED'} {Number(a.paidAmount || 0).toLocaleString()}</div>
+                              <div className="text-gray-600 capitalize">Accounts: {a.accountantStatus || 'pending'}</div>
+                              {a.accountantVerifiedAt && <div className="text-xs text-gray-400">Verified: {new Date(a.accountantVerifiedAt).toLocaleString()}</div>}
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <div className="font-semibold text-gray-800 mb-1">Counselor Summary</div>
+                              <p className="whitespace-pre-wrap text-gray-600">{a.conversationSummary || 'No counselor summary found.'}</p>
+                              {a.clientCommitments && <p className="mt-2 text-xs text-gray-500"><span className="font-medium">Commitments:</span> {a.clientCommitments}</p>}
+                              {a.nextAction && <p className="mt-1 text-xs text-gray-500"><span className="font-medium">Next:</span> {a.nextAction}</p>}
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <div className="font-semibold text-gray-800 mb-1">Review Notes</div>
+                              <p className="whitespace-pre-wrap text-gray-600">{a.reviewNotes || 'No review notes yet.'}</p>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white p-3">
+                              <div className="font-semibold text-gray-800 mb-1">Counsellor Sheet</div>
+                              {a.counsellorSheetUrl ? (
+                                <a href={a.counsellorSheetUrl} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-indigo-700 hover:text-indigo-900">
+                                  <ExternalLink className="w-3 h-3" /> View Counsellor Sheet
+                                </a>
+                              ) : (
+                                <p className="text-gray-400 italic">Not uploaded.</p>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -366,11 +450,73 @@ export default function ComplianceApprovalsPage() {
               </h3>
             </div>
 
+            {/* This is a fixed, full-screen overlay — the page-level error banner
+                above the table sits behind it and is invisible while the modal is
+                open, so a failed action (missing evidence, not authorized, etc.)
+                looked like clicking Confirm did nothing. Show it here instead. */}
+            {error && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 mb-4 text-sm text-red-700">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /> {error}
+              </div>
+            )}
+
             {/* Context */}
             {modal.action === 'approve' && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-sm text-green-800">
                 Approving this agreement confirms the client has signed and the compliance check passed.
                 The case will be unlocked for the operations team.
+              </div>
+            )}
+            {modal.action === 'approve' && activeModalApproval && (
+              <div className="border border-gray-200 rounded-lg p-3 mb-4 text-sm space-y-3">
+                <div className="font-medium text-gray-800">Verification packet</div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-gray-600 shrink-0">Signed agreement</span>
+                  {activeModalApproval.signedAgreementUrl ? (
+                    <a href={activeModalApproval.signedAgreementUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
+                      <ExternalLink className="w-3 h-3" /> View Agreement
+                    </a>
+                  ) : (
+                    <span className="text-red-600 font-medium">Missing</span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-gray-600 shrink-0">Receipt proof</span>
+                  {activeModalApproval.proofOfPaymentUrl ? (
+                    <a href={activeModalApproval.proofOfPaymentUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-green-700 hover:text-green-900 font-medium">
+                      <ExternalLink className="w-3 h-3" /> View Receipt
+                    </a>
+                  ) : (
+                    <span className="text-red-600 font-medium">Missing</span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-gray-600 shrink-0">Counsellor sheet</span>
+                  {activeModalApproval.counsellorSheetUrl ? (
+                    <a href={activeModalApproval.counsellorSheetUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-indigo-700 hover:text-indigo-900 font-medium">
+                      <ExternalLink className="w-3 h-3" /> View Sheet
+                    </a>
+                  ) : (
+                    <span className="text-red-600 font-medium">Missing</span>
+                  )}
+                </div>
+
+                <div>
+                  <span className="text-gray-600">Counselor conversation summary</span>
+                  {activeModalApproval.conversationSummary ? (
+                    <p className="mt-1 whitespace-pre-wrap rounded-md bg-gray-50 border border-gray-200 p-2 text-gray-700 text-xs max-h-32 overflow-y-auto">
+                      {activeModalApproval.conversationSummary}
+                    </p>
+                  ) : (
+                    <div className="mt-1 text-red-600 font-medium">Missing</div>
+                  )}
+                </div>
               </div>
             )}
             {modal.action === 'under_review' && (

@@ -20,20 +20,20 @@ interface DmDupLiveChatLeadsAttributes {
 interface DmDupLiveChatLeadsCreationAttributes extends Optional<DmDupLiveChatLeadsAttributes, never> {}
 
 class DmDupLiveChatLeads extends Model<DmDupLiveChatLeadsAttributes, DmDupLiveChatLeadsCreationAttributes> implements DmDupLiveChatLeadsAttributes {
-  public id!: number;
-  public name!: string;
-  public branch!: number;
-  public phone!: string;
-  public program!: string;
-  public businesstype!: string;
-  public location!: string;
-  public email!: string;
-  public ip_address!: string;
-  public status!: number;
-  public created!: Date;
-  public emp_id!: number;
-  public lead_id!: number;
-  public lead_remark!: string;
+  declare id: number;
+  declare name: string;
+  declare branch: number;
+  declare phone: string;
+  declare program: string;
+  declare businesstype: string;
+  declare location: string;
+  declare email: string;
+  declare ip_address: string;
+  declare status: number;
+  declare created: Date;
+  declare emp_id: number;
+  declare lead_id: number;
+  declare lead_remark: string;
 
   public static associate(models: any) {
   }

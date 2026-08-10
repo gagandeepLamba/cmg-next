@@ -1,6 +1,8 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { CounselorLogger } from '@/lib/counselorLogger';
 import {
   Search, Filter, Calendar, Download, Eye, Clock, User, Activity,
@@ -158,6 +160,18 @@ export default function CounselorActivityLogs() {
     return action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  const { sorted: sortedLogs, sortKey: logSortKey, sortDirection: logSortDirection, toggleSort: toggleLogSort } = useSortableData(
+    filteredLogs,
+    {
+      timestamp: (log) => log.timestamp,
+      counselor: (log) => log.counselorName,
+      action: (log) => formatActionName(log.action),
+      details: (log) => log.details.leadName || log.details.subject || log.details.communicationType,
+      outcome: (log) => log.outcome || 'pending',
+      duration: (log) => log.duration,
+    },
+  );
+
   const exportLogs = (format: 'json' | 'csv' | 'txt') => {
     const data = filteredLogs.map(log => ({
       timestamp: new Date(log.timestamp).toISOString(),
@@ -274,7 +288,7 @@ export default function CounselorActivityLogs() {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Counselor</label>
-              <select
+              <SearchableSelect
                 value={filters.counselorId || ''}
                 onChange={(e) => setFilters({ ...filters, counselorId: e.target.value ? parseInt(e.target.value) : undefined })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -283,7 +297,7 @@ export default function CounselorActivityLogs() {
                 {counselors.map(counselor => (
                   <option key={counselor.id} value={counselor.id}>{counselor.name}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
 
             <div>
@@ -308,7 +322,7 @@ export default function CounselorActivityLogs() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Action</label>
-              <select
+              <SearchableSelect
                 value={filters.action || ''}
                 onChange={(e) => setFilters({ ...filters, action: e.target.value || undefined })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -317,12 +331,12 @@ export default function CounselorActivityLogs() {
                 {actionTypes.map(action => (
                   <option key={action} value={action}>{formatActionName(action)}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Outcome</label>
-              <select
+              <SearchableSelect
                 value={filters.outcome || ''}
                 onChange={(e) => setFilters({ ...filters, outcome: e.target.value || undefined })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -331,7 +345,7 @@ export default function CounselorActivityLogs() {
                 {outcomeTypes.map(outcome => (
                   <option key={outcome} value={outcome}>{outcome}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
           </div>
 
@@ -366,17 +380,17 @@ export default function CounselorActivityLogs() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Counselor</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Outcome</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                <SortableTh label="Timestamp" sortKey="timestamp" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} />
+                <SortableTh label="Counselor" sortKey="counselor" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} />
+                <SortableTh label="Action" sortKey="action" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} />
+                <SortableTh label="Details" sortKey="details" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} />
+                <SortableTh label="Outcome" sortKey="outcome" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} />
+                <SortableTh label="Duration" sortKey="duration" activeKey={logSortKey} direction={logSortDirection} onSort={toggleLogSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredLogs.map((log) => (
+              {sortedLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {log.timestamp.toLocaleString()}

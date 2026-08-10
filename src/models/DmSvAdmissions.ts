@@ -19,19 +19,19 @@ interface DmSvAdmissionsAttributes {
 interface DmSvAdmissionsCreationAttributes extends Optional<DmSvAdmissionsAttributes, never> {}
 
 class DmSvAdmissions extends Model<DmSvAdmissionsAttributes, DmSvAdmissionsCreationAttributes> implements DmSvAdmissionsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public tab!: number;
-  public doc_rec_date!: Date;
-  public doc_status!: string;
-  public docs_sent_through!: Date;
-  public mode!: string;
-  public university_name!: string;
-  public program_applied!: string;
-  public admission_status!: string;
-  public adminssion_intake!: Date;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare leadId: number;
+  declare tab: number;
+  declare doc_rec_date: Date;
+  declare doc_status: string;
+  declare docs_sent_through: Date;
+  declare mode: string;
+  declare university_name: string;
+  declare program_applied: string;
+  declare admission_status: string;
+  declare adminssion_intake: Date;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

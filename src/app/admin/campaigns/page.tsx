@@ -1,11 +1,17 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { DmCampaigns, DmCampaignsAttributes } from '@/models/DmCampaigns';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 interface Campaign extends DmCampaignsAttributes {}
 
 export default function CampaignsManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,6 +46,17 @@ export default function CampaignsManagement() {
 
   const filteredCampaigns = campaigns.filter(campaign =>
     campaign.campaign.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const { sorted: sortedCampaigns, sortKey: campaignSortKey, sortDirection: campaignSortDirection, toggleSort: toggleCampaignSort } = useSortableData(
+    filteredCampaigns,
+    {
+      id: (c) => c.id,
+      name: (c) => c.campaign,
+      created: (c) => c.created,
+      createdBy: (c) => c.created_by,
+      status: (c) => c.status,
+    },
   );
 
   const handleViewCampaign = (campaign: Campaign) => {
@@ -123,42 +140,32 @@ export default function CampaignsManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <SearchableSelect className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Campaigns Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Campaign Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created By
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <SortableTh label="ID" sortKey="id" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} />
+                <SortableTh label="Campaign Name" sortKey="name" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} />
+                <SortableTh label="Created Date" sortKey="created" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} />
+                <SortableTh label="Created By" sortKey="createdBy" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredCampaigns.map((campaign) => (
+              {sortedCampaigns.map((campaign) => (
                 <tr key={campaign.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
@@ -188,18 +195,23 @@ export default function CampaignsManagement() {
                     >
                       View
                     </button>
-                    <button className="text-indigo-600 hover:text-indigo-900 mr-3">
+                    <button
+                      onClick={() => handleViewCampaign(campaign)}
+                      className="text-indigo-600 hover:text-indigo-900 mr-3"
+                    >
                       Edit
                     </button>
-                    <button 
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setShowModal(true);
-                      }}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => {
+                          setSelectedCampaign(campaign);
+                          setShowModal(true);
+                        }}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -305,7 +317,7 @@ export default function CampaignsManagement() {
                   <label htmlFor="campaignStatus" className="block text-sm font-medium text-gray-700">
                     Status
                   </label>
-                  <select
+                  <SearchableSelect
                     id="campaignStatus"
                     value={newCampaign.status}
                     onChange={(e) => setNewCampaign({ ...newCampaign, status: parseInt(e.target.value) })}
@@ -313,7 +325,7 @@ export default function CampaignsManagement() {
                   >
                     <option value={1}>Active</option>
                     <option value={0}>Inactive</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
             </div>

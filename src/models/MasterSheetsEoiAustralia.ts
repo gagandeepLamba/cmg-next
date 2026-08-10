@@ -10,10 +10,10 @@ interface MasterSheetsEoiAustraliaAttributes {
 interface MasterSheetsEoiAustraliaCreationAttributes extends Optional<MasterSheetsEoiAustraliaAttributes, 'userid' | 'file' | 'date'> {}
 
 class MasterSheetsEoiAustralia extends Model<MasterSheetsEoiAustraliaAttributes, MasterSheetsEoiAustraliaCreationAttributes> implements MasterSheetsEoiAustraliaAttributes {
-  public id!: number;
-  public userid!: number | null;
-  public file!: string | null;
-  public date!: string | null;
+  declare id: number;
+  declare userid: number | null;
+  declare file: string | null;
+  declare date: string | null;
 
   public static associate(models: any) {
   }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { Search, RefreshCw, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Campaign {
@@ -35,6 +36,18 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function MetaCampaignsPage() {
   const [rows, setRows]         = useState<Campaign[]>([]);
+  const { sorted: sortedRows, sortKey: campaignSortKey, sortDirection: campaignSortDirection, toggleSort: toggleCampaignSort } = useSortableData(
+    rows,
+    {
+      campaign: (c) => c.campaign_name,
+      status: (c) => c.status,
+      leads: (c) => c.leads_count,
+      spend: (c) => c.spend,
+      impressions: (c) => c.impressions,
+      clicks: (c) => c.clicks,
+      lastSynced: (c) => c.last_synced_at,
+    },
+  );
   const [pagination, setPag]    = useState<Pagination>({ page: 1, limit: 20, total: 0, pages: 0 });
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
@@ -97,23 +110,23 @@ export default function MetaCampaignsPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-gray-100 bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500">
             <tr>
-              <th className="px-4 py-3 text-left">Campaign</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-right">Leads</th>
-              <th className="px-4 py-3 text-right">Spend</th>
-              <th className="px-4 py-3 text-right">Impressions</th>
-              <th className="px-4 py-3 text-right">Clicks</th>
-              <th className="px-4 py-3 text-left">Last Synced</th>
+              <SortableTh label="Campaign" sortKey="campaign" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Status" sortKey="status" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Leads" sortKey="leads" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-4 py-3 text-right" />
+              <SortableTh label="Spend" sortKey="spend" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-4 py-3 text-right" />
+              <SortableTh label="Impressions" sortKey="impressions" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-4 py-3 text-right" />
+              <SortableTh label="Clicks" sortKey="clicks" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-4 py-3 text-right" />
+              <SortableTh label="Last Synced" sortKey="lastSynced" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-4 py-3 text-left" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
-            ) : rows.length === 0 ? (
+            ) : sortedRows.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                 No campaigns yet. Use &ldquo;Sync from Meta&rdquo; to import campaigns.
               </td></tr>
-            ) : rows.map(c => (
+            ) : sortedRows.map(c => (
               <tr key={c.campaign_id} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5">
                   <div className="font-medium text-gray-900 truncate max-w-[220px]">{c.campaign_name}</div>

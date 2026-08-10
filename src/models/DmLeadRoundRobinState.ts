@@ -11,10 +11,10 @@ interface DmLeadRoundRobinStateAttributes {
 interface DmLeadRoundRobinStateCreationAttributes extends Optional<DmLeadRoundRobinStateAttributes, 'last_employee_id' | 'created_at' | 'updated_at'> {}
 
 class DmLeadRoundRobinState extends Model<DmLeadRoundRobinStateAttributes, DmLeadRoundRobinStateCreationAttributes> implements DmLeadRoundRobinStateAttributes {
-  public branch_id!: number;
-  public last_employee_id!: number | null;
-  public created_at!: Date;
-  public updated_at!: Date;
+  declare branch_id: number;
+  declare last_employee_id: number | null;
+  declare created_at: Date;
+  declare updated_at: Date;
 
   public static associate(models: any) {
     DmLeadRoundRobinState.belongsTo(models.DmBranch, { foreignKey: 'branch_id', targetKey: 'id', as: 'branch' });

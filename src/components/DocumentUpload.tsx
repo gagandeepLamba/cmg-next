@@ -1,6 +1,8 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useCallback, useEffect } from 'react'
+import { uploadFileToBlob } from '@/lib/uploadToBlob'
 
 interface DocumentFile {
   id: string
@@ -239,26 +241,35 @@ export default function DocumentUpload({
     setUploading(true)
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('category', category.id)
-      formData.append('opportunityId', opportunityId || '')
-      formData.append('clientId', clientId || '')
-      formData.append('documentName', file.name)
-      formData.append('required', String(category.required))
-      formData.append('uploadedBy', '1')
-
-      for (let progress = 0; progress <= 80; progress += 20) {
-        setDocuments(prev => prev.map(doc => 
-          doc.id === newDoc.id 
-            ? { ...doc, progress }
-            : doc
-        ))
-      }
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const blob = await uploadFileToBlob(
+        file,
+        `opportunity-documents/${opportunityId || 'unassigned'}/${category.id}/${Date.now()}_${safeName}`,
+        (percentage) => {
+          setDocuments(prev => prev.map(doc =>
+            doc.id === newDoc.id
+              ? { ...doc, progress: Math.min(90, Math.round(percentage)) }
+              : doc
+          ))
+        },
+      )
 
       const response = await fetch('/api/opportunity-documents', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opportunityId: opportunityId || null,
+          documentType: category.id,
+          documentName: file.name,
+          fileName: safeName,
+          filePath: blob.url,
+          fileSize: file.size,
+          mimeType: file.type || 'application/octet-stream',
+          category: category.id,
+          status: 'uploaded',
+          required: category.required,
+          uploadedBy: 1,
+        }),
       })
 
       if (!response.ok) {
@@ -412,7 +423,7 @@ export default function DocumentUpload({
           <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
             Document Category
           </label>
-          <select
+          <SearchableSelect
             id="category"
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
@@ -423,7 +434,7 @@ export default function DocumentUpload({
                 {category.name} {category.required && '*'}
               </option>
             ))}
-          </select>
+          </SearchableSelect>
           {categories.find(cat => cat.id === selectedCategory)?.description && (
             <p className="mt-1 text-sm text-gray-500">
               {categories.find(cat => cat.id === selectedCategory)?.description}

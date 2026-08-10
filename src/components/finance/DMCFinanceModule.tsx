@@ -1,11 +1,14 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { DollarSign, TrendingUp, TrendingDown, BarChart3, RefreshCw, AlertCircle, FileText, Users } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,7 +60,7 @@ const monthLabel = (m: string) => {
   return d.toLocaleDateString('en', { month: 'short', year: '2-digit' });
 };
 
-const CHART_COLORS = ['#003399', '#002266', '#0044B3', '#4D7CD1', '#4D80D9', '#6699DD', '#2563eb', '#7c3aed'];
+const CHART_COLORS = ['#35AE22', '#1C6B10', '#289018', '#56C73E', '#78D454', '#9EE07A', '#2563eb', '#7c3aed'];
 
 const STATUS_COLOR: Record<string, string> = {
   won: 'bg-green-100 text-green-700',
@@ -76,8 +79,8 @@ function KpiCard({ label, value, sub, icon: Icon, trend }: {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
       <div className="flex items-start justify-between">
-        <div className="w-10 h-10 rounded-lg bg-[#E8EEFB] flex items-center justify-center shrink-0">
-          <Icon className="w-5 h-5 text-[#003399]" />
+        <div className="w-10 h-10 rounded-lg bg-[#EAF7E4] flex items-center justify-center shrink-0">
+          <Icon className="w-5 h-5 text-[#35AE22]" />
         </div>
         {trend && (
           <div className={`flex items-center gap-1 text-xs font-medium ${trend === 'up' ? 'text-green-600' : 'text-red-500'}`}>
@@ -94,9 +97,55 @@ function KpiCard({ label, value, sub, icon: Icon, trend }: {
   );
 }
 
+// Shared date-range + branch filter row, rendered on both the Revenue and
+// Expenses tabs (each keeps its own search/status controls alongside it).
+function DateBranchFilterRow({
+  dateFrom, setDateFrom, dateTo, setDateTo, branchFilter, setBranchFilter, branchOptions,
+}: {
+  dateFrom: string; setDateFrom: (v: string) => void;
+  dateTo: string; setDateTo: (v: string) => void;
+  branchFilter: string; setBranchFilter: (v: string) => void;
+  branchOptions: { value: string; label: string }[];
+}) {
+  return (
+    <>
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <span>From</span>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={e => setDateFrom(e.target.value)}
+          className="border border-gray-200 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-[#35AE22]"
+        />
+        <span>To</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={e => setDateTo(e.target.value)}
+          className="border border-gray-200 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-[#35AE22]"
+        />
+      </div>
+      <SearchableSelect
+        value={branchFilter}
+        onChange={e => setBranchFilter(e.target.value)}
+        className="border border-gray-200 rounded-lg text-sm px-3 py-2"
+      >
+        <option value="">All Branches</option>
+        {branchOptions.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+      </SearchableSelect>
+    </>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DMCFinanceModule() {
+  const { currencyCode } = useAuth();
+  // Shadows the module-level fmtMoney so every call site below (which relies
+  // on the default 'AED' param) shows the logged-in user's own branch
+  // currency instead, with no other changes needed.
+  const fmtMoney = (n: number, currency = currencyCode) =>
+    `${currency} ${Number(n || 0).toLocaleString('en', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   const [data, setData] = useState<FinanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -104,12 +153,29 @@ export default function DMCFinanceModule() {
   const [activeTab, setActiveTab] = useState<'overview' | 'revenue' | 'expenses' | 'branches' | 'counselors'>('overview');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  // Calendar + branch filters shown on the Revenue and Expenses tabs. A date
+  // range, when set, overrides the relative `months` lookback server-side.
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
+  const [branchOptions, setBranchOptions] = useState<{ value: string; label: string }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/lead-filter-options')
+      .then(res => res.ok ? res.json() : null)
+      .then(json => { if (json?.branches) setBranchOptions(json.branches); })
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/admin/finance?months=${months}`);
+      const params = new URLSearchParams({ months });
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      if (branchFilter) params.set('branch', branchFilter);
+      const res = await fetch(`/api/admin/finance?${params}`);
       if (!res.ok) throw new Error(await res.text());
       setData(await res.json());
     } catch (e: any) {
@@ -117,7 +183,7 @@ export default function DMCFinanceModule() {
     } finally {
       setLoading(false);
     }
-  }, [months]);
+  }, [months, dateFrom, dateTo, branchFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -141,10 +207,65 @@ export default function DMCFinanceModule() {
     );
   }, [data, search]);
 
+  const { sorted: sortedOps, sortKey: opSortKey, sortDirection: opSortDirection, toggleSort: toggleOpSort } = useSortableData(
+    filteredOps,
+    {
+      client: (o) => o.client,
+      counselor: (o) => o.counselor,
+      branch: (o) => o.branch,
+      totalFee: (o) => o.totalFee,
+      collected: (o) => o.paid,
+      balance: (o) => o.balance,
+      status: (o) => o.status,
+      date: (o) => o.date,
+    },
+  );
+
+  const { sorted: sortedExps, sortKey: expSortKey, sortDirection: expSortDirection, toggleSort: toggleExpSort } = useSortableData(
+    filteredExps,
+    {
+      date: (e) => e.date,
+      description: (e) => e.description,
+      branch: (e) => e.branch,
+      type: (e) => e.type,
+      amount: (e) => e.amount,
+      vat: (e) => e.vat,
+      total: (e) => e.total,
+      approved: (e) => (e.approved ? 1 : 0),
+    },
+  );
+
+  const { sorted: sortedBranchPerformance, sortKey: branchPerfSortKey, sortDirection: branchPerfSortDirection, toggleSort: toggleBranchPerfSort } = useSortableData(
+    data?.branchPerformance || [],
+    {
+      branch: (b) => b.name,
+      opportunities: (b) => b.opportunities,
+      revenue: (b) => b.revenue,
+      collected: (b) => b.collected,
+      collectionPct: (b) => (b.revenue > 0 ? b.collected / b.revenue : 0),
+    },
+  );
+
+  const topCounselorId = useMemo(() => {
+    const list = data?.counselorPerformance || [];
+    return list.length ? list.reduce((top, c) => (c.collected > top.collected ? c : top), list[0]).id : null;
+  }, [data]);
+
+  const { sorted: sortedCounselorPerformance, sortKey: counselorSortKey, sortDirection: counselorSortDirection, toggleSort: toggleCounselorSort } = useSortableData(
+    data?.counselorPerformance || [],
+    {
+      counselor: (c) => c.name,
+      branch: (c) => c.branch,
+      opportunities: (c) => c.opportunities,
+      collected: (c) => c.collected,
+      avgPerDeal: (c) => (c.opportunities > 0 ? c.collected / c.opportunities : 0),
+    },
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 gap-3 text-gray-400">
-        <RefreshCw className="w-6 h-6 animate-spin text-[#003399]" /> Loading finance data…
+        <RefreshCw className="w-6 h-6 animate-spin text-[#35AE22]" /> Loading finance data…
       </div>
     );
   }
@@ -154,7 +275,7 @@ export default function DMCFinanceModule() {
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-red-500">
         <AlertCircle className="w-8 h-8" />
         <span>{error || 'No data available'}</span>
-        <button onClick={load} className="px-4 py-2 bg-[#003399] text-white rounded-lg text-sm hover:bg-[#002266]">Retry</button>
+        <button onClick={load} className="px-4 py-2 bg-[#35AE22] text-white rounded-lg text-sm hover:bg-[#1C6B10]">Retry</button>
       </div>
     );
   }
@@ -167,22 +288,22 @@ export default function DMCFinanceModule() {
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-sm">
         <div className="flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-[#003399]" />
+          <BarChart3 className="w-5 h-5 text-[#35AE22]" />
           <span className="font-semibold text-gray-800">Finance Dashboard</span>
           <span className="text-xs text-gray-400 hidden sm:inline">· Live database</span>
         </div>
         <div className="flex items-center gap-2">
-          <select
+          <SearchableSelect
             value={months}
             onChange={e => setMonths(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-[#003399]"
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-[#35AE22]"
           >
             <option value="1">Last 1 month</option>
             <option value="3">Last 3 months</option>
             <option value="6">Last 6 months</option>
             <option value="12">Last 12 months</option>
             <option value="24">Last 24 months</option>
-          </select>
+          </SearchableSelect>
           <button onClick={load} className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500">
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -218,7 +339,7 @@ export default function DMCFinanceModule() {
               onClick={() => setActiveTab(tab.key)}
               className={`px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.key
-                  ? 'text-[#002266] border-b-2 border-[#003399] bg-[#F3F6FC]'
+                  ? 'text-[#1C6B10] border-b-2 border-[#35AE22] bg-[#F3FAF0]'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -245,7 +366,7 @@ export default function DMCFinanceModule() {
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtShort} />
                       <Tooltip formatter={(v: number | undefined) => fmtMoney(v ?? 0)} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar dataKey="collected" name="Collected" fill="#003399" radius={[3,3,0,0]} />
+                      <Bar dataKey="collected" name="Collected" fill="#35AE22" radius={[3,3,0,0]} />
                       <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[3,3,0,0]} />
                       <Bar dataKey="profit" name="Net Profit" fill="#2563eb" radius={[3,3,0,0]} />
                     </BarChart>
@@ -291,9 +412,9 @@ export default function DMCFinanceModule() {
                   placeholder="Search client, counselor, service..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="flex-1 min-w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#003399]"
+                  className="flex-1 min-w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#35AE22]"
                 />
-                <select
+                <SearchableSelect
                   value={statusFilter}
                   onChange={e => setStatusFilter(e.target.value)}
                   className="border border-gray-200 rounded-lg text-sm px-3 py-2"
@@ -304,26 +425,32 @@ export default function DMCFinanceModule() {
                   <option value="prospect">Prospect</option>
                   <option value="negotiation">Negotiation</option>
                   <option value="lost">Lost</option>
-                </select>
+                </SearchableSelect>
+                <DateBranchFilterRow
+                  dateFrom={dateFrom} setDateFrom={setDateFrom}
+                  dateTo={dateTo} setDateTo={setDateTo}
+                  branchFilter={branchFilter} setBranchFilter={setBranchFilter}
+                  branchOptions={branchOptions}
+                />
               </div>
               <div className="overflow-x-auto rounded-lg border border-gray-100">
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <tr>
-                      <th className="px-4 py-3 text-left">Client / Service</th>
-                      <th className="px-4 py-3 text-left">Counselor</th>
-                      <th className="px-4 py-3 text-left">Branch</th>
-                      <th className="px-4 py-3 text-right">Total Fee</th>
-                      <th className="px-4 py-3 text-right">Collected</th>
-                      <th className="px-4 py-3 text-right">Balance</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Date</th>
+                      <SortableTh label="Client / Service" sortKey="client" activeKey={opSortKey} direction={opSortDirection} onSort={toggleOpSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Counselor" sortKey="counselor" activeKey={opSortKey} direction={opSortDirection} onSort={toggleOpSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Branch" sortKey="branch" activeKey={opSortKey} direction={opSortDirection} onSort={toggleOpSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Total Fee" sortKey="totalFee" activeKey={opSortKey} direction={opSortDirection} onSort={toggleOpSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="Collected" sortKey="collected" activeKey={opSortKey} direction={opSortDirection} onSort={toggleOpSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="Balance" sortKey="balance" activeKey={opSortKey} direction={opSortDirection} onSort={toggleOpSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="Status" sortKey="status" activeKey={opSortKey} direction={opSortDirection} onSort={toggleOpSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Date" sortKey="date" activeKey={opSortKey} direction={opSortDirection} onSort={toggleOpSort} className="px-4 py-3 text-left" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filteredOps.length === 0 ? (
+                    {sortedOps.length === 0 ? (
                       <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400">No opportunities found</td></tr>
-                    ) : filteredOps.slice(0, 100).map(o => (
+                    ) : sortedOps.slice(0, 100).map(o => (
                       <tr key={o.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3">
                           <div className="font-medium text-gray-900 truncate max-w-48">{o.client}</div>
@@ -370,32 +497,40 @@ export default function DMCFinanceModule() {
                 </div>
               )}
 
-              <input
-                type="text"
-                placeholder="Search description or branch..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full max-w-sm px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#003399]"
-              />
+              <div className="flex flex-wrap gap-3">
+                <input
+                  type="text"
+                  placeholder="Search description or branch..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="flex-1 min-w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#35AE22]"
+                />
+                <DateBranchFilterRow
+                  dateFrom={dateFrom} setDateFrom={setDateFrom}
+                  dateTo={dateTo} setDateTo={setDateTo}
+                  branchFilter={branchFilter} setBranchFilter={setBranchFilter}
+                  branchOptions={branchOptions}
+                />
+              </div>
 
               <div className="overflow-x-auto rounded-lg border border-gray-100">
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <tr>
-                      <th className="px-4 py-3 text-left">Date</th>
-                      <th className="px-4 py-3 text-left">Description</th>
-                      <th className="px-4 py-3 text-left">Branch</th>
-                      <th className="px-4 py-3 text-left">Type</th>
-                      <th className="px-4 py-3 text-right">Amount</th>
-                      <th className="px-4 py-3 text-right">VAT</th>
-                      <th className="px-4 py-3 text-right">Total</th>
-                      <th className="px-4 py-3 text-left">Approved</th>
+                      <SortableTh label="Date" sortKey="date" activeKey={expSortKey} direction={expSortDirection} onSort={toggleExpSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Description" sortKey="description" activeKey={expSortKey} direction={expSortDirection} onSort={toggleExpSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Branch" sortKey="branch" activeKey={expSortKey} direction={expSortDirection} onSort={toggleExpSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Type" sortKey="type" activeKey={expSortKey} direction={expSortDirection} onSort={toggleExpSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Amount" sortKey="amount" activeKey={expSortKey} direction={expSortDirection} onSort={toggleExpSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="VAT" sortKey="vat" activeKey={expSortKey} direction={expSortDirection} onSort={toggleExpSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="Total" sortKey="total" activeKey={expSortKey} direction={expSortDirection} onSort={toggleExpSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="Approved" sortKey="approved" activeKey={expSortKey} direction={expSortDirection} onSort={toggleExpSort} className="px-4 py-3 text-left" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filteredExps.length === 0 ? (
+                    {sortedExps.length === 0 ? (
                       <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400">No expenses found</td></tr>
-                    ) : filteredExps.slice(0, 100).map(e => (
+                    ) : sortedExps.slice(0, 100).map(e => (
                       <tr key={e.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 text-xs text-gray-500">{e.date}</td>
                         <td className="px-4 py-3 text-gray-800 max-w-xs truncate">{e.description}</td>
@@ -429,7 +564,7 @@ export default function DMCFinanceModule() {
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtShort} />
                   <Tooltip formatter={(v: number | undefined) => fmtMoney(v ?? 0)} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="Collected" fill="#003399" radius={[3,3,0,0]} />
+                  <Bar dataKey="Collected" fill="#35AE22" radius={[3,3,0,0]} />
                   <Bar dataKey="Revenue" fill="#2563eb" radius={[3,3,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -438,22 +573,22 @@ export default function DMCFinanceModule() {
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <tr>
-                      <th className="px-4 py-3 text-left">Branch</th>
-                      <th className="px-4 py-3 text-right">Opportunities</th>
-                      <th className="px-4 py-3 text-right">Total Revenue</th>
-                      <th className="px-4 py-3 text-right">Collected</th>
-                      <th className="px-4 py-3 text-right">Collection %</th>
+                      <SortableTh label="Branch" sortKey="branch" activeKey={branchPerfSortKey} direction={branchPerfSortDirection} onSort={toggleBranchPerfSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Opportunities" sortKey="opportunities" activeKey={branchPerfSortKey} direction={branchPerfSortDirection} onSort={toggleBranchPerfSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="Total Revenue" sortKey="revenue" activeKey={branchPerfSortKey} direction={branchPerfSortDirection} onSort={toggleBranchPerfSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="Collected" sortKey="collected" activeKey={branchPerfSortKey} direction={branchPerfSortDirection} onSort={toggleBranchPerfSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="Collection %" sortKey="collectionPct" activeKey={branchPerfSortKey} direction={branchPerfSortDirection} onSort={toggleBranchPerfSort} className="px-4 py-3 text-right" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {branchPerformance.map(b => (
+                    {sortedBranchPerformance.map(b => (
                       <tr key={b.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-900">{b.name}</td>
                         <td className="px-4 py-3 text-right text-gray-700">{b.opportunities}</td>
                         <td className="px-4 py-3 text-right text-gray-800">{fmtMoney(b.revenue)}</td>
                         <td className="px-4 py-3 text-right text-green-700 font-medium">{fmtMoney(b.collected)}</td>
                         <td className="px-4 py-3 text-right">
-                          <span className="font-semibold text-[#003399]">
+                          <span className="font-semibold text-[#35AE22]">
                             {b.revenue > 0 ? ((b.collected / b.revenue) * 100).toFixed(1) : '0'}%
                           </span>
                         </td>
@@ -472,26 +607,26 @@ export default function DMCFinanceModule() {
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <tr>
-                      <th className="px-4 py-3 text-left">Counselor</th>
-                      <th className="px-4 py-3 text-left">Branch</th>
-                      <th className="px-4 py-3 text-right">Opportunities</th>
-                      <th className="px-4 py-3 text-right">Collected</th>
-                      <th className="px-4 py-3 text-right">Avg per Deal</th>
+                      <SortableTh label="Counselor" sortKey="counselor" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Branch" sortKey="branch" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-4 py-3 text-left" />
+                      <SortableTh label="Opportunities" sortKey="opportunities" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="Collected" sortKey="collected" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-4 py-3 text-right" />
+                      <SortableTh label="Avg per Deal" sortKey="avgPerDeal" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-4 py-3 text-right" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {counselorPerformance.length === 0 ? (
+                    {sortedCounselorPerformance.length === 0 ? (
                       <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">No counselor data for this period</td></tr>
-                    ) : counselorPerformance.map((c, i) => (
+                    ) : sortedCounselorPerformance.map((c) => (
                       <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-[#E8EEFB] flex items-center justify-center text-[#002266] text-xs font-bold shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-[#EAF7E4] flex items-center justify-center text-[#1C6B10] text-xs font-bold shrink-0">
                               {c.name.charAt(0)}
                             </div>
                             <div>
                               <div className="font-medium text-gray-900">{c.name}</div>
-                              {i === 0 && <div className="text-[10px] text-[#003399] font-semibold">Top Performer</div>}
+                              {c.id === topCounselorId && <div className="text-[10px] text-[#35AE22] font-semibold">Top Performer</div>}
                             </div>
                           </div>
                         </td>

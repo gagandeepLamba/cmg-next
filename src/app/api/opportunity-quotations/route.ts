@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DmcOpportunityQuotations } from '@/models';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['leads.view']);
+    if (isAuthError(auth)) return auth;
+
     const { searchParams } = new URL(request.url);
     const opportunityId = searchParams.get('opportunityId');
     const status = searchParams.get('status');
@@ -44,8 +48,18 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['leads.view', 'leads.create']);
+    if (isAuthError(auth)) return auth;
+
     const body = await request.json();
-    
+
+    if (body.total !== undefined && body.total !== null && body.total !== '') {
+      const total = Number(body.total);
+      if (!Number.isFinite(total) || total < 0) {
+        return NextResponse.json({ error: 'total must be a non-negative number' }, { status: 422 });
+      }
+    }
+
     const quotationData = {
       ...body,
       createdAt: new Date(),

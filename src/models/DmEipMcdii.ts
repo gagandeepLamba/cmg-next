@@ -17,17 +17,17 @@ interface DmEipMcdiiAttributes {
 interface DmEipMcdiiCreationAttributes extends Optional<DmEipMcdiiAttributes, never> {}
 
 class DmEipMcdii extends Model<DmEipMcdiiAttributes, DmEipMcdiiCreationAttributes> implements DmEipMcdiiAttributes {
-  public id!: number;
-  public leadId!: string;
-  public tab!: number;
-  public eligibility!: string;
-  public doc_received!: string;
-  public doc_rece_date!: Date;
-  public noc!: string;
-  public eoi_sub_date!: Date;
-  public eoi_status!: string;
-  public exploratory_visit_status!: string;
-  public exploratory_visit_date!: Date;
+  declare id: number;
+  declare leadId: string;
+  declare tab: number;
+  declare eligibility: string;
+  declare doc_received: string;
+  declare doc_rece_date: Date;
+  declare noc: string;
+  declare eoi_sub_date: Date;
+  declare eoi_status: string;
+  declare exploratory_visit_status: string;
+  declare exploratory_visit_date: Date;
 
   public static associate(models: any) {
   }

@@ -17,17 +17,17 @@ interface DmEmployerAttributes {
 interface DmEmployerCreationAttributes extends Optional<DmEmployerAttributes, 'email' | 'mobile' | 'paddress' | 'status'> {}
 
 class DmEmployer extends Model<DmEmployerAttributes, DmEmployerCreationAttributes> implements DmEmployerAttributes {
-  public id!: number;
-  public name!: string;
-  public email!: string | null;
-  public mobile!: string | null;
-  public paddress!: string | null;
-  public vendor_id!: number;
-  public status!: number;
-  public website!: string;
-  public company_name!: string;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare name: string;
+  declare email: string | null;
+  declare mobile: string | null;
+  declare paddress: string | null;
+  declare vendor_id: number;
+  declare status: number;
+  declare website: string;
+  declare company_name: string;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

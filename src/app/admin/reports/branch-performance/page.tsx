@@ -1,11 +1,14 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import {
   BarChart3, Download, Filter, Search, Calendar,
   FileText, TrendingUp, Users, DollarSign, Eye,
   Building2, MapPin, Target, Activity
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Lead {
   id: number;
@@ -64,15 +67,20 @@ interface BranchPerformance {
 }
 
 export default function BranchPerformanceReport() {
+  const { currencyCode } = useAuth();
   const [branches, setBranches] = useState<BranchPerformance[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<BranchPerformance | null>(null);
   const [dateRange, setDateRange] = useState('month');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const formatCurrency = (value: number) => (
-    new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED', maximumFractionDigits: 0 }).format(Number(value || 0))
-  );
+  const formatCurrency = (value: number) => {
+    try {
+      return new Intl.NumberFormat('en-AE', { style: 'currency', currency: currencyCode, maximumFractionDigits: 0 }).format(Number(value || 0));
+    } catch {
+      return `${currencyCode} ${Number(value || 0).toLocaleString()}`;
+    }
+  };
 
   useEffect(() => {
     fetchBranchData();
@@ -119,6 +127,17 @@ export default function BranchPerformanceReport() {
     return leads.filter((lead: Lead) => lead.branch === branchId);
   };
 
+  const { sorted: sortedBranchLeads, sortKey: branchLeadSortKey, sortDirection: branchLeadSortDirection, toggleSort: toggleBranchLeadSort } = useSortableData(
+    selectedBranch ? getBranchLeads(selectedBranch.id) : [],
+    {
+      lead: (lead: Lead) => `${lead.fname || ''} ${lead.lname || ''}`,
+      service: (lead: Lead) => lead.service_interest_label || lead.service_interest,
+      status: (lead: Lead) => lead.status,
+      counselor: (lead: Lead) => lead.dmEmployeeByASSIGNTo?.name,
+      revenue: (lead: Lead) => lead.payTotal,
+    },
+  );
+
   if (loading) {
     return (
       <div className="p-6">
@@ -151,7 +170,7 @@ export default function BranchPerformanceReport() {
               />
             </div>
 
-            <select
+            <SearchableSelect
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -160,7 +179,7 @@ export default function BranchPerformanceReport() {
               <option value="month">Last Month</option>
               <option value="quarter">Last Quarter</option>
               <option value="year">Last Year</option>
-            </select>
+            </SearchableSelect>
           </div>
 
           <div className="flex items-center space-x-2">
@@ -240,28 +259,18 @@ export default function BranchPerformanceReport() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Lead
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Service
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Counselor
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Revenue
-                  </th>
+                  <SortableTh label="Lead" sortKey="lead" activeKey={branchLeadSortKey} direction={branchLeadSortDirection} onSort={toggleBranchLeadSort} />
+                  <SortableTh label="Service" sortKey="service" activeKey={branchLeadSortKey} direction={branchLeadSortDirection} onSort={toggleBranchLeadSort} />
+                  <SortableTh label="Status" sortKey="status" activeKey={branchLeadSortKey} direction={branchLeadSortDirection} onSort={toggleBranchLeadSort} />
+                  <SortableTh label="Counselor" sortKey="counselor" activeKey={branchLeadSortKey} direction={branchLeadSortDirection} onSort={toggleBranchLeadSort} />
+                  <SortableTh label="Revenue" sortKey="revenue" activeKey={branchLeadSortKey} direction={branchLeadSortDirection} onSort={toggleBranchLeadSort} />
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {getBranchLeads(selectedBranch.id).map((lead: Lead) => (
+                {sortedBranchLeads.map((lead: Lead) => (
                   <tr key={lead.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>

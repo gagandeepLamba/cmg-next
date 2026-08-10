@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BranchTarget, DmBranch } from '@/models';
 import { apiError } from '@/lib/apiError';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const monthName = (month: number | null) => month ? new Date(2000, month - 1, 1).toLocaleString('en', { month: 'long' }) : '';
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['branches.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const year = searchParams.get('year');
@@ -20,7 +23,7 @@ export async function GET(request: NextRequest) {
     const branches = branchIds.length ? await DmBranch.findAll({ where: { id: branchIds } }) : [];
     const branchNames = new Map(branches.map((item) => {
       const id = item.getDataValue('id');
-      return [id, item.getDataValue('name') || item.getDataValue('branch') || `Branch ${id}`];
+      return [id, item.getDataValue('branch') || item.getDataValue('name') || `Branch ${id}`];
     }));
 
     return NextResponse.json({

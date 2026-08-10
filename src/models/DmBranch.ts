@@ -13,23 +13,27 @@ interface DmBranchAttributes {
   mobile: string;
   status: number;
   website: string;
+  license_number: string | null;
+  vat_gst_percent: number | null;
 }
 
-interface DmBranchCreationAttributes extends Optional<DmBranchAttributes, 'status'> {}
+interface DmBranchCreationAttributes extends Optional<DmBranchAttributes, 'status' | 'license_number' | 'vat_gst_percent'> {}
 
 class DmBranch extends Model<DmBranchAttributes, DmBranchCreationAttributes> implements DmBranchAttributes {
-  public id!: number;
-  public name!: string;
-  public ar_name!: string;
-  public branch!: string;
-  public region!: number;
-  public abbrv!: string;
-  public address!: string;
-  public ar_address!: string;
-  public email!: string;
-  public mobile!: string;
-  public status!: number;
-  public website!: string;
+  declare id: number;
+  declare name: string;
+  declare ar_name: string;
+  declare branch: string;
+  declare region: number;
+  declare abbrv: string;
+  declare address: string;
+  declare ar_address: string;
+  declare email: string;
+  declare mobile: string;
+  declare status: number;
+  declare website: string;
+  declare license_number: string | null;
+  declare vat_gst_percent: number | null;
 
   public static associate(models: any) {
     DmBranch.hasMany(models.DmcForumLeads, { foreignKey: 'branch', sourceKey: 'id', as: 'dmcForumLeadss' });
@@ -91,6 +95,14 @@ DmBranch.init(
     website: {
       type: DataTypes.STRING(255),
       allowNull: false
+    },
+    license_number: {
+      type: DataTypes.STRING(100),
+      allowNull: true
+    },
+    vat_gst_percent: {
+      type: DataTypes.DECIMAL(5, 2),
+      allowNull: true
     },
   },
   {

@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { CounselorAssignmentSystem, Lead, Counselor, AssignmentRule } from '@/lib/counselorAssignment';
 import { 
@@ -42,7 +43,7 @@ export default function LeadIntakeSystem() {
   };
 
   const simulateNewLead = (_source: Lead['source']) => {
-    alert('Lead intake uses database records only. Create leads through the connected lead forms or API.');
+    window.toast.info('Lead intake uses database records only. Create leads through the connected lead forms or API.');
   };
 
   const toggleCounselorAutoAssign = (counselorId: string) => {
@@ -172,7 +173,7 @@ export default function LeadIntakeSystem() {
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <select
+                <SearchableSelect
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -183,7 +184,7 @@ export default function LeadIntakeSystem() {
                   <option value="contacted">Contacted</option>
                   <option value="qualified">Qualified</option>
                   <option value="converted">Converted</option>
-                </select>
+                </SearchableSelect>
               </div>
 
               {/* Leads Table */}

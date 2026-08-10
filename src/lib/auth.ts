@@ -17,9 +17,11 @@ export interface User {
   branch: number
   region: number
   type: string
+  roleName: string
   photo?: string
   wfh: number
   permissions: string[]
+  mustChangePassword?: boolean
 }
 
 export interface AuthUser extends User {
@@ -36,6 +38,7 @@ type AuthEmployeeRow = {
   photo?: string | null
   wfh?: number | null
   password?: string | null
+  must_change_password?: number | null
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -56,6 +59,7 @@ export function generateToken(user: User): string {
       branch: user.branch,
       region: user.region,
       type: user.type,
+      roleName: user.roleName,
       photo: user.photo,
       wfh: user.wfh,
       permissions: user.permissions
@@ -185,9 +189,14 @@ export async function authenticateUser(username: string, password: string): Prom
       region: user.region || 0,
       // Preserve role-specific types such as `director_of_sales` in the session.
       type: roleType || moduleAccess.roleLabel,
+      // The literal dm_role.name (e.g. "CEO") — unlike `type`, this isn't collapsed
+      // into a shared bucket with Director/Founder/Super Admin, so it's the only
+      // reliable way to gate a feature to CEO specifically.
+      roleName,
       photo: user.photo || '',
       wfh: user.wfh || 0,
-      permissions
+      permissions,
+      mustChangePassword: Number(user.must_change_password || 0) === 1,
     };
 
     const token = generateToken(userWithoutPassword);

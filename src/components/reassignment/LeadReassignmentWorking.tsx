@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import {
   Users, ArrowRightLeft, Calendar, Clock, CheckCircle, XCircle,
@@ -117,13 +118,13 @@ export default function LeadReassignmentWorking() {
     try {
       // Validate form
       if (!formData.leadId || !formData.fromEmployeeId || !formData.toEmployeeId || !formData.reason) {
-        alert('Please fill in all required fields');
+        window.toast.error('Please fill in all required fields');
         return;
       }
 
       const selectedLeadData = leads.find(l => l.id === parseInt(formData.leadId));
       if (!selectedLeadData) {
-        alert('Lead not found');
+        window.toast.error('Lead not found');
         return;
       }
 
@@ -145,7 +146,7 @@ export default function LeadReassignmentWorking() {
 
       if (response.ok) {
         const result = await response.json();
-        alert('Reassignment created successfully!');
+        window.toast.success('Reassignment created successfully!');
         setShowCreateForm(false);
         setFormData({
           leadId: '',
@@ -161,11 +162,11 @@ export default function LeadReassignmentWorking() {
         fetchData();
       } else {
         const error = await response.json();
-        alert('Failed to create reassignment: ' + error.error);
+        window.toast.error('Failed to create reassignment: ' + error.error);
       }
     } catch (error) {
       console.error('Error creating reassignment:', error);
-      alert('Failed to create reassignment');
+      window.toast.error('Failed to create reassignment');
     }
   };
 
@@ -181,15 +182,15 @@ export default function LeadReassignmentWorking() {
       });
 
       if (response.ok) {
-        alert('Reassignment approved successfully!');
+        window.toast.success('Reassignment approved successfully!');
         fetchData();
       } else {
         const error = await response.json();
-        alert('Failed to approve reassignment: ' + error.error);
+        window.toast.error('Failed to approve reassignment: ' + error.error);
       }
     } catch (error) {
       console.error('Error approving reassignment:', error);
-      alert('Failed to approve reassignment');
+      window.toast.error('Failed to approve reassignment');
     }
   };
 
@@ -205,15 +206,15 @@ export default function LeadReassignmentWorking() {
       });
 
       if (response.ok) {
-        alert('Reassignment rejected successfully!');
+        window.toast.success('Reassignment rejected successfully!');
         fetchData();
       } else {
         const error = await response.json();
-        alert('Failed to reject reassignment: ' + error.error);
+        window.toast.error('Failed to reject reassignment: ' + error.error);
       }
     } catch (error) {
       console.error('Error rejecting reassignment:', error);
-      alert('Failed to reject reassignment');
+      window.toast.error('Failed to reject reassignment');
     }
   };
 
@@ -228,15 +229,15 @@ export default function LeadReassignmentWorking() {
       });
 
       if (response.ok) {
-        alert('Reassignment deleted successfully!');
+        window.toast.success('Reassignment deleted successfully!');
         fetchData();
       } else {
         const error = await response.json();
-        alert('Failed to delete reassignment: ' + error.error);
+        window.toast.error('Failed to delete reassignment: ' + error.error);
       }
     } catch (error) {
       console.error('Error deleting reassignment:', error);
-      alert('Failed to delete reassignment');
+      window.toast.error('Failed to delete reassignment');
     }
   };
 
@@ -306,7 +307,7 @@ export default function LeadReassignmentWorking() {
             </div>
           </div>
           <div>
-            <select
+            <SearchableSelect
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -315,7 +316,7 @@ export default function LeadReassignmentWorking() {
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
-            </select>
+            </SearchableSelect>
           </div>
         </div>
       </div>
@@ -367,7 +368,7 @@ export default function LeadReassignmentWorking() {
       </div>
 
       {/* Reassignments Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -493,7 +494,7 @@ export default function LeadReassignmentWorking() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Lead *</label>
-                  <select
+                  <SearchableSelect
                     value={formData.leadId}
                     onChange={(e) => setFormData({ ...formData, leadId: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -504,12 +505,12 @@ export default function LeadReassignmentWorking() {
                         {lead.fname} {lead.lname} - {lead.service_interest}
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">From Employee *</label>
-                  <select
+                  <SearchableSelect
                     value={formData.fromEmployeeId}
                     onChange={(e) => setFormData({ ...formData, fromEmployeeId: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -520,12 +521,12 @@ export default function LeadReassignmentWorking() {
                         {employee.name} - {employee.role}
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">To Employee *</label>
-                  <select
+                  <SearchableSelect
                     value={formData.toEmployeeId}
                     onChange={(e) => setFormData({ ...formData, toEmployeeId: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -536,12 +537,12 @@ export default function LeadReassignmentWorking() {
                         {employee.name} - {employee.role}
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Reassignment Type</label>
-                  <select
+                  <SearchableSelect
                     value={formData.reassignmentType}
                     onChange={(e) => setFormData({ ...formData, reassignmentType: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -551,7 +552,7 @@ export default function LeadReassignmentWorking() {
                     <option value="escalation">Escalation</option>
                     <option value="transfer">Transfer</option>
                     <option value="reallocation">Reallocation</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
 

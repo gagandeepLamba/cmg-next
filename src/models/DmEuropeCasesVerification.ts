@@ -26,26 +26,26 @@ interface DmEuropeCasesVerificationAttributes {
 interface DmEuropeCasesVerificationCreationAttributes extends Optional<DmEuropeCasesVerificationAttributes, never> {}
 
 class DmEuropeCasesVerification extends Model<DmEuropeCasesVerificationAttributes, DmEuropeCasesVerificationCreationAttributes> implements DmEuropeCasesVerificationAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public passports_for_eu!: string;
-  public os_for_eu!: string;
-  public email!: string;
-  public mobile!: string;
-  public remarks!: string;
-  public ops_status!: number;
-  public ops_approval!: number;
-  public ops_remarks!: string;
-  public ops!: number;
-  public manager!: number;
-  public manager_status!: number;
-  public manager_approval!: number;
-  public manager_remarks!: string;
-  public stage!: string;
-  public created!: Date;
-  public created_by!: number;
-  public approval_date!: Date;
-  public rejection_date!: Date;
+  declare id: number;
+  declare lead_id: number;
+  declare passports_for_eu: string;
+  declare os_for_eu: string;
+  declare email: string;
+  declare mobile: string;
+  declare remarks: string;
+  declare ops_status: number;
+  declare ops_approval: number;
+  declare ops_remarks: string;
+  declare ops: number;
+  declare manager: number;
+  declare manager_status: number;
+  declare manager_approval: number;
+  declare manager_remarks: string;
+  declare stage: string;
+  declare created: Date;
+  declare created_by: number;
+  declare approval_date: Date;
+  declare rejection_date: Date;
 
   public static associate(models: any) {
   }

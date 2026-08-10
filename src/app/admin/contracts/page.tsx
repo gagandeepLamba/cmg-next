@@ -1,5 +1,7 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect, useCallback } from 'react';
 import { FileText, CheckCircle, Clock, XCircle, Search, RefreshCw, AlertCircle } from 'lucide-react';
 
@@ -39,6 +41,18 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const { sorted: sortedContracts, sortKey: contractSortKey, sortDirection: contractSortDirection, toggleSort: toggleContractSort } = useSortableData(
+    contracts,
+    {
+      contractNumber: (c) => c.contractNumber,
+      client: (c) => c.leadName,
+      counselor: (c) => c.counsilorName,
+      branch: (c) => c.branchName,
+      status: (c) => c.status,
+      created: (c) => c.createdDate,
+      signed: (c) => c.signedDate,
+    },
+  );
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -80,7 +94,7 @@ export default function ContractsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Contract Management</h1>
           <p className="text-gray-500 text-sm mt-1">Manage and track all client contracts and agreements</p>
         </div>
-        <button onClick={fetchContracts} className="flex items-center gap-2 px-4 py-2 bg-[#003399] text-white rounded-lg hover:bg-[#002266] text-sm font-medium">
+        <button onClick={fetchContracts} className="flex items-center gap-2 px-4 py-2 bg-[#35AE22] text-white rounded-lg hover:bg-[#1C6B10] text-sm font-medium">
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
@@ -114,19 +128,19 @@ export default function ContractsPage() {
             placeholder="Search by lead name or contract number..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:ring-2 focus:ring-[#003399] focus:border-transparent"
+            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:ring-2 focus:ring-[#35AE22] focus:border-transparent"
           />
         </div>
-        <select
+        <SearchableSelect
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          className="border border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-[#003399]"
+          className="border border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-[#35AE22]"
         >
           <option value="">All Status</option>
           <option value="signed">Signed</option>
           <option value="pending">Pending</option>
           <option value="draft">Draft</option>
-        </select>
+        </SearchableSelect>
         {(search || statusFilter) && (
           <button onClick={() => { setSearch(''); setStatusFilter(''); setPage(1); }} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 border border-gray-200 rounded-lg">
             Clear
@@ -156,18 +170,18 @@ export default function ContractsPage() {
             <table className="min-w-full">
               <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <tr>
-                  <th className="px-5 py-3 text-left">Contract #</th>
-                  <th className="px-5 py-3 text-left">Client / Lead</th>
-                  <th className="px-5 py-3 text-left">Counselor</th>
-                  <th className="px-5 py-3 text-left">Branch</th>
-                  <th className="px-5 py-3 text-left">Status</th>
-                  <th className="px-5 py-3 text-left">Created</th>
-                  <th className="px-5 py-3 text-left">Signed</th>
+                  <SortableTh label="Contract #" sortKey="contractNumber" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
+                  <SortableTh label="Client / Lead" sortKey="client" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
+                  <SortableTh label="Counselor" sortKey="counselor" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
+                  <SortableTh label="Branch" sortKey="branch" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
+                  <SortableTh label="Status" sortKey="status" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
+                  <SortableTh label="Created" sortKey="created" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
+                  <SortableTh label="Signed" sortKey="signed" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
                   <th className="px-5 py-3 text-left">File</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {contracts.map(c => (
+                {sortedContracts.map(c => (
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3">
                       <div className="text-sm font-medium text-gray-900">{c.contractNumber}</div>
@@ -192,7 +206,7 @@ export default function ContractsPage() {
                     </td>
                     <td className="px-5 py-3">
                       {c.fileName ? (
-                        <span className="text-xs text-[#003399] font-medium">{c.fileSize}</span>
+                        <span className="text-xs text-[#35AE22] font-medium">{c.fileSize}</span>
                       ) : (
                         <span className="text-xs text-gray-400">No file</span>
                       )}

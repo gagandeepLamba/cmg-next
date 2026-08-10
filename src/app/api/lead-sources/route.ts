@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DmSource } from '@/models/DmSource';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireAuth(request);
+    if (isAuthError(auth)) return auth;
+
     // Get all active lead sources
     const leadSources = await DmSource.findAll({
       where: {

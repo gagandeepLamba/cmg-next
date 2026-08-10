@@ -28,28 +28,28 @@ interface DmClientsAttributes {
 interface DmClientsCreationAttributes extends Optional<DmClientsAttributes, never> {}
 
 class DmClients extends Model<DmClientsAttributes, DmClientsCreationAttributes> implements DmClientsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public first_name!: string;
-  public last_name!: string;
-  public email!: string;
-  public image!: string;
-  public dob!: Date;
-  public address!: string;
-  public full_address!: string;
-  public token!: string;
-  public token_validity!: Date;
-  public verify!: number;
-  public password!: string;
-  public hash_password!: string;
-  public status!: number;
-  public accept!: number;
-  public created!: Date;
-  public case_manager!: number;
-  public backend_person!: number;
-  public is_deleted!: number;
-  public city!: string;
-  public nationality!: string;
+  declare id: number;
+  declare leadId: number;
+  declare first_name: string;
+  declare last_name: string;
+  declare email: string;
+  declare image: string;
+  declare dob: Date;
+  declare address: string;
+  declare full_address: string;
+  declare token: string;
+  declare token_validity: Date;
+  declare verify: number;
+  declare password: string;
+  declare hash_password: string;
+  declare status: number;
+  declare accept: number;
+  declare created: Date;
+  declare case_manager: number;
+  declare backend_person: number;
+  declare is_deleted: number;
+  declare city: string;
+  declare nationality: string;
 
   public static associate(models: any) {
     DmClients.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLeads' });

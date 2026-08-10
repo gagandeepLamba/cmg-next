@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import type { ComponentType } from 'react';
 import {
   Activity,
@@ -82,7 +83,7 @@ type HRDashboardData = {
     attendanceRecords: number;
     employeesWithAttendance: number;
     totalHours: number;
-    shortfallHours: number;
+    shortfallRecords: number;
     overtimeHours: number;
   };
   exitPipelineAttrition: {
@@ -133,7 +134,7 @@ const emptyDashboardData: HRDashboardData = {
     attendanceRecords: 0,
     employeesWithAttendance: 0,
     totalHours: 0,
-    shortfallHours: 0,
+    shortfallRecords: 0,
     overtimeHours: 0,
   },
   exitPipelineAttrition: {
@@ -229,6 +230,17 @@ export default function HRDashboard() {
     ...department,
     percent: Number(((department.total / departmentTotal) * 100).toFixed(1)),
   }));
+  const { sorted: sortedDepartmentChartData, sortKey: departmentSortKey, sortDirection: departmentSortDirection, toggleSort: toggleDepartmentSort } = useSortableData(
+    departmentChartData,
+    {
+      department: (d) => d.departmentName,
+      total: (d) => d.total,
+      percent: (d) => d.percent,
+      fullTime: (d) => d.fullTime,
+      contract: (d) => d.contract,
+      freelance: (d) => d.freelance + d.partTime,
+    },
+  );
   const canViewDashboard = hasPermission('hr.dashboard') ||
     hasPermission('hr.view') ||
     hasPermission('hr.payroll') ||
@@ -353,16 +365,16 @@ export default function HRDashboard() {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase text-slate-500">
-                  <th className="py-2 pr-4">Department</th>
-                  <th className="py-2 pr-4 text-right">Total</th>
-                  <th className="py-2 pr-4 text-right">% of headcount</th>
-                  <th className="py-2 pr-4 text-right">Full-time</th>
-                  <th className="py-2 pr-4 text-right">Contract</th>
-                  <th className="py-2 pr-4 text-right">Freelance / Part-time</th>
+                  <SortableTh label="Department" sortKey="department" activeKey={departmentSortKey} direction={departmentSortDirection} onSort={toggleDepartmentSort} className="py-2 pr-4" />
+                  <SortableTh label="Total" sortKey="total" activeKey={departmentSortKey} direction={departmentSortDirection} onSort={toggleDepartmentSort} className="py-2 pr-4 text-right" />
+                  <SortableTh label="% of headcount" sortKey="percent" activeKey={departmentSortKey} direction={departmentSortDirection} onSort={toggleDepartmentSort} className="py-2 pr-4 text-right" />
+                  <SortableTh label="Full-time" sortKey="fullTime" activeKey={departmentSortKey} direction={departmentSortDirection} onSort={toggleDepartmentSort} className="py-2 pr-4 text-right" />
+                  <SortableTh label="Contract" sortKey="contract" activeKey={departmentSortKey} direction={departmentSortDirection} onSort={toggleDepartmentSort} className="py-2 pr-4 text-right" />
+                  <SortableTh label="Freelance / Part-time" sortKey="freelance" activeKey={departmentSortKey} direction={departmentSortDirection} onSort={toggleDepartmentSort} className="py-2 pr-4 text-right" />
                 </tr>
               </thead>
               <tbody>
-                {departmentChartData.map((department) => (
+                {sortedDepartmentChartData.map((department) => (
                   <tr key={`${department.departmentId}-${department.departmentName}`} className="border-b border-slate-100 last:border-b-0">
                     <td className="py-3 pr-4">
                       <a href={`/admin/hr/employee-data-sheet?department=${encodeURIComponent(department.departmentName)}`} className="font-medium text-slate-900 hover:text-blue-700">
@@ -467,7 +479,7 @@ export default function HRDashboard() {
             <Detail label="Employees covered" value={data.payrollStatus.employeesWithAttendance.toString()} />
             <Detail label="Attendance records" value={data.payrollStatus.attendanceRecords.toString()} />
             <Detail label="Total hours" value={data.payrollStatus.totalHours.toFixed(1)} />
-            <Detail label="Shortfall hours" value={data.payrollStatus.shortfallHours.toFixed(1)} />
+            <Detail label="Records with shortfall" value={data.payrollStatus.shortfallRecords.toString()} />
             <Detail label="Overtime hours" value={data.payrollStatus.overtimeHours.toFixed(1)} />
           </div>
         </section>

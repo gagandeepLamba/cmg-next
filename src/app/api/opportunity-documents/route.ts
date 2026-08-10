@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Op } from 'sequelize';
 import { DmcOpportunityDocuments } from '@/models';
-import { mkdir, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { put } from '@vercel/blob';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['documents.view']);
+    if (isAuthError(auth)) return auth;
+
     const { searchParams } = new URL(request.url);
     const opportunityId = searchParams.get('opportunityId');
     const status = searchParams.get('status');
@@ -50,6 +54,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['documents.create']);
+    if (isAuthError(auth)) return auth;
+
     const contentType = request.headers.get('content-type') || '';
 
     if (contentType.includes('multipart/form-data')) {
@@ -66,20 +73,38 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
+      // Duplicate-submission guard: block re-uploading the same category for
+      // this opportunity within the last minute, before spending time on the
+      // blob upload itself.
+      const recentUpload = await DmcOpportunityDocuments.findOne({
+        where: {
+          opportunityId,
+          category,
+          uploadDate: { [Op.gte]: new Date(Date.now() - 60_000) },
+        },
+      });
+      if (recentUpload) {
+        return NextResponse.json({ error: 'This document was already uploaded a moment ago.' }, { status: 409 });
+      }
+
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const fileName = `${Date.now()}_${safeName}`;
-      const uploadDir = join(process.cwd(), 'public', 'uploads', 'opportunity-documents');
-      await mkdir(uploadDir, { recursive: true });
-      await writeFile(join(uploadDir, fileName), buffer);
+
+      // Serverless functions (Vercel) have a read-only filesystem, so documents
+      // are stored in Vercel Blob rather than written to local disk. The returned
+      // `blob.url` is a permanent, publicly-fetchable HTTPS URL — that's what
+      // gets saved as filePath instead of a local /uploads/... path.
+      const blob = await put(`opportunity-documents/${opportunityId}/${fileName}`, file, {
+        access: 'public',
+        addRandomSuffix: true,
+      });
 
       const document = await DmcOpportunityDocuments.create({
         opportunityId,
         documentType: category,
         documentName: String(formData.get('documentName') || file.name),
         fileName,
-        filePath: `/uploads/opportunity-documents/${fileName}`,
+        filePath: blob.url,
         fileSize: file.size,
         mimeType: file.type || 'application/octet-stream',
         category,

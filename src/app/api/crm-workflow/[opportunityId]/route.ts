@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CrmWorkflowService } from '@/services/crm-workflow-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ opportunityId: string }> }
 ) {
   try {
+    const auth = requireAuth(request, ['leads.view']);
+    if (isAuthError(auth)) return auth;
+
     const { opportunityId } = await params;
     const id = parseInt(opportunityId, 10);
 

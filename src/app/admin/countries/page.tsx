@@ -1,11 +1,27 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { DmCountryProces } from '@/models/DmCountryProces';
 import type { DmCountryProcesAttributes } from '@/models/DmCountryProces';
+import { useBulkSelection } from '@/hooks/useBulkSelection';
+import BulkActionBar from '@/components/admin/BulkActionBar';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 export default function CountriesManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [countries, setCountries] = useState<DmCountryProcesAttributes[]>([]);
+  const { sorted: sortedCountries, sortKey: countrySortKey, sortDirection: countrySortDirection, toggleSort: toggleCountrySort } = useSortableData(
+    countries,
+    {
+      name: (c) => c.name,
+      subCountries: (c) => c.sub_counteries,
+      status: (c) => c.status,
+    },
+  );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCountry, setSelectedCountry] = useState<DmCountryProcesAttributes | null>(null);
@@ -21,6 +37,8 @@ export default function CountriesManagement() {
   const [filters, setFilters] = useState({
     status: ''
   });
+  const { selectedIds, toggleOne, toggleAll, clear, isSelected, allSelected } = useBulkSelection(countries);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     fetchCountries();
@@ -88,11 +106,11 @@ export default function CountriesManagement() {
         fetchCountries();
       } else {
         const error = await response.json();
-        alert('Error deleting country: ' + error.error);
+        window.toast.error('Error deleting country: ' + error.error);
       }
     } catch (error) {
       console.error('Error deleting country:', error);
-      alert('Error deleting country');
+      window.toast.error('Error deleting country');
     }
   };
 
@@ -111,11 +129,11 @@ export default function CountriesManagement() {
         fetchCountries();
       } else {
         const error = await response.json();
-        alert('Error adding country: ' + error.error);
+        window.toast.error('Error adding country: ' + error.error);
       }
     } catch (error) {
       console.error('Error adding country:', error);
-      alert('Error adding country');
+      window.toast.error('Error adding country');
     }
   };
 
@@ -137,16 +155,46 @@ export default function CountriesManagement() {
         fetchCountries();
       } else {
         const error = await response.json();
-        alert('Error updating country: ' + error.error);
+        window.toast.error('Error updating country: ' + error.error);
       }
     } catch (error) {
       console.error('Error updating country:', error);
-      alert('Error updating country');
+      window.toast.error('Error updating country');
     }
   };
 
   const getStatusColor = (status: number) => {
     return status === 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+  };
+
+  const setBulkStatus = async (status: 0 | 1) => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch('/api/admin/countries', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status }),
+        })
+      ));
+      clear();
+      fetchCountries();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch(`/api/admin/countries?id=${id}`, { method: 'DELETE' })
+      ));
+      clear();
+      fetchCountries();
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   if (loading) {
@@ -185,7 +233,7 @@ export default function CountriesManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select 
+          <SearchableSelect 
             value={filters.status}
             onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -193,33 +241,43 @@ export default function CountriesManagement() {
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Countries Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Country Name
+                <th className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Sub Countries
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <SortableTh label="Country Name" sortKey="name" activeKey={countrySortKey} direction={countrySortDirection} onSort={toggleCountrySort} />
+                <SortableTh label="Sub Countries" sortKey="subCountries" activeKey={countrySortKey} direction={countrySortDirection} onSort={toggleCountrySort} />
+                <SortableTh label="Status" sortKey="status" activeKey={countrySortKey} direction={countrySortDirection} onSort={toggleCountrySort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {countries.map((country: DmCountryProcesAttributes) => (
+              {sortedCountries.map((country: DmCountryProcesAttributes) => (
                 <tr key={country.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected(country.id)}
+                      onChange={(e) => toggleOne(country.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
                       {country.name}
@@ -248,12 +306,14 @@ export default function CountriesManagement() {
                     >
                       Edit
                     </button>
-                    <button 
-                      onClick={() => handleDeleteCountry(country.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteCountry(country.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -261,6 +321,17 @@ export default function CountriesManagement() {
           </table>
         </div>
       </div>
+
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        busy={bulkBusy}
+        onActivate={() => setBulkStatus(1)}
+        onDeactivate={() => setBulkStatus(0)}
+        onDelete={handleBulkDelete}
+        onClear={clear}
+        entityLabel="country"
+        deleteConfirmMessage={`Delete ${selectedIds.size} countr${selectedIds.size === 1 ? 'y' : 'ies'}? This may affect associated branches and fees. This cannot be undone.`}
+      />
 
       {/* Pagination */}
       <div className="bg-white rounded-lg shadow p-4">
@@ -425,7 +496,7 @@ function CountryFormModal({ title, initialData, onSubmit, onClose }: CountryForm
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Status *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.status}
                 onChange={(e) => setFormData(prev => ({ ...prev, status: parseInt(e.target.value) }))}
@@ -433,7 +504,7 @@ function CountryFormModal({ title, initialData, onSubmit, onClose }: CountryForm
               >
                 <option value="1">Active</option>
                 <option value="0">Inactive</option>
-              </select>
+              </SearchableSelect>
             </div>
           </div>
           <div className="mt-6 flex justify-end space-x-3">

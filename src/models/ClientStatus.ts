@@ -13,13 +13,13 @@ interface ClientStatusAttributes {
 interface ClientStatusCreationAttributes extends Optional<ClientStatusAttributes, 'leadid' | 'date' | 'status' | 'file'> {}
 
 class ClientStatus extends Model<ClientStatusAttributes, ClientStatusCreationAttributes> implements ClientStatusAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public type!: string;
-  public date!: string | null;
-  public status!: string | null;
-  public file!: string | null;
-  public counselorid!: number;
+  declare id: number;
+  declare leadid: number | null;
+  declare type: string;
+  declare date: string | null;
+  declare status: string | null;
+  declare file: string | null;
+  declare counselorid: number;
 
   public static associate(models: any) {
   }

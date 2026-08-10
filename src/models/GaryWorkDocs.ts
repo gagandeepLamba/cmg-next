@@ -9,9 +9,9 @@ interface GaryWorkDocsAttributes {
 interface GaryWorkDocsCreationAttributes extends Optional<GaryWorkDocsAttributes, 'ag_no' | 'docs'> {}
 
 class GaryWorkDocs extends Model<GaryWorkDocsAttributes, GaryWorkDocsCreationAttributes> implements GaryWorkDocsAttributes {
-  public id!: number;
-  public ag_no!: number | null;
-  public docs!: string | null;
+  declare id: number;
+  declare ag_no: number | null;
+  declare docs: string | null;
 
   public static associate(models: any) {
     GaryWorkDocs.belongsTo(models.DmcForumLeadsContracts, { foreignKey: 'ag_no', targetKey: 'id', as: 'dmcForumLeadsContracts' });

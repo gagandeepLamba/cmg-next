@@ -25,25 +25,25 @@ interface DmOpsSkillCanadaEeAttributes {
 interface DmOpsSkillCanadaEeCreationAttributes extends Optional<DmOpsSkillCanadaEeAttributes, never> {}
 
 class DmOpsSkillCanadaEe extends Model<DmOpsSkillCanadaEeAttributes, DmOpsSkillCanadaEeCreationAttributes> implements DmOpsSkillCanadaEeAttributes {
-  public id!: number;
-  public leadId!: number;
-  public retnDate!: string;
-  public agreeNo!: string;
-  public eeDocReceDate!: string;
-  public eeDocSts!: string;
-  public eePoint!: string;
-  public eeNoc!: string;
-  public eeSecNoc!: string;
-  public eeProfLauDate!: string;
-  public eeProfExpDate!: string;
-  public eeScore!: string;
-  public eestatus!: string;
-  public eeFile!: string;
-  public pnpLaun!: string;
-  public pnpSubDate!: string;
-  public pnpExpDate!: string;
-  public pnpStatus!: string;
-  public pnpFile!: string;
+  declare id: number;
+  declare leadId: number;
+  declare retnDate: string;
+  declare agreeNo: string;
+  declare eeDocReceDate: string;
+  declare eeDocSts: string;
+  declare eePoint: string;
+  declare eeNoc: string;
+  declare eeSecNoc: string;
+  declare eeProfLauDate: string;
+  declare eeProfExpDate: string;
+  declare eeScore: string;
+  declare eestatus: string;
+  declare eeFile: string;
+  declare pnpLaun: string;
+  declare pnpSubDate: string;
+  declare pnpExpDate: string;
+  declare pnpStatus: string;
+  declare pnpFile: string;
 
   public static associate(models: any) {
   }

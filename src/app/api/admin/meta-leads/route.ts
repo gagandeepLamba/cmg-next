@@ -67,12 +67,15 @@ export async function GET(request: NextRequest) {
     delivery_status: string;
     retry_count: number;
     last_error: string;
+    response_status: number | null;
+    next_retry_at: string | null;
+    delivered_at: string | null;
   }>(
     `SELECT ml.id, ml.meta_lead_id, ml.full_name, ml.email, ml.phone,
             ml.campaign_name, ml.form_name, ml.created_at,
             COALESCE(d.status, 'no_delivery') AS delivery_status,
             COALESCE(d.retry_count, 0) AS retry_count,
-            d.last_error
+            d.last_error, d.response_status, d.next_retry_at, d.delivered_at
      FROM dm_meta_leads ml
      LEFT JOIN dm_meta_lead_deliveries d ON d.meta_lead_id = ml.id
      ${where}

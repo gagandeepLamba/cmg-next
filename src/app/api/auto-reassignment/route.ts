@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
 import { QueryTypes } from 'sequelize';
+import { verifyToken } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const ensureRulesTable = async () => {
   await sequelize.query(`
@@ -35,7 +38,9 @@ const ensureRulesTable = async () => {
   }
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['transfers.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureRulesTable();
     const rules = await sequelize.query('SELECT * FROM dmc_auto_reassignment_rules ORDER BY id DESC', {
@@ -53,6 +58,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['transfers.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureRulesTable();
     const body = await request.json();
@@ -90,6 +97,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['transfers.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureRulesTable();
     const body = await request.json();
@@ -138,6 +147,13 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const token = request.cookies.get('auth-token')?.value
+      || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    if (!currentUser || !isCeo(currentUser)) {
+      return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+    }
+
     await ensureRulesTable();
     const { searchParams } = new URL(request.url);
     const id = Number.parseInt(searchParams.get('id') || '', 10);

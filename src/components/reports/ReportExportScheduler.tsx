@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { Calendar, Clock, Download, Mail, FileText, Settings, Play, Pause, Trash2, Plus } from 'lucide-react';
 
@@ -105,7 +106,7 @@ export default function ReportExportScheduler() {
 
   const handleCreateSchedule = async () => {
     if (!scheduleData.name || !selectedReport || !scheduleData.recipients) {
-      alert('Please fill in all required fields');
+      window.toast.warning('Please fill in all required fields');
       return;
     }
 
@@ -132,7 +133,7 @@ export default function ReportExportScheduler() {
       resetScheduleForm();
     } catch (error) {
       console.error('Error creating schedule:', error);
-      alert('Failed to create schedule');
+      window.toast.error('Failed to create schedule');
     }
   };
 
@@ -222,7 +223,7 @@ export default function ReportExportScheduler() {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error exporting report:', error);
-      alert('Failed to export report');
+      window.toast.error('Failed to export report');
     }
   };
 
@@ -397,7 +398,7 @@ export default function ReportExportScheduler() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Report</label>
-                <select
+                <SearchableSelect
                   value={selectedReport}
                   onChange={(e) => setSelectedReport(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -406,13 +407,13 @@ export default function ReportExportScheduler() {
                   {availableReports.map(report => (
                     <option key={report.id} value={report.id}>{report.name}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Frequency</label>
-                  <select
+                  <SearchableSelect
                     value={scheduleData.frequency}
                     onChange={(e) => setScheduleData({ ...scheduleData, frequency: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -421,7 +422,7 @@ export default function ReportExportScheduler() {
                     <option value="weekly">Weekly</option>
                     <option value="monthly">Monthly</option>
                     <option value="quarterly">Quarterly</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div>

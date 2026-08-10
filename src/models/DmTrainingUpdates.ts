@@ -11,11 +11,11 @@ interface DmTrainingUpdatesAttributes {
 interface DmTrainingUpdatesCreationAttributes extends Optional<DmTrainingUpdatesAttributes, 'userid' | 'file' | 'date'> {}
 
 class DmTrainingUpdates extends Model<DmTrainingUpdatesAttributes, DmTrainingUpdatesCreationAttributes> implements DmTrainingUpdatesAttributes {
-  public id!: number;
-  public userid!: number | null;
-  public file!: string | null;
-  public date!: Date | null;
-  public status!: number;
+  declare id: number;
+  declare userid: number | null;
+  declare file: string | null;
+  declare date: Date | null;
+  declare status: number;
 
   public static associate(models: any) {
   }

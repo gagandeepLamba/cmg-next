@@ -8,8 +8,8 @@ interface DmCountriesAttributes {
 interface DmCountriesCreationAttributes extends Optional<DmCountriesAttributes, 'name'> {}
 
 class DmCountries extends Model<DmCountriesAttributes, DmCountriesCreationAttributes> implements DmCountriesAttributes {
-  public id!: number;
-  public name!: string;
+  declare id: number;
+  declare name: string;
 
   public static associate(models: any) {
   }

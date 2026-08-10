@@ -9,9 +9,9 @@ interface MasterSheetsAttributes {
 interface MasterSheetsCreationAttributes extends Optional<MasterSheetsAttributes, 'userid' | 'file'> {}
 
 class MasterSheets extends Model<MasterSheetsAttributes, MasterSheetsCreationAttributes> implements MasterSheetsAttributes {
-  public id!: number;
-  public userid!: number | null;
-  public file!: string | null;
+  declare id: number;
+  declare userid: number | null;
+  declare file: string | null;
 
   public static associate(models: any) {
   }

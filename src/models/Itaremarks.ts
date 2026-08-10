@@ -11,11 +11,11 @@ interface ItaremarksAttributes {
 interface ItaremarksCreationAttributes extends Optional<ItaremarksAttributes, 'leadId' | 'date' | 'addedby'> {}
 
 class Itaremarks extends Model<ItaremarksAttributes, ItaremarksCreationAttributes> implements ItaremarksAttributes {
-  public id!: number;
-  public leadId!: number | null;
-  public date!: string | null;
-  public remarks!: string;
-  public addedby!: number | null;
+  declare id: number;
+  declare leadId: number | null;
+  declare date: string | null;
+  declare remarks: string;
+  declare addedby: number | null;
 
   public static associate(models: any) {
   }

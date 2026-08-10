@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { loadOperationStages, uploadOperationFiles } from '@/lib/operationsData';
+import { uploadOperationFiles } from '@/lib/operationsData';
+import { useOperationStages, useSaveOperationStage } from '@/hooks/useOperationsQueries';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Save, ChevronRight, ChevronLeft, Upload, Download, FileText,
-  User, Calendar, CheckCircle, XCircle, Clock, AlertCircle,
-  Briefcase, FileCheck, Users, MessageSquare, Shield, Target
+  User, FileText, Award, CheckCircle, Target,
+  ClipboardList, Shield, Briefcase, Users, ChevronRight, ChevronLeft, Save, FolderCheck
 } from 'lucide-react';
+import ClientDocumentsPanel from '@/components/operations/ClientDocumentsPanel';
+
+const CLIENT_DOCUMENTS_STAGE_ID = 'client-documents';
 
 interface RMSOperationsWizardProps {
   opportunityId: number;
@@ -18,94 +21,313 @@ interface RMSOperationsWizardProps {
 interface OperationsStage {
   id: string;
   name: string;
-  icon: React.ElementType;
+  icon: any;
   status: 'pending' | 'current' | 'completed';
 }
 
-interface PersonalDetailsData {
-  fname: string;
-  mname: string;
-  lname: string;
-  email: string;
-  phone: string;
-  mobile: string;
-  nationality: string;
-  address: string;
-  dob: string;
-  gender: string;
-  countryInterest: string;
-  serviceInterest: string;
+type FieldType = 'text' | 'date' | 'select' | 'textarea' | 'file' | 'number';
+
+interface StageField {
+  name: string;
+  label: string;
+  type?: FieldType;
+  options?: string[];
+  required?: boolean;
+  readOnly?: boolean;
+  span?: 'full';
 }
 
-interface ResumeWritingData {
-  // Level 1 - Documents Received
-  resumeDate: string;
-  draftResume: File | null;
-  uploadPassport: File | null;
-  education: string;
-  uploadEducation: File | null;
-  nationalId: File | null;
-  level1Remarks: string;
+const educationOptions = ['Under 10th', '10th Pass', '12th Pass', 'Bachelors', 'Diploma', 'Masters', 'PHD'];
+const relocationOptions = ['Yes, anywhere', 'Yes, specific locations only', 'No, current location only'];
+const companySizeOptions = ['Startup (<50)', 'Mid-size (50-500)', 'Large/Enterprise (500+)', 'No preference'];
+const workArrangementOptions = ['Remote', 'Hybrid', 'On-site', 'No preference'];
+const completeIncompleteOptions = ['Complete', 'Incomplete'];
+const jobRegStatusOptions = ['Pending', 'submitted', 'under review', 'Sent for filing', 'Completed'];
+const pnpOptions = ['PEI', 'Nova Scotia', 'New Brunswick', 'Saskatchewan', 'Quebec', 'Manitoba', 'Ontario', 'British Columbia', 'Alberta', 'Yukon'];
+const recruiterStatusOptions = ['IN PROGRESS', 'Submitted', 'APPROVED', 'Rejected'];
+const prescreeningStatusOptions = ['Scheduled', 'Completed', 'Pending', 'Rescheduled'];
+const interviewModeOptions = ['Zoom', 'Telephonic', 'In-Person'];
+const currentStatusOptions = ['In Progress', 'Documents Pending', 'Under Review', 'Approved', 'On Hold', 'Completed'];
 
-  // Level 2
-  finalCopyResume: File | null;
-  level2Remarks: string;
-}
+const stageFieldMap: Record<string, StageField[]> = {
+  personal: [
+    { name: 'clientName', label: 'Client Name', required: true, readOnly: true },
+    { name: 'email', label: 'Email', readOnly: true },
+    { name: 'phone', label: 'Phone', readOnly: true },
+    { name: 'mobile', label: 'Mobile', readOnly: true },
+    { name: 'nationality', label: 'Nationality', readOnly: true },
+    { name: 'dob', label: 'Date of Birth', type: 'date', readOnly: true },
+    { name: 'gender', label: 'Gender', type: 'select', options: ['Male', 'Female'], readOnly: true },
+    { name: 'country_interest', label: 'Country Interested', readOnly: true },
+    { name: 'service_interest', label: 'Service Interested', readOnly: true },
+    { name: 'market_source', label: 'Lead Source', readOnly: true },
+    { name: 'counselor', label: 'Counselor', readOnly: true },
+    { name: 'case_officer', label: 'Case Processing Officer', readOnly: true },
+    { name: 'retnDate', label: 'Date of retention', type: 'date', required: true },
+    { name: 'contractExpiry', label: 'Expiry of contract', type: 'date' },
+    { name: 'agreeNo', label: 'Agreement No', readOnly: true },
+    { name: 'branch', label: 'Branch', readOnly: true },
+    { name: 'branchAddress', label: 'Branch Address', readOnly: true },
+    { name: 'branchEmail', label: 'Branch Email', readOnly: true },
+    { name: 'branchMobile', label: 'Branch Mobile', readOnly: true },
+    { name: 'personalFile', label: 'Document File', type: 'file' },
+  ],
+  // Fields from the RMS Client Intake Form.
+  intake: [
+    { name: 'currentLocation', label: 'Current Location (City, State/Country)' },
+    { name: 'linkedinUrl', label: 'LinkedIn Profile URL' },
+    { name: 'openToRelocation', label: 'Open to Relocation?', type: 'select', options: relocationOptions },
+    { name: 'specificLocations', label: 'If specific locations, please list' },
+    { name: 'targetJobTitles', label: 'Target Job Title(s)' },
+    { name: 'targetIndustries', label: 'Target Industries' },
+    { name: 'preferredCompanySize', label: 'Preferred Company Size', type: 'select', options: companySizeOptions },
+    { name: 'preferredWorkArrangement', label: 'Preferred Work Arrangement', type: 'select', options: workArrangementOptions },
+    { name: 'currentSalary', label: 'Current Salary / CTC' },
+    { name: 'expectedSalary', label: 'Expected Salary / CTC Range' },
+    { name: 'noticePeriod', label: 'Earliest Availability / Notice Period' },
+    { name: 'totalYearsExperience', label: 'Total Years of Experience', type: 'number' },
+    { name: 'currentJobTitleCompany', label: 'Current / Most Recent Job Title & Company' },
+    { name: 'keyResponsibilities', label: 'Key Responsibilities in Current/Recent Role', type: 'textarea', span: 'full' },
+    { name: 'teamSizeManaged', label: 'Team Size Managed (direct/indirect reports)' },
+    { name: 'topAchievements', label: 'Top 3 Achievements (with numbers/metrics)', type: 'textarea', span: 'full' },
+    { name: 'employmentGaps', label: 'Any employment gaps?', type: 'textarea', span: 'full' },
+    { name: 'coreSkills', label: 'Core Technical/Functional Skills', type: 'textarea', span: 'full' },
+    { name: 'certifications', label: 'Certifications / Licenses' },
+    { name: 'highestEducation', label: 'Highest Education (degree, institution, year)' },
+    { name: 'languagesSpoken', label: 'Languages Spoken' },
+    { name: 'excludedCompanies', label: 'Companies/recruiters to NOT contact', type: 'textarea', span: 'full' },
+    { name: 'additionalNotes', label: 'Additional Notes', type: 'textarea', span: 'full' },
+    { name: 'intakeFile', label: 'Signed Intake Form', type: 'file' },
+  ],
+  resume: [
+    { name: 'resumeDate', label: 'Resume Date', type: 'date' },
+    { name: 'education', label: 'Education Level', type: 'select', options: educationOptions, required: true },
+    { name: 'draftResume', label: 'Draft Resume', type: 'file' },
+    { name: 'uploadPassport', label: 'Upload Passport', type: 'file' },
+    { name: 'uploadEducation', label: 'Education Document', type: 'file' },
+    { name: 'nationalId', label: 'National ID', type: 'file' },
+    { name: 'level1Remarks', label: 'Level 1 Remarks', type: 'textarea', span: 'full' },
+    { name: 'finalCopyResume', label: 'Final Copy of Resume (Level 2)', type: 'file' },
+    { name: 'level2Remarks', label: 'Level 2 Remarks', type: 'textarea', span: 'full' },
+  ],
+  prescreening: [
+    { name: 'prescreeningDateScheduled', label: 'Prescreening Date Scheduled', type: 'date' },
+    { name: 'prescreeningStatus', label: 'Prescreening Status', type: 'select', options: prescreeningStatusOptions },
+    { name: 'interviewMode', label: 'Interview Mode', type: 'select', options: interviewModeOptions },
+    { name: 'comments', label: 'Comments', type: 'textarea', span: 'full' },
+  ],
+  jobregistration: [
+    { name: 'frontendCaseHandover', label: 'Frontend Case Handover', type: 'select', options: completeIncompleteOptions },
+    { name: 'documentStatus', label: 'Document Status', type: 'select', options: completeIncompleteOptions },
+    { name: 'pointClaimedFSWP', label: 'Point Claimed in FSWP', type: 'number' },
+    { name: 'nocConfirmed', label: 'NOC Confirmed by Client' },
+    { name: 'profileLaunched', label: 'Profile Launched', type: 'date' },
+    { name: 'profileExpiry', label: 'Profile Expiry', type: 'date' },
+    { name: 'crsScores', label: 'CRS Scores', type: 'number' },
+    { name: 'status', label: 'Status', type: 'select', options: jobRegStatusOptions },
+    { name: 'comments', label: 'Comments', type: 'textarea', span: 'full' },
+  ],
+  recruiter: [
+    { name: 'pnpLaunched', label: 'PNP Launched', type: 'select', options: pnpOptions },
+    { name: 'eoiPoints', label: 'EOI Points', type: 'number' },
+    { name: 'eoiSubmissionDate', label: 'EOI Submission Date', type: 'date' },
+    { name: 'eoiExpiryDate', label: 'EOI Expiry Date', type: 'date' },
+    { name: 'noiReceivedDate', label: 'NOI Received Date', type: 'date' },
+    { name: 'noiSubmissionDate', label: 'NOI Submission Date', type: 'date' },
+    { name: 'noiExpiryDate', label: 'NOI Expiry Date', type: 'date' },
+    { name: 'nominationAwardedDate', label: 'Nomination Awarded Date', type: 'date' },
+    { name: 'nominationExpiryDate', label: 'Nomination Expiry Date', type: 'date' },
+    { name: 'status', label: 'Status', type: 'select', options: recruiterStatusOptions },
+    { name: 'comments', label: 'Comments', type: 'textarea', span: 'full' },
+  ],
+  status: [
+    { name: 'currentStatus', label: 'Current Status', type: 'select', options: currentStatusOptions },
+    { name: 'lastUpdated', label: 'Last Updated', type: 'date' },
+    { name: 'statusNotes', label: 'Status Notes', type: 'textarea', span: 'full' },
+    { name: 'nextAction', label: 'Next Action Required' },
+    { name: 'nextActionDate', label: 'Next Action Date', type: 'date' },
+  ],
+};
 
-interface PrescreeningData {
-  prescreeningDateScheduled: string;
-  prescreeningStatus: string;
-  interviewMode: string;
-  languageProficiency: Array<{
-    language: string;
-    proficiency: string;
-  }>;
-  comments: string;
-}
+function GenericStage({
+  title,
+  description,
+  fields,
+  data,
+  isFirstStage,
+  isLastStage,
+  onFieldChange,
+  onSaveDraft,
+  onBack,
+  onContinue,
+}: {
+  title: string;
+  description: string;
+  fields: StageField[];
+  data: Record<string, any>;
+  isFirstStage: boolean;
+  isLastStage: boolean;
+  onFieldChange: (field: StageField, value: any) => void;
+  onSaveDraft: () => Promise<void>;
+  onBack: () => void;
+  onContinue: () => Promise<void>;
+}) {
+  const [localSaving, setLocalSaving] = useState(false);
 
-interface JobRegistrationData {
-  frontendCaseHandover: string;
-  documentStatus: string;
-  pointClaimedFSWP: string;
-  nocConfirmed: string;
-  profileLaunched: string;
-  profileExpiry: string;
-  crsScores: string;
-  status: string;
-  profiles: Array<{
-    documentReceived: string;
-    documentStatus: string;
-    pointClaimed: string;
-    noc: string;
-    profileLaunchDate: string;
-    profileExpiry: string;
-    crsScore: string;
-    status: string;
-    profileType: string;
-  }>;
-  comments: string;
-}
+  const handleSave = async () => {
+    setLocalSaving(true);
+    try {
+      await onSaveDraft();
+      window.toast.success(`${title} saved successfully!`);
+    } catch (error) {
+      window.toast.error('Failed to save data');
+    } finally {
+      setLocalSaving(false);
+    }
+  };
 
-interface RecruiterInterviewData {
-  pnpLaunched: string;
-  eoiSubmissionDate: string;
-  eoiExpiryDate: string;
-  noiReceivedDate: string;
-  noiSubmissionDate: string;
-  noiExpiryDate: string;
-  nominationAwardedDate: string;
-  nominationExpiryDate: string;
-  status: string;
-  eoiPoints: string;
-  comments: string;
-}
+  const missingRequired = fields.filter((field) => field.required && !data[field.name]);
 
-interface StatusUpdateData {
-  currentStatus: string;
-  lastUpdated: string;
-  statusNotes: string;
-  nextAction: string;
-  nextActionDate: string;
+  const renderField = (field: StageField) => {
+    const value = data[field.name] || '';
+    const inputClass = 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500';
+    const label = (
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        {field.label}
+        {field.required && <span className="ml-1 text-red-600">*</span>}
+      </label>
+    );
+
+    if (field.type === 'textarea') {
+      return (
+        <div key={field.name} className={field.span === 'full' ? 'md:col-span-2' : ''}>
+          {label}
+          <textarea
+            value={value}
+            onChange={(event) => onFieldChange(field, event.target.value)}
+            rows={4}
+            className={inputClass}
+            placeholder={field.label}
+          />
+        </div>
+      );
+    }
+
+    if (field.type === 'select') {
+      return (
+        <div key={field.name}>
+          {label}
+          <select
+            value={value}
+            onChange={(event) => onFieldChange(field, event.target.value)}
+            disabled={field.readOnly}
+            className={inputClass}
+          >
+            <option value="">Select</option>
+            {(field.options || []).map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    if (field.type === 'file') {
+      const uploaded = value && typeof value === 'object' && 'url' in value ? value : null;
+      return (
+        <div key={field.name} className={field.span === 'full' ? 'md:col-span-2' : ''}>
+          {label}
+          {uploaded?.url && (
+            <a href={uploaded.url} target="_blank" className="mb-2 block text-xs font-medium text-blue-700 hover:text-blue-900">
+              View uploaded file
+            </a>
+          )}
+          <input
+            type="file"
+            onChange={(event) => onFieldChange(field, event.target.files?.[0] || null)}
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-gray-400">Accepted legacy formats: png, jpeg, jpg, pdf, docx, doc, xls, xlsx.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div key={field.name}>
+        {label}
+        <input
+          type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
+          value={value}
+          onChange={(event) => onFieldChange(field, event.target.value)}
+          readOnly={field.readOnly}
+          className={inputClass}
+          placeholder={field.label}
+        />
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-gray-900">{title}</h3>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <p className="text-blue-800">{description}</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {fields.map(renderField)}
+        {missingRequired.length > 0 && (
+          <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Pending required fields: {missingRequired.map((field) => field.label).join(', ')}
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-between pt-6">
+        {!isFirstStage && (
+          <button
+            onClick={onBack}
+            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
+          >
+            <ChevronLeft className="mr-2" size={20} />
+            Back
+          </button>
+        )}
+        <div className="flex gap-3 ml-auto">
+          <button
+            onClick={handleSave}
+            disabled={localSaving}
+            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center font-medium"
+          >
+            <Save className="mr-2" size={20} />
+            {localSaving ? 'Saving...' : 'Save Draft'}
+          </button>
+          <button
+            onClick={async () => {
+              if (missingRequired.length > 0) {
+                window.toast.warning(`Complete required fields: ${missingRequired.map((field) => field.label).join(', ')}`);
+                return;
+              }
+              await onContinue();
+            }}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
+          >
+            {isLastStage ? (
+              <>
+                <CheckCircle className="mr-2" size={20} />
+                Complete
+              </>
+            ) : (
+              <>
+                Continue
+                <ChevronRight className="ml-2" size={20} />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function RMSOperationsWizard({
@@ -113,103 +335,91 @@ export default function RMSOperationsWizard({
   leadId,
   clientName
 }: RMSOperationsWizardProps) {
-  const [activeStage, setActiveStage] = useState<string>('personal');
-  const [saving, setSaving] = useState(false);
+  const [activeStage, setActiveStage] = useState('personal');
 
   const [stages, setStages] = useState<OperationsStage[]>([
     { id: 'personal', name: 'Personal Details', icon: User, status: 'current' },
+    { id: 'intake', name: 'Client Intake', icon: ClipboardList, status: 'pending' },
     { id: 'resume', name: 'Resume Writing', icon: FileText, status: 'pending' },
     { id: 'prescreening', name: 'Prescreening', icon: Shield, status: 'pending' },
     { id: 'jobregistration', name: 'Job Registration', icon: Briefcase, status: 'pending' },
     { id: 'recruiter', name: 'Recruiter Interview', icon: Users, status: 'pending' },
     { id: 'status', name: 'Status Update', icon: Target, status: 'pending' },
+    { id: CLIENT_DOCUMENTS_STAGE_ID, name: 'Client Documents', icon: FolderCheck, status: 'pending' },
   ]);
 
-  const [personalData, setPersonalData] = useState<PersonalDetailsData>({
-    fname: '',
-    mname: '',
-    lname: '',
-    email: '',
-    phone: '',
-    mobile: '',
-    nationality: '',
-    address: '',
-    dob: '',
-    gender: 'Male',
-    countryInterest: '',
-    serviceInterest: ''
+  const [stageData, setStageData] = useState<Record<string, any>>({
+    personal: {}, intake: {}, resume: {}, prescreening: {}, jobregistration: {}, recruiter: {}, status: {}
   });
-
-  const [resumeData, setResumeData] = useState<ResumeWritingData>({
-    resumeDate: '',
-    draftResume: null,
-    uploadPassport: null,
-    education: '',
-    uploadEducation: null,
-    nationalId: null,
-    level1Remarks: '',
-    finalCopyResume: null,
-    level2Remarks: ''
-  });
-
-  const [prescreeningData, setPrescreeningData] = useState<PrescreeningData>({
-    prescreeningDateScheduled: '',
-    prescreeningStatus: '',
-    interviewMode: '',
-    languageProficiency: [],
-    comments: ''
-  });
-
-  const [jobRegistrationData, setJobRegistrationData] = useState<JobRegistrationData>({
-    frontendCaseHandover: '',
-    documentStatus: '',
-    pointClaimedFSWP: '',
-    nocConfirmed: '',
-    profileLaunched: '',
-    profileExpiry: '',
-    crsScores: '',
-    status: '',
-    profiles: [],
-    comments: ''
-  });
-
-  const [recruiterData, setRecruiterData] = useState<RecruiterInterviewData>({
-    pnpLaunched: '',
-    eoiSubmissionDate: '',
-    eoiExpiryDate: '',
-    noiReceivedDate: '',
-    noiSubmissionDate: '',
-    noiExpiryDate: '',
-    nominationAwardedDate: '',
-    nominationExpiryDate: '',
-    status: '',
-    eoiPoints: '',
-    comments: ''
-  });
-
-  const [statusData, setStatusData] = useState<StatusUpdateData>({
-    currentStatus: '',
-    lastUpdated: new Date().toISOString().split('T')[0],
-    statusNotes: '',
-    nextAction: '',
-    nextActionDate: ''
-  });
+  const { data: savedStages } = useOperationStages('rms', leadId, opportunityId);
+  const saveStage = useSaveOperationStage('rms', leadId, opportunityId);
 
   useEffect(() => {
-    loadOperationStages('rms', leadId, opportunityId).then((data) => {
-      if (data.personal) setPersonalData(data.personal as unknown as PersonalDetailsData);
-      if (data.resume) setResumeData(data.resume as unknown as ResumeWritingData);
-      if (data.prescreening) setPrescreeningData(data.prescreening as unknown as PrescreeningData);
-      if (data.jobregistration) setJobRegistrationData(data.jobregistration as unknown as JobRegistrationData);
-      if (data.recruiter) setRecruiterData(data.recruiter as unknown as RecruiterInterviewData);
-      if (data.status) setStatusData(data.status as unknown as StatusUpdateData);
-    }).catch((error) => console.error('Unable to load RMS operations data:', error));
-  }, [leadId, opportunityId]);
+    if (savedStages?.data) setStageData((current) => ({ ...current, ...savedStages.data }));
+  }, [savedStages]);
 
-  const moveToNextStage = async () => {
+  useEffect(() => {
+    let cancelled = false;
+    const formatDate = (value: unknown) => {
+      if (!value) return '';
+      const date = new Date(String(value));
+      return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+    };
+
+    (async () => {
+      try {
+        const params = new URLSearchParams({ module: 'rms', leadId: String(leadId), limit: '1' });
+        const response = await fetch(`/api/admin/operations/search?${params.toString()}`, { cache: 'no-store' });
+        if (!response.ok) return;
+        const result = await response.json();
+        const row = result.data?.[0];
+        if (!row || cancelled) return;
+
+        setStageData((current) => ({
+          ...current,
+          personal: {
+            ...(current.personal || {}),
+            clientName,
+            email: current.personal?.email || row.email || '',
+            phone: current.personal?.phone || row.phone || '',
+            mobile: current.personal?.mobile || row.mobile || '',
+            nationality: current.personal?.nationality || row.nationality || '',
+            dob: formatDate(row.dob || current.personal?.dob),
+            gender: current.personal?.gender || row.gender || '',
+            country_interest: current.personal?.country_interest || row.country_interest || '',
+            service_interest: current.personal?.service_interest || row.serviceType || row.serviceRequired || row.service_interest || '',
+            market_source: current.personal?.market_source || row.market_source || '',
+            counselor: current.personal?.counselor || [row.counselorName, row.counselorEmail].filter(Boolean).join(' - ') || row.Counsilor || '',
+            case_officer: current.personal?.case_officer || [row.caseOfficerName, row.caseOfficerEmail].filter(Boolean).join(' - ') || row.case_officer || '',
+            retnDate: formatDate(row.retentionDate || current.personal?.retnDate),
+            agreeNo: current.personal?.agreeNo || row.agreementNumber || '',
+            branch: current.personal?.branch || row.branchAbbrv || row.branchName || row.branch || '',
+            branchAddress: current.personal?.branchAddress || row.branchAddress || '',
+            branchEmail: current.personal?.branchEmail || row.branchEmail || '',
+            branchMobile: current.personal?.branchMobile || row.branchMobile || '',
+          },
+        }));
+      } catch (error) {
+        console.error('Failed to load RMS client details:', error);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [leadId, clientName]);
+
+  const saveStageData = async () => {
+    try {
+      const dataKey = activeStage.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+      await saveStage.mutateAsync({ stage: activeStage, data: await uploadOperationFiles(stageData[activeStage] || stageData[dataKey] || {}, 'rms', leadId) });
+    } catch (error) {
+      console.error('Error saving:', error);
+      throw error;
+    }
+  };
+
+  const moveToNextStage = () => {
     const currentIndex = stages.findIndex(s => s.id === activeStage);
     if (currentIndex < stages.length - 1) {
-      await saveStageData();
       const newStages = [...stages];
       newStages[currentIndex].status = 'completed';
       newStages[currentIndex + 1].status = 'current';
@@ -229,1034 +439,119 @@ export default function RMSOperationsWizard({
     }
   };
 
-  const saveStageData = async () => {
-    setSaving(true);
-    try {
-      const stageDataMap: Record<string, any> = {
-        personal: personalData,
-        resume: resumeData,
-        prescreening: prescreeningData,
-        jobregistration: jobRegistrationData,
-        recruiter: recruiterData,
-        status: statusData
-      };
-
-      const dataToSave = {
-        opportunityId,
-        leadId,
-        stage: activeStage,
-        data: await uploadOperationFiles(stageDataMap[activeStage], 'rms', leadId),
-        timestamp: new Date().toISOString()
-      };
-
-      const response = await fetch('/api/admin/operations/rms/save', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dataToSave),
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to save RMS operations data');
-
-      alert('Data saved successfully!');
-    } catch (error) {
-      console.error('Error saving:', error);
-      alert('Failed to save data');
-    } finally {
-      setSaving(false);
-    }
+  const updateStageData = (key: string, data: any) => {
+    setStageData(prev => ({ ...prev, [key]: data }));
   };
 
   const renderStageContent = () => {
-    switch (activeStage) {
-      case 'personal':
-        return (
-          <PersonalDetailsStage
-            data={personalData}
-            setData={setPersonalData}
-            onNext={moveToNextStage}
-            onSave={saveStageData}
-            saving={saving}
-          />
-        );
-      case 'resume':
-        return (
-          <ResumeWritingStage
-            data={resumeData}
-            setData={setResumeData}
-            onNext={moveToNextStage}
-            onPrevious={moveToPreviousStage}
-            onSave={saveStageData}
-            saving={saving}
-          />
-        );
-      case 'prescreening':
-        return (
-          <PrescreeningStage
-            data={prescreeningData}
-            setData={setPrescreeningData}
-            onNext={moveToNextStage}
-            onPrevious={moveToPreviousStage}
-            onSave={saveStageData}
-            saving={saving}
-          />
-        );
-      case 'jobregistration':
-        return (
-          <JobRegistrationStage
-            data={jobRegistrationData}
-            setData={setJobRegistrationData}
-            onNext={moveToNextStage}
-            onPrevious={moveToPreviousStage}
-            onSave={saveStageData}
-            saving={saving}
-          />
-        );
-      case 'recruiter':
-        return (
-          <RecruiterInterviewStage
-            data={recruiterData}
-            setData={setRecruiterData}
-            onNext={moveToNextStage}
-            onPrevious={moveToPreviousStage}
-            onSave={saveStageData}
-            saving={saving}
-          />
-        );
-      case 'status':
-        return (
-          <StatusUpdateStage
-            data={statusData}
-            setData={setStatusData}
-            onPrevious={moveToPreviousStage}
-            onSave={saveStageData}
-            saving={saving}
-          />
-        );
-      default:
-        return null;
+    if (activeStage === CLIENT_DOCUMENTS_STAGE_ID) {
+      return <ClientDocumentsPanel leadId={leadId} opportunityId={opportunityId} />;
     }
+    const stageMap: Record<string, { title: string; description: string; dataKey: string }> = {
+      'personal': { title: 'Personal Details', description: 'Client personal information including contact details, nationality, DOB, gender, country/service interest, counselor, case officer, retention date, agreement number, and branch details.', dataKey: 'personal' },
+      'intake': { title: 'Client Intake Form', description: 'Resume Marketing Service intake: contact & relocation preferences, target role and career goals, work experience summary, skills & qualifications, marketing preferences, and additional notes.', dataKey: 'intake' },
+      'resume': { title: 'Resume Writing', description: 'Documents received from client (resume draft, passport, education, national ID) and the final resume copy, tracked across Level 1 and Level 2 remarks.', dataKey: 'resume' },
+      'prescreening': { title: 'Prescreening', description: 'Prescreening interview scheduling, status, and interview mode (Zoom, Telephonic, In-Person).', dataKey: 'prescreening' },
+      'jobregistration': { title: 'Job Registration', description: 'Job registration and application details including document status, FSWP points, NOC, profile dates, and CRS scores.', dataKey: 'jobregistration' },
+      'recruiter': { title: 'Recruiter Interview', description: 'PNP process tracking including EOI/NOI dates, points, nomination dates, and status.', dataKey: 'recruiter' },
+      'status': { title: 'Status Update', description: 'Current case status, notes, and next required action with target date.', dataKey: 'status' },
+    };
+
+    const currentStage = stageMap[activeStage];
+    if (!currentStage) return null;
+
+    return (
+      <GenericStage
+        title={currentStage.title}
+        description={currentStage.description}
+        fields={stageFieldMap[currentStage.dataKey] || []}
+        data={stageData[currentStage.dataKey] || {}}
+        isFirstStage={activeStage === stages[0]?.id}
+        isLastStage={activeStage === stages[stages.length - 1]?.id}
+        onFieldChange={(field, value) => updateStageData(currentStage.dataKey, { ...(stageData[currentStage.dataKey] || {}), [field.name]: value })}
+        onSaveDraft={saveStageData}
+        onBack={moveToPreviousStage}
+        onContinue={async () => {
+          await saveStageData();
+          if (activeStage === stages[stages.length - 1].id) {
+            window.toast.success('RMS Operations Completed Successfully!');
+          } else {
+            moveToNextStage();
+          }
+        }}
+      />
+    );
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white">
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200 bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">RMS Operations - {clientName}</h1>
-                <p className="text-gray-600 mt-1">Resume Marketing Services Operations Management</p>
-              </div>
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
               <button
                 onClick={() => window.history.back()}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex items-center"
+                className="flex items-center text-gray-600 hover:text-gray-900 mb-2"
               >
                 <ChevronLeft className="mr-1" size={20} />
-                Back
+                Back to Opportunities
               </button>
+              <h1 className="text-2xl font-bold text-gray-900">RMS Operations</h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Client: {clientName} | Lead ID: {leadId} | Opportunity: {opportunityId}
+              </p>
             </div>
+            <Award className="text-blue-600" size={48} />
+          </div>
+        </div>
+      </div>
 
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="font-medium">Opportunity ID:</span> #{opportunityId}
+      <div className="bg-white border-b border-gray-200 py-4">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-wrap items-center gap-2">
+            {stages.map((stage, index) => {
+              const Icon = stage.icon;
+              const isActive = stage.id === activeStage;
+
+              return (
+                <div key={stage.id} className="flex items-center">
+                  <button
+                    onClick={() => setActiveStage(stage.id)}
+                    className={`flex items-center px-3 py-2 rounded-lg transition-all whitespace-nowrap ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : stage.status === 'completed'
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <Icon size={14} className="mr-1" />
+                    <span className="text-xs font-medium">{stage.name}</span>
+                    {stage.status === 'completed' && <CheckCircle size={12} className="ml-1" />}
+                  </button>
+                  {index < stages.length - 1 && (
+                    <ChevronRight size={14} className={`mx-0.5 hidden sm:block ${stage.status === 'completed' ? 'text-green-600' : 'text-gray-300'}`} />
+                  )}
                 </div>
-                <div>
-                  <span className="font-medium">Lead ID:</span> #{leadId}
-                </div>
-                <div>
-                  <span className="font-medium">Client:</span> {clientName}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress Tracker */}
-        <div className="p-6 border-b border-gray-200 bg-white">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between">
-              {stages.map((stage, index) => {
-                const Icon = stage.icon;
-                const isActive = stage.id === activeStage;
-
-                return (
-                  <div key={stage.id} className="flex items-center">
-                    <button
-                      onClick={() => setActiveStage(stage.id)}
-                      className={`flex items-center px-4 py-2 rounded-lg transition-all ${
-                        isActive
-                          ? 'bg-blue-600 text-white shadow-md'
-                          : stage.status === 'completed'
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      <Icon size={16} className="mr-2" />
-                      <span className="text-sm font-medium">{stage.name}</span>
-                      {stage.status === 'completed' && (
-                        <CheckCircle size={14} className="ml-2" />
-                      )}
-                    </button>
-
-                    {index < stages.length - 1 && (
-                      <ChevronRight
-                        size={16}
-                        className={`mx-1 ${
-                          stage.status === 'completed' ? 'text-green-600' : 'text-gray-300'
-                        }`}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Stage Content */}
-        <div className="p-6 bg-gray-50 min-h-screen">
-          <div className="max-w-7xl mx-auto">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeStage}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-              >
-                {renderStageContent()}
-              </motion.div>
-            </AnimatePresence>
+              );
+            })}
           </div>
         </div>
       </div>
-    </div>
-  );
-}
 
-// Stage Components
-function PersonalDetailsStage({ data, setData, onNext, onSave, saving }: any) {
-  return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-          <User className="mr-2 text-blue-600" size={24} />
-          Personal Information
-        </h3>
-
-        <div className="grid grid-cols-3 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
-            <input
-              type="text"
-              value={data.fname}
-              onChange={(e) => setData({ ...data, fname: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="First name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Middle Name</label>
-            <input
-              type="text"
-              value={data.mname}
-              onChange={(e) => setData({ ...data, mname: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="Middle name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
-            <input
-              type="text"
-              value={data.lname}
-              onChange={(e) => setData({ ...data, lname: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="Last name"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
-            <input
-              type="email"
-              value={data.email}
-              onChange={(e) => setData({ ...data, email: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="Email address"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-            <input
-              type="tel"
-              value={data.phone}
-              onChange={(e) => setData({ ...data, phone: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="+1234567890"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Mobile *</label>
-            <input
-              type="tel"
-              value={data.mobile}
-              onChange={(e) => setData({ ...data, mobile: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="+1234567890"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nationality *</label>
-            <input
-              type="text"
-              value={data.nationality}
-              onChange={(e) => setData({ ...data, nationality: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="Nationality"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
-            <input
-              type="date"
-              value={data.dob}
-              onChange={(e) => setData({ ...data, dob: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
-            <select
-              value={data.gender}
-              onChange={(e) => setData({ ...data, gender: e.target.value })}
-              className="w-full p-3 border rounded-lg"
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="bg-white rounded-lg shadow-sm p-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeStage}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
             >
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Country Interest</label>
-            <input
-              type="text"
-              value={data.countryInterest}
-              onChange={(e) => setData({ ...data, countryInterest: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="Country of interest"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-          <textarea
-            value={data.address}
-            onChange={(e) => setData({ ...data, address: e.target.value })}
-            rows={3}
-            className="w-full p-3 border rounded-lg"
-            placeholder="Full address"
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-3">
-        <button
-          onClick={onSave}
-          disabled={saving}
-          className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center"
-        >
-          <Save className="mr-2" size={20} />
-          {saving ? 'Saving...' : 'Save Draft'}
-        </button>
-        <button
-          onClick={onNext}
-          disabled={!data.fname || !data.lname || !data.email || !data.mobile}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center"
-        >
-          Continue to Resume
-          <ChevronRight className="ml-2" size={20} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ResumeWritingStage({ data, setData, onNext, onPrevious, onSave, saving }: any) {
-  return (
-    <div className="space-y-6">
-      {/* Level 1 */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-          <FileText className="mr-2 text-blue-600" size={24} />
-          Level 1 - Documents Received from Client
-        </h3>
-
-        <div className="grid grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Resume Date</label>
-            <input
-              type="date"
-              value={data.resumeDate}
-              onChange={(e) => setData({ ...data, resumeDate: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Education Level *</label>
-            <select
-              value={data.education}
-              onChange={(e) => setData({ ...data, education: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            >
-              <option value="">Select Education</option>
-              <option value="Under 10th">Under 10th</option>
-              <option value="10th Pass">10th Pass</option>
-              <option value="12th Pass">12th Pass</option>
-              <option value="Bachelors">Bachelors</option>
-              <option value="Diploma">Diploma</option>
-              <option value="Masters">Masters</option>
-              <option value="PHD">PHD</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Draft Resume</label>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx"
-              onChange={(e) => setData({ ...data, draftResume: e.target.files?.[0] || null })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Upload Passport</label>
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={(e) => setData({ ...data, uploadPassport: e.target.files?.[0] || null })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Education Document</label>
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={(e) => setData({ ...data, uploadEducation: e.target.files?.[0] || null })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">National ID</label>
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={(e) => setData({ ...data, nationalId: e.target.files?.[0] || null })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Level 1 Remarks</label>
-          <textarea
-            value={data.level1Remarks}
-            onChange={(e) => setData({ ...data, level1Remarks: e.target.value })}
-            rows={3}
-            className="w-full p-3 border rounded-lg"
-            placeholder="Add remarks for Level 1..."
-          />
-        </div>
-      </div>
-
-      {/* Level 2 */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-6">Level 2 - Final Resume</h3>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Final Copy of Resume</label>
-          <input
-            type="file"
-            accept=".pdf,.doc,.docx"
-            onChange={(e) => setData({ ...data, finalCopyResume: e.target.files?.[0] || null })}
-            className="w-full p-3 border rounded-lg"
-          />
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Level 2 Remarks</label>
-          <textarea
-            value={data.level2Remarks}
-            onChange={(e) => setData({ ...data, level2Remarks: e.target.value })}
-            rows={3}
-            className="w-full p-3 border rounded-lg"
-            placeholder="Add remarks for Level 2..."
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-between">
-        <button
-          onClick={onPrevious}
-          className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center"
-        >
-          <ChevronLeft className="mr-2" size={20} />
-          Back
-        </button>
-        <div className="flex gap-3">
-          <button
-            onClick={onSave}
-            disabled={saving}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center"
-          >
-            <Save className="mr-2" size={20} />
-            {saving ? 'Saving...' : 'Save Draft'}
-          </button>
-          <button
-            onClick={onNext}
-            disabled={!data.education}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center"
-          >
-            Continue to Prescreening
-            <ChevronRight className="ml-2" size={20} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PrescreeningStage({ data, setData, onNext, onPrevious, onSave, saving }: any) {
-  return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-          <Shield className="mr-2 text-blue-600" size={24} />
-          Prescreening Round
-        </h3>
-
-        <div className="grid grid-cols-3 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Prescreening Date Scheduled</label>
-            <input
-              type="date"
-              value={data.prescreeningDateScheduled}
-              onChange={(e) => setData({ ...data, prescreeningDateScheduled: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Prescreening Status</label>
-            <select
-              value={data.prescreeningStatus}
-              onChange={(e) => setData({ ...data, prescreeningStatus: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            >
-              <option value="">Select Status</option>
-              <option value="Scheduled">Scheduled</option>
-              <option value="Completed">Completed</option>
-              <option value="Pending">Pending</option>
-              <option value="Rescheduled">Rescheduled</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Interview Mode</label>
-            <select
-              value={data.interviewMode}
-              onChange={(e) => setData({ ...data, interviewMode: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            >
-              <option value="">Select Mode</option>
-              <option value="Zoom">Zoom</option>
-              <option value="Telephonic">Telephonic</option>
-              <option value="In-Person">In-Person</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Comments</label>
-          <textarea
-            value={data.comments}
-            onChange={(e) => setData({ ...data, comments: e.target.value })}
-            rows={4}
-            className="w-full p-3 border rounded-lg"
-            placeholder="Add prescreening comments..."
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-between">
-        <button
-          onClick={onPrevious}
-          className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center"
-        >
-          <ChevronLeft className="mr-2" size={20} />
-          Back
-        </button>
-        <div className="flex gap-3">
-          <button
-            onClick={onSave}
-            disabled={saving}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center"
-          >
-            <Save className="mr-2" size={20} />
-            {saving ? 'Saving...' : 'Save Draft'}
-          </button>
-          <button
-            onClick={onNext}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
-          >
-            Continue to Job Registration
-            <ChevronRight className="ml-2" size={20} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function JobRegistrationStage({ data, setData, onNext, onPrevious, onSave, saving }: any) {
-  return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-          <Briefcase className="mr-2 text-blue-600" size={24} />
-          Job Registration / Application
-        </h3>
-
-        <div className="grid grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Frontend Case Handover</label>
-            <select
-              value={data.frontendCaseHandover}
-              onChange={(e) => setData({ ...data, frontendCaseHandover: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            >
-              <option value="">Select Status</option>
-              <option value="Complete">Complete</option>
-              <option value="Incomplete">Incomplete</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Document Status</label>
-            <select
-              value={data.documentStatus}
-              onChange={(e) => setData({ ...data, documentStatus: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            >
-              <option value="">Select Status</option>
-              <option value="Complete">Complete</option>
-              <option value="Incomplete">Incomplete</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Point Claimed in FSWP</label>
-            <input
-              type="number"
-              value={data.pointClaimedFSWP}
-              onChange={(e) => setData({ ...data, pointClaimedFSWP: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="Points"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">NOC Confirmed by Client</label>
-            <input
-              type="text"
-              value={data.nocConfirmed}
-              onChange={(e) => setData({ ...data, nocConfirmed: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="NOC code"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Profile Launched</label>
-            <input
-              type="date"
-              value={data.profileLaunched}
-              onChange={(e) => setData({ ...data, profileLaunched: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Profile Expiry</label>
-            <input
-              type="date"
-              value={data.profileExpiry}
-              onChange={(e) => setData({ ...data, profileExpiry: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">CRS Scores</label>
-            <input
-              type="number"
-              value={data.crsScores}
-              onChange={(e) => setData({ ...data, crsScores: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="CRS score"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-          <select
-            value={data.status}
-            onChange={(e) => setData({ ...data, status: e.target.value })}
-            className="w-full p-3 border rounded-lg"
-          >
-            <option value="">Select Status</option>
-            <option value="Pending">Pending</option>
-            <option value="submitted">Submitted</option>
-            <option value="under review">Under Review</option>
-            <option value="Sent for filing">Sent for filing</option>
-            <option value="Completed">Completed</option>
-          </select>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Comments</label>
-          <textarea
-            value={data.comments}
-            onChange={(e) => setData({ ...data, comments: e.target.value })}
-            rows={3}
-            className="w-full p-3 border rounded-lg"
-            placeholder="Add comments..."
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-between">
-        <button
-          onClick={onPrevious}
-          className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center"
-        >
-          <ChevronLeft className="mr-2" size={20} />
-          Back
-        </button>
-        <div className="flex gap-3">
-          <button
-            onClick={onSave}
-            disabled={saving}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center"
-          >
-            <Save className="mr-2" size={20} />
-            {saving ? 'Saving...' : 'Save Draft'}
-          </button>
-          <button
-            onClick={onNext}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
-          >
-            Continue to Recruiter Interview
-            <ChevronRight className="ml-2" size={20} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function RecruiterInterviewStage({ data, setData, onNext, onPrevious, onSave, saving }: any) {
-  return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-          <Users className="mr-2 text-blue-600" size={24} />
-          Recruiter Interview / PNP Process
-        </h3>
-
-        <div className="grid grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">PNP Launched</label>
-            <select
-              value={data.pnpLaunched}
-              onChange={(e) => setData({ ...data, pnpLaunched: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            >
-              <option value="">Select PNP</option>
-              <option value="PEI">PEI</option>
-              <option value="Nova Scotia">Nova Scotia</option>
-              <option value="New Brunswick">New Brunswick</option>
-              <option value="Saskatchewan">Saskatchewan</option>
-              <option value="Quebec">Quebec</option>
-              <option value="Manitoba">Manitoba</option>
-              <option value="Ontario">Ontario</option>
-              <option value="British Columbia">British Columbia</option>
-              <option value="Alberta">Alberta</option>
-              <option value="Yukon">Yukon</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">EOI Points</label>
-            <input
-              type="number"
-              value={data.eoiPoints}
-              onChange={(e) => setData({ ...data, eoiPoints: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="EOI points"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">EOI Submission Date</label>
-            <input
-              type="date"
-              value={data.eoiSubmissionDate}
-              onChange={(e) => setData({ ...data, eoiSubmissionDate: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">EOI Expiry Date</label>
-            <input
-              type="date"
-              value={data.eoiExpiryDate}
-              onChange={(e) => setData({ ...data, eoiExpiryDate: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">NOI Received Date</label>
-            <input
-              type="date"
-              value={data.noiReceivedDate}
-              onChange={(e) => setData({ ...data, noiReceivedDate: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">NOI Submission Date</label>
-            <input
-              type="date"
-              value={data.noiSubmissionDate}
-              onChange={(e) => setData({ ...data, noiSubmissionDate: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">NOI Expiry Date</label>
-            <input
-              type="date"
-              value={data.noiExpiryDate}
-              onChange={(e) => setData({ ...data, noiExpiryDate: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nomination Awarded Date</label>
-            <input
-              type="date"
-              value={data.nominationAwardedDate}
-              onChange={(e) => setData({ ...data, nominationAwardedDate: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nomination Expiry Date</label>
-            <input
-              type="date"
-              value={data.nominationExpiryDate}
-              onChange={(e) => setData({ ...data, nominationExpiryDate: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-            <select
-              value={data.status}
-              onChange={(e) => setData({ ...data, status: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            >
-              <option value="">Select Status</option>
-              <option value="IN PROGRESS">IN PROGRESS</option>
-              <option value="Submitted">Submitted</option>
-              <option value="APPROVED">APPROVED</option>
-              <option value="Rejected">Rejected</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Comments</label>
-          <textarea
-            value={data.comments}
-            onChange={(e) => setData({ ...data, comments: e.target.value })}
-            rows={3}
-            className="w-full p-3 border rounded-lg"
-            placeholder="Add comments..."
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-between">
-        <button
-          onClick={onPrevious}
-          className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center"
-        >
-          <ChevronLeft className="mr-2" size={20} />
-          Back
-        </button>
-        <div className="flex gap-3">
-          <button
-            onClick={onSave}
-            disabled={saving}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center"
-          >
-            <Save className="mr-2" size={20} />
-            {saving ? 'Saving...' : 'Save Draft'}
-          </button>
-          <button
-            onClick={onNext}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
-          >
-            Continue to Status Update
-            <ChevronRight className="ml-2" size={20} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatusUpdateStage({ data, setData, onPrevious, onSave, saving }: any) {
-  return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-          <Target className="mr-2 text-blue-600" size={24} />
-          Status Update & Next Actions
-        </h3>
-
-        <div className="grid grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Current Status</label>
-            <select
-              value={data.currentStatus}
-              onChange={(e) => setData({ ...data, currentStatus: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            >
-              <option value="">Select Status</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Documents Pending">Documents Pending</option>
-              <option value="Under Review">Under Review</option>
-              <option value="Approved">Approved</option>
-              <option value="On Hold">On Hold</option>
-              <option value="Completed">Completed</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Last Updated</label>
-            <input
-              type="date"
-              value={data.lastUpdated}
-              onChange={(e) => setData({ ...data, lastUpdated: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              readOnly
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Status Notes</label>
-          <textarea
-            value={data.statusNotes}
-            onChange={(e) => setData({ ...data, statusNotes: e.target.value })}
-            rows={4}
-            className="w-full p-3 border rounded-lg"
-            placeholder="Add detailed status notes..."
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-6 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Next Action Required</label>
-            <input
-              type="text"
-              value={data.nextAction}
-              onChange={(e) => setData({ ...data, nextAction: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-              placeholder="Describe next action..."
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Next Action Date</label>
-            <input
-              type="date"
-              value={data.nextActionDate}
-              onChange={(e) => setData({ ...data, nextActionDate: e.target.value })}
-              className="w-full p-3 border rounded-lg"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-        <h4 className="font-semibold text-lg mb-4 text-green-900">Operations Summary</h4>
-        <div className="space-y-2 text-sm text-green-800">
-          <p>✓ Personal details recorded</p>
-          <p>✓ Resume writing completed</p>
-          <p>✓ Prescreening interview conducted</p>
-          <p>✓ Job registration processed</p>
-          <p>✓ Recruiter interview completed</p>
-          <p>✓ All stages documented and tracked</p>
-        </div>
-      </div>
-
-      <div className="flex justify-between">
-        <button
-          onClick={onPrevious}
-          className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center"
-        >
-          <ChevronLeft className="mr-2" size={20} />
-          Back
-        </button>
-        <div className="flex gap-3">
-          <button
-            onClick={onSave}
-            disabled={saving}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center"
-          >
-            <Save className="mr-2" size={20} />
-            {saving ? 'Saving...' : 'Save Draft'}
-          </button>
-          <button
-            onClick={() => window.location.href = '/admin/leads'}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
-          >
-            <CheckCircle className="mr-2" size={20} />
-            Complete Operations
-          </button>
+              {renderStageContent()}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </div>

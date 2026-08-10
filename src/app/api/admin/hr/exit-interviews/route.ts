@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { HRService } from '@/services/hr-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const leavingReasons = ['Better Opportunity', 'Salary', 'Relocation', 'Personal', 'Termination', 'Other'] as const;
 type LeavingReason = typeof leavingReasons[number];
@@ -28,6 +29,8 @@ const validateRating = (value: number, label: string) => (
 );
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const [interviews, analytics] = await Promise.all([
@@ -47,6 +50,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.create', 'hr.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const employeeId = readString(body, 'employee_id');
@@ -89,5 +94,22 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to submit exit interview';
     console.error('Failed to submit exit interview:', error);
     return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.delete']);
+  if (isAuthError(auth)) return auth;
+  try {
+    const { searchParams } = new URL(request.url);
+    const exitId = searchParams.get('exit_id');
+    if (!exitId) {
+      return NextResponse.json({ error: 'exit_id is required' }, { status: 400 });
+    }
+    await HRService.deleteExitInterview(exitId);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete exit interview:', error);
+    return NextResponse.json({ error: 'Failed to delete exit interview' }, { status: 500 });
   }
 }

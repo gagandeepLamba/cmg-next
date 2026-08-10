@@ -16,16 +16,16 @@ interface DmLibraryAttributes {
 interface DmLibraryCreationAttributes extends Optional<DmLibraryAttributes, never> {}
 
 class DmLibrary extends Model<DmLibraryAttributes, DmLibraryCreationAttributes> implements DmLibraryAttributes {
-  public id!: number;
-  public groups!: number;
-  public file_name!: string;
-  public files!: string;
-  public file_type!: number;
-  public file_of_folder!: number;
-  public folder_id!: number;
-  public status!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare groups: number;
+  declare file_name: string;
+  declare files: string;
+  declare file_type: number;
+  declare file_of_folder: number;
+  declare folder_id: number;
+  declare status: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

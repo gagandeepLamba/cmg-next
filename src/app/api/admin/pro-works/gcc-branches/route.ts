@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PROService } from '@/services/pro-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const countries = ['UAE', 'Saudi Arabia', 'Qatar', 'Bahrain', 'Kuwait', 'Oman'] as const;
 const statuses = ['Active', 'Inactive', 'Renewal Pending'] as const;
@@ -30,6 +31,8 @@ const isStatus = (value: unknown): value is BranchStatus => (
 );
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const records = await PROService.listGccBranchDocuments({
@@ -46,6 +49,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['admin.access', 'pro.create']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
 
@@ -84,6 +89,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['pro.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const branchId = readString(body, 'branch_id');

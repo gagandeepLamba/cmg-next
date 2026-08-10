@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Bell, X, Check, Clock, Calendar, Users, AlertCircle, TrendingUp, Phone, Mail, MapPin, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +18,22 @@ interface Notification {
   createdAt: string;
   relatedId?: number;
   relatedType?: 'lead' | 'opportunity' | 'appointment' | 'discount_approval' | 'reassignment';
+  link?: string | null;
+}
+
+// Fallback for notifications created before related links were tracked, or
+// where no explicit link was set on creation.
+function resolveNotificationLink(notification: Notification): string | null {
+  if (notification.link) return notification.link;
+  if (!notification.relatedId) return null;
+  switch (notification.relatedType) {
+    case 'lead':
+      return `/admin/leads/${notification.relatedId}/edit`;
+    case 'opportunity':
+      return `/admin/leads/opportunity-flow?leadId=${notification.relatedId}`;
+    default:
+      return null;
+  }
 }
 
 interface FollowUpReminder {
@@ -56,6 +73,7 @@ interface MeetingSchedule {
 
 export default function NotificationCenter() {
   const { user } = useAuth();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [upcomingFollowUps, setUpcomingFollowUps] = useState<FollowUpReminder[]>([]);
@@ -157,6 +175,21 @@ export default function NotificationCenter() {
     } catch (error) {
       console.error('Error marking notifications as read:', error);
     }
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    const target = resolveNotificationLink(notification);
+    if (!notification.isRead) markAsRead([notification.id]);
+    if (target) {
+      setIsOpen(false);
+      router.push(target);
+    }
+  };
+
+  const goToLead = (leadId?: number) => {
+    if (!leadId) return;
+    setIsOpen(false);
+    router.push(`/admin/leads/${leadId}/edit`);
   };
 
   const deleteNotifications = async (notificationIds: number[]) => {
@@ -342,12 +375,15 @@ export default function NotificationCenter() {
                     <p>No notifications</p>
                   </div>
                 ) : (
-                  notifications.map((notification) => (
+                  notifications.map((notification) => {
+                    const target = resolveNotificationLink(notification);
+                    return (
                     <div
                       key={notification.id}
-                      className={`p-3 mb-2 rounded-lg border ${
-                        notification.isRead 
-                          ? 'bg-gray-50 border-gray-200' 
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`p-3 mb-2 rounded-lg border ${target ? 'cursor-pointer hover:shadow-sm' : ''} ${
+                        notification.isRead
+                          ? 'bg-gray-50 border-gray-200'
                           : 'bg-blue-50 border-blue-200'
                       }`}
                     >
@@ -365,7 +401,7 @@ export default function NotificationCenter() {
                         <div className="flex items-center space-x-1 ml-2">
                           {!notification.isRead && (
                             <button
-                              onClick={() => markAsRead([notification.id])}
+                              onClick={(e) => { e.stopPropagation(); markAsRead([notification.id]); }}
                               className="p-1 hover:bg-gray-200 rounded"
                               title="Mark as read"
                             >
@@ -373,7 +409,7 @@ export default function NotificationCenter() {
                             </button>
                           )}
                           <button
-                            onClick={() => deleteNotifications([notification.id])}
+                            onClick={(e) => { e.stopPropagation(); deleteNotifications([notification.id]); }}
                             className="p-1 hover:bg-gray-200 rounded"
                             title="Delete"
                           >
@@ -382,7 +418,8 @@ export default function NotificationCenter() {
                         </div>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
@@ -396,7 +433,11 @@ export default function NotificationCenter() {
                   </div>
                 ) : (
                   upcomingFollowUps.map((followUp) => (
-                    <div key={followUp.id} className="p-3 mb-2 rounded-lg border border-gray-200 bg-yellow-50">
+                    <div
+                      key={followUp.id}
+                      onClick={() => goToLead(followUp.dmcForumLead?.id)}
+                      className="p-3 mb-2 rounded-lg border border-gray-200 bg-yellow-50 cursor-pointer hover:shadow-sm"
+                    >
                       <div className="flex items-start justify-between">
                         <div className="flex items-start space-x-3 flex-1">
                           <div className={`p-2 rounded-lg ${getPriorityColor(followUp.priority)}`}>
@@ -413,7 +454,7 @@ export default function NotificationCenter() {
                           </div>
                         </div>
                         <button
-                          onClick={() => completeFollowUp(followUp.id)}
+                          onClick={(e) => { e.stopPropagation(); completeFollowUp(followUp.id); }}
                           className="p-1 hover:bg-gray-200 rounded"
                           title="Mark as complete"
                         >
@@ -435,7 +476,11 @@ export default function NotificationCenter() {
                   </div>
                 ) : (
                   upcomingMeetings.map((meeting) => (
-                    <div key={meeting.id} className="p-3 mb-2 rounded-lg border border-gray-200 bg-green-50">
+                    <div
+                      key={meeting.id}
+                      onClick={() => goToLead(meeting.dmcForumLead?.id)}
+                      className="p-3 mb-2 rounded-lg border border-gray-200 bg-green-50 cursor-pointer hover:shadow-sm"
+                    >
                       <div className="flex items-start justify-between">
                         <div className="flex items-start space-x-3 flex-1">
                           <div className={`p-2 rounded-lg ${getPriorityColor(meeting.priority)}`}>
@@ -458,7 +503,7 @@ export default function NotificationCenter() {
                           </div>
                         </div>
                         <button
-                          onClick={() => completeMeeting(meeting.id)}
+                          onClick={(e) => { e.stopPropagation(); completeMeeting(meeting.id); }}
                           className="p-1 hover:bg-gray-200 rounded"
                           title="Mark as complete"
                         >

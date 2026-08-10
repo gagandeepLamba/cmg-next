@@ -1,7 +1,7 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -153,35 +153,35 @@ export default function ContractContentPage() {
   }
 
   const handleSave = () => {
-    alert('Saving content...')
+    window.toast.info('Saving content...')
     setIsEditing(false)
     setSelectedContent(null)
   }
 
   const handlePreview = (content: ContractContent) => {
-    alert(`Previewing content: ${content.title}`)
+    window.toast.info(`Previewing content: ${content.title}`)
   }
 
   const handleDuplicate = (content: ContractContent) => {
-    alert(`Duplicating content: ${content.title}`)
+    window.toast.info(`Duplicating content: ${content.title}`)
   }
 
   const handleDelete = (content: ContractContent) => {
-    alert(`Deleting content: ${content.title}`)
+    window.toast.info(`Deleting content: ${content.title}`)
   }
 
   if (loading) {
     return (
-      <MainLayout>
+      <>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </MainLayout>
+      </>
     )
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -273,7 +273,7 @@ export default function ContractContentPage() {
                 />
               </div>
 
-              <select
+              <SearchableSelect
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -285,9 +285,9 @@ export default function ContractContentPage() {
                 <option value="clauses">Clauses</option>
                 <option value="signatures">Signatures</option>
                 <option value="footer">Footer</option>
-              </select>
+              </SearchableSelect>
 
-              <select
+              <SearchableSelect
                 value={languageFilter}
                 onChange={(e) => setLanguageFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -296,9 +296,9 @@ export default function ContractContentPage() {
                 <option value="english">English</option>
                 <option value="arabic">Arabic</option>
                 <option value="bilingual">Bilingual</option>
-              </select>
+              </SearchableSelect>
 
-              <select
+              <SearchableSelect
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -307,7 +307,7 @@ export default function ContractContentPage() {
                 <option value="active">Active</option>
                 <option value="draft">Draft</option>
                 <option value="archived">Archived</option>
-              </select>
+              </SearchableSelect>
 
               <Button variant="outline">
                 <Filter className="h-4 w-4 mr-2" />
@@ -425,7 +425,7 @@ export default function ContractContentPage() {
           </Card>
         )}
       </div>
-    </MainLayout>
+    </>
   )
 }
 

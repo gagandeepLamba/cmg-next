@@ -12,12 +12,12 @@ interface DmSuccessStoriesFolderAttributes {
 interface DmSuccessStoriesFolderCreationAttributes extends Optional<DmSuccessStoriesFolderAttributes, never> {}
 
 class DmSuccessStoriesFolder extends Model<DmSuccessStoriesFolderAttributes, DmSuccessStoriesFolderCreationAttributes> implements DmSuccessStoriesFolderAttributes {
-  public id!: number;
-  public parent_id!: number;
-  public folder!: string;
-  public created_by!: number;
-  public created!: Date;
-  public is_deleted!: number;
+  declare id: number;
+  declare parent_id: number;
+  declare folder: string;
+  declare created_by: number;
+  declare created: Date;
+  declare is_deleted: number;
 
   public static associate(models: any) {
   }

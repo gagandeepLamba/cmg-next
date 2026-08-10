@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
         `SELECT
           e.id,
           e.name,
-          COALESCE(b.name, 'N/A') AS branch_name,
+          COALESCE(b.branch, 'N/A') AS branch_name,
           COUNT(l.id) AS total,
           SUM(CASE WHEN l.status IN ('Converted','converted','Retained','retained','Client','client')
                OR l.opportunity_status = 'won' THEN 1 ELSE 0 END) AS converted,
@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
         LEFT JOIN dmc_forum_leads l ON (l.assignTo = e.id OR l.Counsilor = e.id) ${joinDateFilter} ${isCounselor && userId ? `AND (l.assignTo = '${userId}' OR l.Counsilor = '${userId}')` : isBM && userBranch ? `AND l.branch = '${userBranch}'` : ''}
         LEFT JOIN dm_branch b ON b.id = e.branch
         WHERE e.status = 1 ${isBM && userBranch ? `AND e.branch = '${userBranch}'` : ''}
-        GROUP BY e.id, e.name, b.name
+        GROUP BY e.id, e.name, b.branch
         HAVING total > 0
         ORDER BY converted DESC, total DESC
         LIMIT 20`,
@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
       }>(
         `SELECT
           b.id,
-          b.name,
+          b.branch AS name,
           COALESCE(r.name, 'N/A') AS region_name,
           COUNT(l.id) AS total,
           SUM(CASE WHEN l.status IN ('Converted','converted','Retained','retained','Client','client')
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
         LEFT JOIN dm_region r ON r.id = b.region
         LEFT JOIN dmc_forum_leads l ON l.branch = b.id ${joinDateFilter} ${isCounselor && userId ? `AND (l.assignTo = '${userId}' OR l.Counsilor = '${userId}')` : ''}
         WHERE b.status = 1 ${isBM && userBranch ? `AND b.id = '${userBranch}'` : ''}
-        GROUP BY b.id, b.name, r.name
+        GROUP BY b.id, b.branch, r.name
         ORDER BY total DESC`,
         { type: QueryTypes.SELECT }
       ),
@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
           l.lname,
           COALESCE(l.status, 'New') AS status,
           COALESCE(l.priority, '') AS priority,
-          COALESCE(b.name, 'N/A') AS branch_name,
+          COALESCE(b.branch, 'N/A') AS branch_name,
           COALESCE(e.name, 'Unassigned') AS assigned_to,
           DATE_FORMAT(l.regdate, '%Y-%m-%d') AS regdate
         FROM dmc_forum_leads l

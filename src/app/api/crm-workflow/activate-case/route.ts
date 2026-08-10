@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CrmWorkflowService } from '@/services/crm-workflow-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { isBranchManagerOrCeo } from '@/lib/roleChecks';
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireAuth(request);
+    if (isAuthError(auth)) return auth;
+    // Case activation is a managerial/CEO-tier step (it stands up the client
+    // record and hands the case to a case officer), not a routine CRUD action.
+    if (!isBranchManagerOrCeo(auth)) {
+      return NextResponse.json({ success: false, error: 'Only a Branch Manager or the CEO can activate a case' }, { status: 403 });
+    }
+
     const body = await request.json();
-    const { opportunityId, caseOfficerId, actorId, actorRole } = body;
+    const { opportunityId, caseOfficerId } = body;
 
     if (!opportunityId || !caseOfficerId) {
       return NextResponse.json(
@@ -16,8 +26,8 @@ export async function POST(request: NextRequest) {
     const result = await CrmWorkflowService.activateCase(
       opportunityId,
       caseOfficerId,
-      actorId || 0,
-      actorRole || 'admin'
+      auth.id,
+      auth.roleName || auth.type || 'admin'
     );
 
     if (!result.success) {

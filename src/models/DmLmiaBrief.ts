@@ -15,15 +15,15 @@ interface DmLmiaBriefAttributes {
 interface DmLmiaBriefCreationAttributes extends Optional<DmLmiaBriefAttributes, never> {}
 
 class DmLmiaBrief extends Model<DmLmiaBriefAttributes, DmLmiaBriefCreationAttributes> implements DmLmiaBriefAttributes {
-  public id!: number;
-  public leadId!: number;
-  public third_party_amt!: number;
-  public dm_amt!: number;
-  public tax_amt!: number;
-  public refund_amt!: number;
-  public status!: number;
-  public created_by!: number;
-  public created!: Date;
+  declare id: number;
+  declare leadId: number;
+  declare third_party_amt: number;
+  declare dm_amt: number;
+  declare tax_amt: number;
+  declare refund_amt: number;
+  declare status: number;
+  declare created_by: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

@@ -14,14 +14,14 @@ interface DmJsOpsCompanyInterviewAttributes {
 interface DmJsOpsCompanyInterviewCreationAttributes extends Optional<DmJsOpsCompanyInterviewAttributes, never> {}
 
 class DmJsOpsCompanyInterview extends Model<DmJsOpsCompanyInterviewAttributes, DmJsOpsCompanyInterviewCreationAttributes> implements DmJsOpsCompanyInterviewAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public request_letter_received!: number;
-  public Passport_sent_to_embassy!: number;
-  public passport_received_from_embassy!: number;
-  public document_file!: number;
-  public created_by!: number;
-  public created!: number;
+  declare id: number;
+  declare lead_id: number;
+  declare request_letter_received: number;
+  declare Passport_sent_to_embassy: number;
+  declare passport_received_from_embassy: number;
+  declare document_file: number;
+  declare created_by: number;
+  declare created: number;
 
   public static associate(models: any) {
   }

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Dm3partyPayment, Dm3partyPaymentDet, DmcForumLeads } from '@/models'
+import { requireAuth, isAuthError } from '@/lib/apiAuth'
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['payments.view', 'finance.view'])
+  if (isAuthError(auth)) return auth
   try {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -61,6 +64,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['payments.view', 'payments.create', 'finance.view', 'finance.manage'])
+  if (isAuthError(auth)) return auth
   try {
     const data = await request.json()
     const { details, ...paymentData } = data

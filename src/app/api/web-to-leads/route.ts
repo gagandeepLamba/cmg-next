@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { QueryTypes, type CreationAttributes } from 'sequelize';
+import { type CreationAttributes } from 'sequelize';
 import { DmcForumLeads } from '@/models/DmcForumLeads';
-import { sequelize } from '@/lib/sequelize';
-import { resolveLeadAutoAssignment } from '@/lib/leadAutoAssignment';
+import { checkForDuplicate } from '@/lib/duplicateLeadCheck';
+import { logLeadRemark } from '@/lib/leadRemarks';
+import { resolveLeadReferenceId } from '@/lib/leadReferenceResolver';
+import { resolveBranchReference } from '@/lib/branchResolver';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': process.env.WEB_TO_LEADS_ALLOWED_ORIGIN || '*',
@@ -47,44 +49,6 @@ const buildRemark = (parts: Record<string, string>) => (
     .join('\n')
 );
 
-const authenticate = (request: NextRequest): boolean => {
-  const configuredKey = process.env.WEB_TO_LEADS_API_KEY;
-  if (!configuredKey) return true;
-
-  const apiKey = request.headers.get('x-api-key');
-  const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-  return apiKey === configuredKey || bearer === configuredKey;
-};
-
-const findBranch = async (branchInput: string) => {
-  const numericBranchId = Number.parseInt(branchInput, 10);
-
-  if (Number.isFinite(numericBranchId) && numericBranchId > 0) {
-    const rows = await sequelize.query<{ id: number; region: number }>(
-      'SELECT id, region FROM dm_branch WHERE id = :branchId AND status = 1 LIMIT 1',
-      {
-        replacements: { branchId: numericBranchId },
-        type: QueryTypes.SELECT,
-      }
-    );
-
-    if (rows[0]) return rows[0];
-  }
-
-  const rows = await sequelize.query<{ id: number; region: number }>(
-    `SELECT id, region
-     FROM dm_branch
-     WHERE status = 1 AND LOWER(name) = LOWER(:branchName)
-     LIMIT 1`,
-    {
-      replacements: { branchName: branchInput || 'Dubai' },
-      type: QueryTypes.SELECT,
-    }
-  );
-
-  return rows[0] || { id: 1, region: 1 };
-};
-
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
 }
@@ -97,20 +61,28 @@ export async function GET() {
     requiredFields: ['lastName or your-name', 'email or your-email', 'phone or phonetext-718'],
     acceptsSalesforcePayload: true,
     acceptsContactForm7Payload: true,
+    optionalFields: {
+      branch: 'Branch name, abbreviation, or city; defaults to Dubai when omitted',
+      DestinationCountry: 'Matches dm_country_proces.name/id',
+      ImmigrationType: 'Matches dm_service.name/id',
+      LeadSource: 'Matches dm_source.name/id',
+      ResidentCountry: 'Stored as nationality/address text',
+    },
+    storesReferenceIds: {
+      country_interest: 'dm_country_proces.id',
+      service_interest: 'dm_service.id',
+      market_source: 'dm_source.id',
+    },
   });
 }
 
 export async function POST(request: NextRequest) {
   try {
-    if (!authenticate(request)) {
-      return json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
     const data = await request.json() as Record<string, unknown>;
 
     const fullName = readField(data, ['lastName', 'your-name', 'name', 'fullName']);
     const email = readField(data, ['email', 'your-email']);
-    const phone = readField(data, ['phone', 'phonetext-718', 'mobile']);
+    const phone = readField(data, ['phone', 'phonetext-718', 'mobile','tel-861']);
 
     if (!fullName || !email || !phone) {
       return json(
@@ -126,26 +98,52 @@ export async function POST(request: NextRequest) {
     const [fname, ...lastNameParts] = fullName.split(/\s+/);
     const lname = lastNameParts.join(' ') || fullName;
     const ageRange = readField(data, ['AgeRange', 'menu-359']);
-    const immigrationType = readField(data, ['ImmigrationType', 'menu-55692']);
-    const branchInput = readField(data, ['Branch', 'menu-404'], 'Dubai');
+    const immigrationType = readField(data, ['ImmigrationType', 'menu-55api fi692']);
+    const branchInput = readField(data, ['Branch', 'branch', 'menu-404']);
     const residentCountry = readField(data, ['ResidentCountry', 'residentCountry'], 'UAE');
     const utmSource = readField(data, ['UTMSource', 'utm_source'], 'Dubai Website');
     const education = readField(data, ['Education', 'menu-35926']);
     const destinationCountry = readField(data, ['DestinationCountry', 'menu-3065']);
     const leadSource = readField(data, ['LeadSource', 'leadSource'], 'SEO Leads (English)');
-    const branch = await findBranch(branchInput);
+    // Branch wins if the form sent one we recognize. Otherwise, prefer the
+    // visitor's own resident country when it matches a branch we operate in
+    // (Qatar/Kuwait/India each have exactly one) instead of silently dropping
+    // a Qatar/Kuwait enquiry onto the Dubai team.
+    const branch = await resolveBranchReference(branchInput, residentCountry, 'Dubai') || { id: 1, region: 1 };
     const now = new Date();
     const time = now.toTimeString().split(' ')[0];
 
-    const assignment = await resolveLeadAutoAssignment({
-      branchId: branch.id,
-      // Website callers cannot choose a counselor; every new website lead is rotated automatically.
-      forceAutoAssign: true,
-      roundRobin: true,
-    });
-    const assignedBranch = assignment.branchId === branch.id
-      ? branch
-      : await findBranch(String(assignment.branchId));
+    let countryInterestId: number | null = null;
+    let serviceInterestId: number | null = null;
+    let marketSourceId: number | null = null;
+
+    try {
+      countryInterestId = await resolveLeadReferenceId('country_interest', destinationCountry || null);
+      marketSourceId = await resolveLeadReferenceId('market_source', leadSource || null);
+    } catch (error) {
+      return json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : 'Invalid lead reference value',
+          referenceTables: {
+            country_interest: 'dm_country_proces',
+            market_source: 'dm_source',
+          },
+        },
+        { status: 422 }
+      );
+    }
+
+    // The immigration-type text the site form sends doesn't have to match a
+    // dm_service row exactly (e.g. "Canada PR" isn't a program name on file) —
+    // unlike country/source, a miss here shouldn't block lead creation.
+    try {
+      serviceInterestId = await resolveLeadReferenceId('service_interest', immigrationType || null);
+    } catch {
+      serviceInterestId = null;
+    }
+
+    const duplicateCheck = await checkForDuplicate({ phone, email });
 
     const leadPayload = {
       fname: fname || fullName,
@@ -161,10 +159,10 @@ export async function POST(request: NextRequest) {
       id_number: '',
       id_expiry: now,
       id_issue_date: now,
-      country_interest: destinationCountry,
+      country_interest: countryInterestId,
       sub_country_interest: 0,
-      service_interest: immigrationType,
-      market_source: leadSource,
+      service_interest: serviceInterestId,
+      market_source: marketSourceId,
       sub_market_source: 0,
       appointment: null,
       followup: now,
@@ -179,11 +177,12 @@ export async function POST(request: NextRequest) {
       last_updtd_time: time,
       stepComplete: 1,
       payType: null,
-      assignTo: assignment.assignedEmployeeId,
-      case_officer: assignment.assignedEmployeeId,
-      Counsilor: assignment.counselorId,
-      branch: assignment.branchId,
-      region: assignedBranch.region || 1,
+      // New leads enter unassigned; a FOE/Branch Manager/CEO assigns them afterward.
+      assignTo: null,
+      case_officer: null,
+      Counsilor: null,
+      branch: branch.id,
+      region: branch.region || 1,
       payTotal: 0,
       discount: 0,
       paidYet: 0,
@@ -256,26 +255,42 @@ export async function POST(request: NextRequest) {
       tele_caller_remark_by: 1,
       tele_date: now,
       lead_date: now,
-      duplicate: 0,
-      duplicate_count: 0,
+      duplicate: duplicateCheck.isDuplicate ? 1 : 0,
+      duplicate_count: duplicateCheck.duplicateCount,
       ref_remark: '',
       na_record: 0,
       old_assgined: 0,
       nal_count: 0,
       campaign_id: 0,
       old_branch: 0,
+      sf: 0,
     } as unknown as CreationAttributes<DmcForumLeads>;
 
     const lead = await (DmcForumLeads as any).create(leadPayload);
+
+    // The Opportunity Flow's "Service Requirements" panel reads from
+    // dm_remarks (not the lead row's own lead_remark column), so without this
+    // a web-to-lead lead always showed up there with no activity at all.
+    await logLeadRemark({
+      leadId: lead.id,
+      action: 'lead_created',
+      remark: buildRemark({
+        Source: utmSource,
+        'Lead Source': leadSource,
+        Branch: branchInput,
+        'Service Interest': immigrationType,
+        'Destination Country': destinationCountry,
+        'Resident Country': residentCountry,
+      }) || 'Lead created via website form.',
+      actorRole: 'web_lead',
+    });
 
     return json(
       {
         success: true,
         leadId: lead.id,
-        assignedTo: assignment.assignedEmployeeId,
-        counselorId: assignment.counselorId,
-        branchId: assignment.branchId,
-        assignment,
+        assignedTo: null,
+        branchId: branch.id,
       },
       { status: 201 }
     );

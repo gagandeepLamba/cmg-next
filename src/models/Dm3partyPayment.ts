@@ -22,22 +22,22 @@ interface Dm3partyPaymentAttributes {
 type Dm3partyPaymentCreationAttributes = Optional<Dm3partyPaymentAttributes, 'id' | 'date' | 'amount' | 'Tax' | 'payMethod' | 'emp_id'>;
 
 class Dm3partyPayment extends Model<Dm3partyPaymentAttributes, Dm3partyPaymentCreationAttributes> implements Dm3partyPaymentAttributes {
-  public id!: number;
-  public leadId!: number;
-  public date!: Date | null;
-  public currency_id!: number;
-  public amount!: number;
-  public Tax!: number;
-  public payMethod!: string | null;
-  public emp_id!: number;
-  public receipt_date!: Date;
-  public cc_number!: string;
-  public receipt!: string;
-  public counselor_receipt!: string;
-  public trans_or_ref_number!: string;
-  public remarks!: string;
-  public payoption!: string;
-  public paycardoption!: string;
+  declare id: number;
+  declare leadId: number;
+  declare date: Date | null;
+  declare currency_id: number;
+  declare amount: number;
+  declare Tax: number;
+  declare payMethod: string | null;
+  declare emp_id: number;
+  declare receipt_date: Date;
+  declare cc_number: string;
+  declare receipt: string;
+  declare counselor_receipt: string;
+  declare trans_or_ref_number: string;
+  declare remarks: string;
+  declare payoption: string;
+  declare paycardoption: string;
 
   public static associate(models: any) {
     Dm3partyPayment.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLeads' });

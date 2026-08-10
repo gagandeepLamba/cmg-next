@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { HRService } from '@/services/hr-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const attendanceStatuses = ['Present', 'Absent', 'Late', 'Half-Day', 'Leave', 'Holiday'] as const;
 const attendanceSources = ['Manual', 'Biometric', 'Import'] as const;
@@ -21,10 +22,13 @@ const validatePayload = (body: Record<string, unknown>) => {
 };
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.view', 'hr.self']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const records = await HRService.listAttendanceRecords({
       employeeId: searchParams.get('employee_id') || undefined,
+      branch: searchParams.get('branch') || undefined,
       dateFrom: searchParams.get('date_from') || undefined,
       dateTo: searchParams.get('date_to') || undefined,
       status: searchParams.get('status') || undefined,
@@ -40,6 +44,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.create', 'hr.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
 
@@ -86,6 +92,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.update', 'hr.team.attendance_leave']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     if (!body.attendance_id) {
@@ -117,5 +125,22 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Failed to update HR attendance record:', error);
     return NextResponse.json({ error: 'Failed to update HR attendance record' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.delete']);
+  if (isAuthError(auth)) return auth;
+  try {
+    const { searchParams } = new URL(request.url);
+    const attendanceId = searchParams.get('attendance_id');
+    if (!attendanceId) {
+      return NextResponse.json({ error: 'attendance_id is required' }, { status: 400 });
+    }
+    await HRService.deleteAttendanceRecord(attendanceId);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete HR attendance record:', error);
+    return NextResponse.json({ error: 'Failed to delete HR attendance record' }, { status: 500 });
   }
 }

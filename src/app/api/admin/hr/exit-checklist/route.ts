@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { HRService } from '@/services/hr-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 const itemStatuses = ['Pending', 'Completed', 'Waived'] as const;
 type ItemStatus = typeof itemStatuses[number];
@@ -13,6 +14,8 @@ const isItemStatus = (value: unknown): value is ItemStatus => (
 );
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const data = await HRService.listExitChecklists({
@@ -32,6 +35,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.create', 'hr.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const employeeId = readString(body, 'employee_id');
@@ -53,6 +58,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const itemId = readString(body, 'item_id');
@@ -72,5 +79,22 @@ export async function PUT(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to update exit checklist item';
     console.error('Failed to update exit checklist item:', error);
     return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = requireAuth(request, ['hr.delete']);
+  if (isAuthError(auth)) return auth;
+  try {
+    const { searchParams } = new URL(request.url);
+    const checklistId = searchParams.get('checklist_id');
+    if (!checklistId) {
+      return NextResponse.json({ error: 'checklist_id is required' }, { status: 400 });
+    }
+    await HRService.deleteExitChecklist(checklistId);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete exit checklist:', error);
+    return NextResponse.json({ error: 'Failed to delete exit checklist' }, { status: 500 });
   }
 }

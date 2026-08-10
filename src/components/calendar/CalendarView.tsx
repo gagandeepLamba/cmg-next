@@ -1,6 +1,8 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { uploadFileToBlob } from '@/lib/uploadToBlob';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -56,6 +58,7 @@ export default function CalendarView() {
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
   const [events, setEvents] = useState<Event[]>([]);
   const [showEventModal, setShowEventModal] = useState(false);
+  const [savingEvent, setSavingEvent] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(showEventModal ? null : null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>('');
@@ -81,13 +84,15 @@ export default function CalendarView() {
 
   const loadEvents = async () => {
     try {
-      const [apptRes, fuRes] = await Promise.all([
+      const [apptRes, fuRes, evtRes] = await Promise.all([
         fetch('/api/appointments?limit=500'),
         fetch('/api/follow-up-reminders'),
+        fetch('/api/calendar-events'),
       ]);
 
       const apptData = apptRes.ok ? await apptRes.json() : { appointments: [] };
       const fuData = fuRes.ok ? await fuRes.json() : { reminders: [] };
+      const evtData = evtRes.ok ? await evtRes.json() : { events: [] };
 
       const appointmentEvents: Event[] = (apptData.appointments || []).map((a: any): Event => {
         const leadName = `${a.fname || ''} ${a.lname || ''}`.trim() || (a.leadid ? `Lead #${a.leadid}` : 'Walk-in');
@@ -141,7 +146,24 @@ export default function CalendarView() {
         };
       });
 
-      setEvents([...appointmentEvents, ...followUpEvents]);
+      const customEvents: Event[] = (evtData.events || []).map((e: any): Event => ({
+        id: `evt-${e.id}`,
+        title: e.title,
+        description: e.description || '',
+        date: e.event_date,
+        startTime: e.start_time || '',
+        endTime: e.end_time || '',
+        location: e.location || '',
+        attendees: e.attendees || [],
+        images: e.images || [],
+        type: e.type,
+        priority: e.priority,
+        status: e.status,
+        createdBy: String(e.created_by || ''),
+        createdAt: e.created_at || '',
+      }));
+
+      setEvents([...appointmentEvents, ...followUpEvents, ...customEvents]);
     } catch {
       setEvents([]);
     }
@@ -182,50 +204,69 @@ export default function CalendarView() {
   };
 
   const handleSaveEvent = async () => {
+    if (selectedEvent && !selectedEvent.id.startsWith('evt-')) {
+      window.toast.warning('This item is linked to an appointment or follow-up. Edit it from the Appointments or Follow-ups page instead.');
+      return;
+    }
+    if (savingEvent) return;
+    setSavingEvent(true);
+
     try {
-      // Upload images first
       const uploadedImages = await uploadImages(formData.images);
-      
-      const eventData: Event = {
-        id: selectedEvent?.id || Date.now().toString(),
-        ...formData,
-        images: uploadedImages,
-        status: 'scheduled',
-        createdBy: 'Current User',
-        createdAt: new Date().toISOString()
-      };
+      const payload = { ...formData, images: uploadedImages };
 
       if (selectedEvent) {
-        // Update existing event
-        setEvents(events.map(e => e.id === selectedEvent.id ? eventData : e));
+        const id = selectedEvent.id.replace('evt-', '');
+        const res = await fetch(`/api/calendar-events?id=${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('Failed to update event');
       } else {
-        // Create new event
-        setEvents([...events, eventData]);
+        const res = await fetch('/api/calendar-events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('Failed to create event');
       }
 
       setShowEventModal(false);
       setSelectedEvent(null);
+      loadEvents();
     } catch (error) {
       console.error('Error saving event:', error);
+      window.toast.error(error instanceof Error ? error.message : 'Failed to save event');
+    } finally {
+      setSavingEvent(false);
     }
   };
 
-  const handleDeleteEvent = (eventId: string) => {
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!eventId.startsWith('evt-')) {
+      window.toast.warning('This item is linked to an appointment or follow-up. Delete it from the Appointments or Follow-ups page instead.');
+      return;
+    }
     if (confirm('Are you sure you want to delete this event?')) {
-      setEvents(events.filter(e => e.id !== eventId));
+      await fetch(`/api/calendar-events?id=${eventId.replace('evt-', '')}`, { method: 'DELETE' });
+      loadEvents();
     }
   };
 
   const uploadImages = async (files: File[]): Promise<string[]> => {
     const uploadedUrls: string[] = [];
-    
+
     for (const file of files) {
-      // Simulate upload - in production, this would upload to your storage service
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const url = `/api/placeholder/${file.name}`;
-      uploadedUrls.push(url);
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const blob = await uploadFileToBlob(file, `events/${Date.now()}_${safeName}`);
+        uploadedUrls.push(blob.url);
+      } catch (error) {
+        console.error('Error uploading event image:', error);
+      }
     }
-    
+
     return uploadedUrls;
   };
 
@@ -434,7 +475,7 @@ export default function CalendarView() {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <select
+          <SearchableSelect
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -444,7 +485,7 @@ export default function CalendarView() {
             <option value="reminder">Follow-ups</option>
             <option value="meeting">Meetings</option>
             <option value="task">Tasks</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
@@ -485,7 +526,7 @@ export default function CalendarView() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
-                  <select
+                  <SearchableSelect
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value as Event['type'] })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -495,12 +536,12 @@ export default function CalendarView() {
                     <option value="task">Task</option>
                     <option value="reminder">Reminder</option>
                     <option value="other">Other</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
-                  <select
+                  <SearchableSelect
                     value={formData.priority}
                     onChange={(e) => setFormData({ ...formData, priority: e.target.value as Event['priority'] })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -508,7 +549,7 @@ export default function CalendarView() {
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div>
@@ -619,9 +660,10 @@ export default function CalendarView() {
               </button>
               <button
                 onClick={handleSaveEvent}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                disabled={savingEvent}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {selectedEvent ? 'Update' : 'Create'} Event
+                {savingEvent ? 'Saving...' : `${selectedEvent ? 'Update' : 'Create'} Event`}
               </button>
             </div>
           </div>

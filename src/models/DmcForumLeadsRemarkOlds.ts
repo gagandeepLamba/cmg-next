@@ -11,11 +11,11 @@ interface DmcForumLeadsRemarkOldsAttributes {
 interface DmcForumLeadsRemarkOldsCreationAttributes extends Optional<DmcForumLeadsRemarkOldsAttributes, never> {}
 
 class DmcForumLeadsRemarkOlds extends Model<DmcForumLeadsRemarkOldsAttributes, DmcForumLeadsRemarkOldsCreationAttributes> implements DmcForumLeadsRemarkOldsAttributes {
-  public id!: number;
-  public agreeNo!: string;
-  public date!: Date;
-  public remark!: string;
-  public emp!: string;
+  declare id: number;
+  declare agreeNo: string;
+  declare date: Date;
+  declare remark: string;
+  declare emp: string;
 
   public static associate(models: any) {
   }

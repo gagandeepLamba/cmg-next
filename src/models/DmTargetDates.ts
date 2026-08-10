@@ -12,12 +12,12 @@ interface DmTargetDatesAttributes {
 interface DmTargetDatesCreationAttributes extends Optional<DmTargetDatesAttributes, never> {}
 
 class DmTargetDates extends Model<DmTargetDatesAttributes, DmTargetDatesCreationAttributes> implements DmTargetDatesAttributes {
-  public id!: number;
-  public month!: string;
-  public start_date!: Date;
-  public end_date!: Date;
-  public status!: number;
-  public created!: Date;
+  declare id: number;
+  declare month: string;
+  declare start_date: Date;
+  declare end_date: Date;
+  declare status: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

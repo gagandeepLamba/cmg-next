@@ -16,16 +16,16 @@ interface DmJobSearchQualificationAttributes {
 interface DmJobSearchQualificationCreationAttributes extends Optional<DmJobSearchQualificationAttributes, 'leadid' | 'qualifctn' | 'specilization' | 'university' | 'rating'> {}
 
 class DmJobSearchQualification extends Model<DmJobSearchQualificationAttributes, DmJobSearchQualificationCreationAttributes> implements DmJobSearchQualificationAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public qualifctn!: string | null;
-  public specilization!: string | null;
-  public university!: string | null;
-  public assesment_body!: string;
-  public type!: string;
-  public rating!: string | null;
-  public created_by!: Date;
-  public created!: number;
+  declare id: number;
+  declare leadid: number | null;
+  declare qualifctn: string | null;
+  declare specilization: string | null;
+  declare university: string | null;
+  declare assesment_body: string;
+  declare type: string;
+  declare rating: string | null;
+  declare created_by: Date;
+  declare created: number;
 
   public static associate(models: any) {
   }

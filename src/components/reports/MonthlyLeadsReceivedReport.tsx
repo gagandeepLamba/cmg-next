@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
@@ -245,7 +246,7 @@ export default function MonthlyLeadsReceivedReport() {
       <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Select Month</h3>
-          <select
+          <SearchableSelect
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -254,7 +255,7 @@ export default function MonthlyLeadsReceivedReport() {
             {monthlyData.map(month => (
               <option key={month.month} value={month.month}>{month.month}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 

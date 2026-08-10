@@ -1,6 +1,8 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useCallback } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { Users, TrendingUp, Calendar, Search, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface Counselor {
@@ -35,7 +37,7 @@ export default function CounselorsPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
-  const [branches, setBranches] = useState<Array<{ id: number; name: string }>>([]);
+  const [branches, setBranches] = useState<Array<{ id: number; name: string; branch: string }>>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,6 +71,19 @@ export default function CounselorsPage() {
     c.branch.toLowerCase().includes(search.toLowerCase())
   );
 
+  const { sorted: sortedCounselors, sortKey: counselorSortKey, sortDirection: counselorSortDirection, toggleSort: toggleCounselorSort } = useSortableData(
+    filtered,
+    {
+      counselor: (c) => c.name,
+      branch: (c) => c.branch,
+      role: (c) => c.type,
+      leads: (c) => c.totalLeads,
+      converted: (c) => c.convertedLeads,
+      rate: (c) => c.conversionRate,
+      status: (c) => c.status,
+    },
+  );
+
   return (
     <div className="space-y-5 p-6">
       {/* Header */}
@@ -77,7 +92,7 @@ export default function CounselorsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Counselor Management</h1>
           <p className="text-gray-500 text-sm mt-1">View and manage counselors and their performance</p>
         </div>
-        <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-[#003399] text-white rounded-lg hover:bg-[#002266] text-sm font-medium">
+        <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-[#35AE22] text-white rounded-lg hover:bg-[#1C6B10] text-sm font-medium">
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
@@ -111,18 +126,18 @@ export default function CounselorsPage() {
             placeholder="Search by name, email, branch..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:ring-2 focus:ring-[#003399] focus:border-transparent"
+            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm w-full focus:ring-2 focus:ring-[#35AE22] focus:border-transparent"
           />
         </div>
         {branches.length > 0 && (
-          <select
+          <SearchableSelect
             value={branchFilter}
             onChange={e => setBranchFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-[#003399]"
+            className="border border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-[#35AE22]"
           >
             <option value="">All Branches</option>
-            {branches.map(b => <option key={b.id} value={String(b.id)}>{b.name}</option>)}
-          </select>
+            {branches.map(b => <option key={b.id} value={String(b.id)}>{b.branch}</option>)}
+          </SearchableSelect>
         )}
       </div>
 
@@ -148,24 +163,24 @@ export default function CounselorsPage() {
             <table className="min-w-full">
               <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <tr>
-                  <th className="px-5 py-3 text-left">Counselor</th>
-                  <th className="px-5 py-3 text-left">Branch</th>
-                  <th className="px-5 py-3 text-left">Role</th>
-                  <th className="px-5 py-3 text-right">Leads</th>
-                  <th className="px-5 py-3 text-right">Converted</th>
-                  <th className="px-5 py-3 text-right">Conv. Rate</th>
-                  <th className="px-5 py-3 text-left">Status</th>
+                  <SortableTh label="Counselor" sortKey="counselor" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-left" />
+                  <SortableTh label="Branch" sortKey="branch" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-left" />
+                  <SortableTh label="Role" sortKey="role" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-left" />
+                  <SortableTh label="Leads" sortKey="leads" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-right" />
+                  <SortableTh label="Converted" sortKey="converted" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-right" />
+                  <SortableTh label="Conv. Rate" sortKey="rate" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-right" />
+                  <SortableTh label="Status" sortKey="status" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-left" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map(c => (
+                {sortedCounselors.map(c => (
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2.5">
                         {c.photo ? (
                           <img src={`/uploads/${c.photo}`} alt={c.name} className="w-8 h-8 rounded-full object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-[#E8EEFB] flex items-center justify-center text-[#002266] text-sm font-bold shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[#EAF7E4] flex items-center justify-center text-[#1C6B10] text-sm font-bold shrink-0">
                             {c.name.charAt(0).toUpperCase()}
                           </div>
                         )}

@@ -20,20 +20,20 @@ interface DmEipAippAttributes {
 interface DmEipAippCreationAttributes extends Optional<DmEipAippAttributes, never> {}
 
 class DmEipAipp extends Model<DmEipAippAttributes, DmEipAippCreationAttributes> implements DmEipAippAttributes {
-  public id!: number;
-  public leadId!: string;
-  public tab!: number;
-  public province!: string;
-  public noc!: string;
-  public registration_date!: Date;
-  public doc_rec_date!: Date;
-  public doc_status!: string;
-  public employer_name!: string;
-  public job_applied_date!: Date;
-  public job_status!: string;
-  public interview_received!: string;
-  public interview_date!: Date;
-  public interview_status!: string;
+  declare id: number;
+  declare leadId: string;
+  declare tab: number;
+  declare province: string;
+  declare noc: string;
+  declare registration_date: Date;
+  declare doc_rec_date: Date;
+  declare doc_status: string;
+  declare employer_name: string;
+  declare job_applied_date: Date;
+  declare job_status: string;
+  declare interview_received: string;
+  declare interview_date: Date;
+  declare interview_status: string;
 
   public static associate(models: any) {
   }

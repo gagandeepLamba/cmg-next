@@ -13,13 +13,13 @@ interface DmcForumLeadsRemarksAttributes {
 interface DmcForumLeadsRemarksCreationAttributes extends Optional<DmcForumLeadsRemarksAttributes, 'date' | 'remark' | 'emp' | 'created'> {}
 
 class DmcForumLeadsRemarks extends Model<DmcForumLeadsRemarksAttributes, DmcForumLeadsRemarksCreationAttributes> implements DmcForumLeadsRemarksAttributes {
-  public id!: number;
-  public lead!: number;
-  public date!: Date | null;
-  public remark!: string | null;
-  public emp!: number;
-  public created!: Date | null;
-  public status!: number;
+  declare id: number;
+  declare lead: number;
+  declare date: Date | null;
+  declare remark: string | null;
+  declare emp: number;
+  declare created: Date | null;
+  declare status: number;
 
   public static associate(models: any) {
     DmcForumLeadsRemarks.belongsTo(models.DmcForumLeads, { foreignKey: 'lead', targetKey: 'id', as: 'dmcForumLeads' });

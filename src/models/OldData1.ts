@@ -31,31 +31,31 @@ interface OldData1Attributes {
 interface OldData1CreationAttributes extends Optional<OldData1Attributes, 'Agno' | 'SignupDate' | 'ClientName' | 'Mobile' | 'Email' | 'Country' | 'Branch' | 'TotalPackage' | 'PaidAmount' | 'PendingAmount' | 'Counselor' | 'CPO1' | 'CPO2' | 'EcaStatus' | 'SpouseEca' | 'IETSstatus' | 'EEstatus' | 'Noc' | 'CRS' | 'StatusLastUpdated' | 'PnpSubmitted' | 'Decision' | 'Remarks' | 'flag'> {}
 
 class OldData1 extends Model<OldData1Attributes, OldData1CreationAttributes> implements OldData1Attributes {
-  public id!: number;
-  public Agno!: string | null;
-  public SignupDate!: string | null;
-  public ClientName!: string | null;
-  public Mobile!: string | null;
-  public Email!: string | null;
-  public Country!: string | null;
-  public Branch!: string | null;
-  public TotalPackage!: string | null;
-  public PaidAmount!: string | null;
-  public PendingAmount!: string | null;
-  public Counselor!: string | null;
-  public CPO1!: string | null;
-  public CPO2!: string | null;
-  public EcaStatus!: string | null;
-  public SpouseEca!: string | null;
-  public IETSstatus!: string | null;
-  public EEstatus!: string | null;
-  public Noc!: string | null;
-  public CRS!: string | null;
-  public StatusLastUpdated!: string | null;
-  public PnpSubmitted!: string | null;
-  public Decision!: string | null;
-  public Remarks!: string | null;
-  public flag!: string | null;
+  declare id: number;
+  declare Agno: string | null;
+  declare SignupDate: string | null;
+  declare ClientName: string | null;
+  declare Mobile: string | null;
+  declare Email: string | null;
+  declare Country: string | null;
+  declare Branch: string | null;
+  declare TotalPackage: string | null;
+  declare PaidAmount: string | null;
+  declare PendingAmount: string | null;
+  declare Counselor: string | null;
+  declare CPO1: string | null;
+  declare CPO2: string | null;
+  declare EcaStatus: string | null;
+  declare SpouseEca: string | null;
+  declare IETSstatus: string | null;
+  declare EEstatus: string | null;
+  declare Noc: string | null;
+  declare CRS: string | null;
+  declare StatusLastUpdated: string | null;
+  declare PnpSubmitted: string | null;
+  declare Decision: string | null;
+  declare Remarks: string | null;
+  declare flag: string | null;
 
   public static associate(models: any) {
   }

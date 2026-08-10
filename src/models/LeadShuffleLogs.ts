@@ -11,11 +11,11 @@ interface LeadShuffleLogsAttributes {
 interface LeadShuffleLogsCreationAttributes extends Optional<LeadShuffleLogsAttributes, 'leadid' | 'date' | 'transfrom' | 'transto'> {}
 
 class LeadShuffleLogs extends Model<LeadShuffleLogsAttributes, LeadShuffleLogsCreationAttributes> implements LeadShuffleLogsAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public date!: string | null;
-  public transfrom!: number | null;
-  public transto!: number | null;
+  declare id: number;
+  declare leadid: number | null;
+  declare date: string | null;
+  declare transfrom: number | null;
+  declare transto: number | null;
 
   public static associate(models: any) {
   }

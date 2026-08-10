@@ -15,15 +15,15 @@ interface DmBusinessFeeAttributes {
 interface DmBusinessFeeCreationAttributes extends Optional<DmBusinessFeeAttributes, 'status'> {}
 
 class DmBusinessFee extends Model<DmBusinessFeeAttributes, DmBusinessFeeCreationAttributes> implements DmBusinessFeeAttributes {
-  public id!: number;
-  public service!: number;
-  public country!: number;
-  public branch!: number;
-  public currency!: number;
-  public stage_name!: string;
-  public stage!: number;
-  public discount!: number;
-  public status!: number;
+  declare id: number;
+  declare service: number;
+  declare country: number;
+  declare branch: number;
+  declare currency: number;
+  declare stage_name: string;
+  declare stage: number;
+  declare discount: number;
+  declare status: number;
 
   public static associate(models: any) {
   }

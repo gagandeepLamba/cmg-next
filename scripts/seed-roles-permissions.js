@@ -95,10 +95,21 @@ const adminPermissions = [
   'pro.owners.restricted',
   'hr.self',
   'hr.team.attendance_leave',
+  'hr.reports.attendance',
   'finance.view',
   'finance.manage',
   'fees.view',
+  'it.dashboard',
+  'it.view',
+  'it.approve.manager',
+  'it.approve.branch',
+  'it.approve.director',
+  'it.manage',
+  'it.config',
 ];
+
+// Every employee, regardless of role, can raise and track their own IT tickets.
+const itSelfServicePermissions = ['it.create', 'it.self'];
 
 // Full sales-workflow access: leads, clients, appointments, documents,
 // payments, invoices, agreements, reports — everything under the Sales module.
@@ -119,6 +130,12 @@ const branchManagerPermissions = [
   ...salesModulePermissions,
   'sales.delete',
   'counselors.manage',
+  'hr.reports.attendance',
+  // Needed to open Leave Management and approve/reject requests for staff
+  // the system auto-assigns them as manager for.
+  'hr.team.attendance_leave',
+  'it.dashboard',
+  'it.approve.branch',
 ];
 
 // Regional Manager: same module access as Branch Manager, scoped by region
@@ -159,11 +176,14 @@ const directorOfSalesPermissions = [
   'recognition.manage',
   'monitoring.view',
   'fees.view',
+  // Needed to open Leave Management and approve/reject requests for staff
+  // the system auto-assigns them as manager for.
+  'hr.team.attendance_leave',
 ];
 
 const hrModulePermissions = [
   'hr.dashboard', 'hr.view', 'hr.create', 'hr.update', 'hr.delete',
-  'hr.config', 'hr.payroll', 'hr.eosb',
+  'hr.config', 'hr.payroll', 'hr.eosb', 'hr.reports.attendance',
 ];
 
 const proModulePermissions = [
@@ -178,8 +198,20 @@ const receptionistPermissions = ['leads.view', 'leads.create', 'leads.update'];
 // Front Office Executive: assigns leads, creates balance receipts, and confirms meetings.
 const foePermissions = ['leads.view', 'leads.create', 'leads.update', 'payments.view', 'payments.create', 'appointments.view', 'appointments.manage'];
 
-const roleSeeds = [
+// Digital Marketing: read-only visibility into lead volume/status/source so they can
+// judge campaign performance, plus the marketing/campaign config modules. No lead
+// editing, no financial/HR/PRO access.
+const digitalMarketingPermissions = ['leads.view', 'reports.view', 'analytics.view', 'marketing.manage', 'campaigns.manage'];
+
+// IT Support ticketing module roles — distinct from the 'IT' super-admin role above,
+// which grants full CRM access. These two are scoped to the ticketing workflow only.
+const itManagerPermissions = ['it.dashboard', 'it.view', 'it.approve.manager', 'it.manage', 'it.config'];
+const itSupportStaffPermissions = ['it.dashboard', 'it.view', 'it.manage'];
+
+const roleSeedsBase = [
   { name: 'Super Admin', type: 'super_admin', hierarchy: 1, departmentId: 1, permissions: adminPermissions },
+  // IT: full system access, same as Super Admin (used for platform/infra admins).
+  { name: 'IT', type: 'super_admin', hierarchy: 1, departmentId: 1, permissions: adminPermissions },
   { name: 'Founder', type: 'founder', hierarchy: 5, departmentId: 1, permissions: adminPermissions },
   // CEO reuses the 'director' type so it automatically inherits every hardcoded
   // "full access" role check across the app (leads, analytics, dashboards, etc.)
@@ -194,9 +226,13 @@ const roleSeeds = [
   { name: 'Assistant Director of Sales', type: 'director_of_sales', hierarchy: 11, departmentId: 1, permissions: directorOfSalesPermissions },
   { name: 'Regional Manager', type: 'regional_manager', hierarchy: 15, departmentId: 1, permissions: regionalManagerPermissions },
   { name: 'Branch Manager', type: 'branch_manager', hierarchy: 20, departmentId: 1, permissions: branchManagerPermissions },
-  // Full, unrestricted view of the whole Operations module.
-  { name: 'Director of Operations', type: 'director_of_operations', hierarchy: 25, departmentId: 1, permissions: ['operations.view', 'operations.create', 'operations.update', 'operations.manage', 'operations.delete'] },
-  { name: 'Accountant', type: 'accountant', hierarchy: 30, departmentId: 1, permissions: [...salesModulePermissions, 'finance.view', 'finance.manage'] },
+  // Full, unrestricted view of the whole Operations module, plus company-wide
+  // visibility into Clients/Leads (needed to see client records tied to cases
+  // they manage — see canViewAll whitelist in src/app/api/leads/route.ts).
+  { name: 'Director of Operations', type: 'director_of_operations', hierarchy: 25, departmentId: 1, permissions: ['operations.view', 'operations.create', 'operations.update', 'operations.manage', 'operations.delete', 'clients.view', 'leads.view', 'hr.team.attendance_leave'] },
+  // Same company-wide, unrestricted view of Operations (and Clients/Leads) as Director of Operations.
+  { name: 'Operation Manager', type: 'operation_manager', hierarchy: 25, departmentId: 1, permissions: ['operations.view', 'operations.create', 'operations.update', 'operations.manage', 'operations.delete', 'clients.view', 'leads.view', 'hr.team.attendance_leave'] },
+  { name: 'Accountant', type: 'accountant', hierarchy: 30, departmentId: 1, permissions: [...salesModulePermissions, 'finance.view', 'finance.manage', 'hr.reports.attendance', 'hr.team.attendance_leave'] },
   { name: 'HR', type: 'hr', hierarchy: 30, departmentId: 1, permissions: hrModulePermissions },
   { name: 'PRO', type: 'pro', hierarchy: 30, departmentId: 1, permissions: proModulePermissions },
   { name: 'Operations', type: 'operations', hierarchy: 40, departmentId: 1, permissions: ['operations.view', 'operations.create', 'operations.update', 'operations.manage'] },
@@ -204,9 +240,21 @@ const roleSeeds = [
   { name: 'Counsellor', type: 'counsellor', hierarchy: 45, departmentId: 1, permissions: counsellorPermissions },
   // Sees Operations, scoped at query time to cases where they are the case_officer.
   { name: 'Process Coordinator', type: 'process_coordinator', hierarchy: 46, departmentId: 1, permissions: ['operations.view', 'operations.update'] },
+  // Same case_officer-scoped visibility as Process Coordinator, under the name the business uses.
+  { name: 'Case Officer', type: 'case_officer', hierarchy: 46, departmentId: 1, permissions: ['operations.view', 'operations.update'] },
   { name: 'Receptionist', type: 'receptionist', hierarchy: 50, departmentId: 1, permissions: receptionistPermissions },
   { name: 'FOE', type: 'foe', hierarchy: 50, departmentId: 1, permissions: foePermissions },
+  { name: 'Digital Marketing', type: 'digital_marketing', hierarchy: 35, departmentId: 1, permissions: digitalMarketingPermissions },
+  { name: 'IT Manager', type: 'it_manager', hierarchy: 30, departmentId: 1, permissions: itManagerPermissions },
+  { name: 'IT Support Staff', type: 'it_support_staff', hierarchy: 45, departmentId: 1, permissions: itSupportStaffPermissions },
 ];
+
+// Every role gets it.create/it.self merged in, so any employee can raise and
+// track their own IT support tickets regardless of their primary role.
+const roleSeeds = roleSeedsBase.map((role) => ({
+  ...role,
+  permissions: Array.from(new Set([...role.permissions, ...itSelfServicePermissions])),
+}));
 
 const titleCase = (value) => value
   .replace(/[._-]+/g, ' ')

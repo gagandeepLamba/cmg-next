@@ -17,17 +17,17 @@ interface DmcForumLeadsAssesmentEduAttributes {
 interface DmcForumLeadsAssesmentEduCreationAttributes extends Optional<DmcForumLeadsAssesmentEduAttributes, 'fromMonth' | 'fromYear' | 'toMonth' | 'toYear' | 'pSEduName' | 'pSEduCourse' | 'pSEduDegree' | 'pSEduType'> {}
 
 class DmcForumLeadsAssesmentEdu extends Model<DmcForumLeadsAssesmentEduAttributes, DmcForumLeadsAssesmentEduCreationAttributes> implements DmcForumLeadsAssesmentEduAttributes {
-  public id!: number;
-  public skillId!: number;
-  public leadId!: number;
-  public fromMonth!: string | null;
-  public fromYear!: string | null;
-  public toMonth!: string | null;
-  public toYear!: string | null;
-  public pSEduName!: string | null;
-  public pSEduCourse!: string | null;
-  public pSEduDegree!: string | null;
-  public pSEduType!: string | null;
+  declare id: number;
+  declare skillId: number;
+  declare leadId: number;
+  declare fromMonth: string | null;
+  declare fromYear: string | null;
+  declare toMonth: string | null;
+  declare toYear: string | null;
+  declare pSEduName: string | null;
+  declare pSEduCourse: string | null;
+  declare pSEduDegree: string | null;
+  declare pSEduType: string | null;
 
   public static associate(models: any) {
     DmcForumLeadsAssesmentEdu.belongsTo(models.DmcForumLeadsAssesments, { foreignKey: 'skillId', targetKey: 'Id', as: 'dmcForumLeadsAssesments' });

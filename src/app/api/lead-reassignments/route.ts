@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { isFoeOrBranchManagerOrCeo } from '@/lib/roleChecks';
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const leadId = searchParams.get('leadId');
@@ -65,9 +69,21 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
-    
+
+    // Immediately reassigning (skipping approval) is restricted to FOE/Branch
+    // Manager/CEO, matching lead-reassignments-working — anyone authenticated
+    // can still file a pending request.
+    if (body.autoApprove && !isFoeOrBranchManagerOrCeo(auth)) {
+      return NextResponse.json(
+        { success: false, error: 'Only FOE, Branch Manager, or CEO can auto-approve a lead reassignment' },
+        { status: 403 }
+      );
+    }
+
     const [reassignmentResult] = await sequelize.query(`
       INSERT INTO dm_lead_reassignments (
         leadId, fromEmployeeId, toEmployeeId, reassignmentType, reason,
@@ -105,6 +121,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

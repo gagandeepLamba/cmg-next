@@ -1,8 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
 import { QueryTypes } from 'sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['transfers.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS dmc_auto_reassignment_runs (

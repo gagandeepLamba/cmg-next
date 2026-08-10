@@ -11,11 +11,11 @@ interface OpsLogsAttributes {
 interface OpsLogsCreationAttributes extends Optional<OpsLogsAttributes, 'lead' | 'ag_no' | 'emp' | 'timestamp'> {}
 
 class OpsLogs extends Model<OpsLogsAttributes, OpsLogsCreationAttributes> implements OpsLogsAttributes {
-  public id!: number;
-  public lead!: number | null;
-  public ag_no!: number | null;
-  public emp!: number | null;
-  public timestamp!: string | null;
+  declare id: number;
+  declare lead: number | null;
+  declare ag_no: number | null;
+  declare emp: number | null;
+  declare timestamp: string | null;
 
   public static associate(models: any) {
   }

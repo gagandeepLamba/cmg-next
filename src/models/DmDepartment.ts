@@ -9,9 +9,9 @@ interface DmDepartmentAttributes {
 interface DmDepartmentCreationAttributes extends Optional<DmDepartmentAttributes, 'status'> {}
 
 class DmDepartment extends Model<DmDepartmentAttributes, DmDepartmentCreationAttributes> implements DmDepartmentAttributes {
-  public id!: number;
-  public name!: string;
-  public status!: number;
+  declare id: number;
+  declare name: string;
+  declare status: number;
 
   public static associate(models: any) {
   }

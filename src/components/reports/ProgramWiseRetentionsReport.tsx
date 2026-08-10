@@ -1,9 +1,11 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
 import { Target, TrendingUp, Users, Award, Clock } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
@@ -31,6 +33,7 @@ interface RetentionMetrics {
 }
 
 export default function ProgramWiseRetentionsReport() {
+  const { currencyCode } = useAuth();
   const [programData, setProgramData] = useState<ProgramRetention[]>([]);
   const [monthlyMetrics, setMonthlyMetrics] = useState<RetentionMetrics[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,7 +265,7 @@ export default function ProgramWiseRetentionsReport() {
             <div>
               <p className="text-sm text-gray-600">Total Revenue</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${(totalRevenue / 1000000).toFixed(2)}M
+                {currencyCode} {(totalRevenue / 1000000).toFixed(2)}M
               </p>
             </div>
           </div>
@@ -274,7 +277,7 @@ export default function ProgramWiseRetentionsReport() {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
           <div className="flex space-x-4">
-            <select
+            <SearchableSelect
               value={selectedProgram}
               onChange={(e) => setSelectedProgram(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -283,8 +286,8 @@ export default function ProgramWiseRetentionsReport() {
               {programData.map(program => (
                 <option key={program.program} value={program.program}>{program.program}</option>
               ))}
-            </select>
-            <select
+            </SearchableSelect>
+            <SearchableSelect
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -292,7 +295,7 @@ export default function ProgramWiseRetentionsReport() {
               <option value="3months">Last 3 Months</option>
               <option value="6months">Last 6 Months</option>
               <option value="1year">Last Year</option>
-            </select>
+            </SearchableSelect>
           </div>
         </div>
       </div>
@@ -372,7 +375,7 @@ export default function ProgramWiseRetentionsReport() {
                       <span className="text-sm font-medium">{program.retentionRate}%</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${(program.revenue / 1000).toFixed(0)}K</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{currencyCode} {(program.revenue / 1000).toFixed(0)}K</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     <div className="flex items-center">
                       <Clock className="w-4 h-4 mr-1 text-gray-400" />

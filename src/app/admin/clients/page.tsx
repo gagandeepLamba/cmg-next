@@ -1,8 +1,26 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect, useCallback } from 'react';
 import { DmClientsAttributes } from '@/models';
-import { Printer, DollarSign, X, AlertCircle, CheckCircle, Loader2, Receipt } from 'lucide-react';
+import { Printer, DollarSign, X, AlertCircle, CheckCircle, Loader2, Receipt, KeyRound, FileCheck2, Send, FileText } from 'lucide-react';
+import ConversationHistoryModal from '@/components/shared/ConversationHistoryModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { BANK_PAYMENT_OPTIONS, CARD_PAYMENT_OPTIONS } from '@/lib/paymentOptions';
+import { getLeadBranchDetails, printReceipt as printReceiptDocument } from '@/lib/receiptTemplate';
+
+// The client-list API joins each client's lead to its dm_branch record, so
+// the receipt can show that client's actual branch instead of always Dubai.
+type ClientWithBranch = DmClientsAttributes & {
+  opportunityId?: number | null;
+  branchName?: string;
+  branchAddress?: string;
+  branchEmail?: string;
+  branchMobile?: string;
+  branchLicenseNumber?: string | null;
+  branchVatGstPercent?: number | string | null;
+};
 
 interface BalanceRow {
   clientId: number;
@@ -15,8 +33,17 @@ interface BalanceRow {
   lastPaymentDate: string;
 }
 
+interface PortalDocumentRow {
+  document_id: string;
+  document_label: string;
+  status: string;
+  file_url: string | null;
+  file_name: string | null;
+  review_note: string | null;
+}
+
 interface QuickPayState {
-  client: DmClientsAttributes;
+  client: ClientWithBranch;
   balance: BalanceRow | null;
   amount: string;
   method: string;
@@ -29,15 +56,22 @@ interface QuickPayState {
 }
 
 export default function ClientsManagement() {
-  const [clients, setClients]           = useState<DmClientsAttributes[]>([]);
+  const { user, currencyCode } = useAuth();
+  const [clients, setClients]           = useState<ClientWithBranch[]>([]);
   const [balances, setBalances]         = useState<Map<number, BalanceRow>>(new Map());
   const [loading, setLoading]           = useState(true);
   const [searchTerm, setSearchTerm]     = useState('');
-  const [selectedClient, setSelectedClient] = useState<DmClientsAttributes | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientWithBranch | null>(null);
   const [showModal, setShowModal]       = useState(false);
+  const [conversationHistoryLeadId, setConversationHistoryLeadId] = useState<number | null>(null);
   const [quickPay, setQuickPay]         = useState<QuickPayState | null>(null);
+  const [portalDocuments, setPortalDocuments] = useState<PortalDocumentRow[]>([]);
+  const [portalMsg, setPortalMsg]       = useState('');
+  const [generatingCredentials, setGeneratingCredentials] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [postingStatus, setPostingStatus] = useState(false);
 
-  const normalizeClient = (client: DmClientsAttributes): DmClientsAttributes => ({
+  const normalizeClient = (client: ClientWithBranch): ClientWithBranch => ({
     ...client,
     first_name: client.first_name || '',
     last_name: client.last_name || '',
@@ -79,12 +113,80 @@ export default function ClientsManagement() {
     (client.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleViewClient = (client: DmClientsAttributes) => {
-    setSelectedClient(client);
-    setShowModal(true);
+  const { sorted: sortedClients, sortKey: clientSortKey, sortDirection: clientSortDirection, toggleSort: toggleClientSort } = useSortableData(
+    filteredClients,
+    {
+      name: (c) => `${c.first_name || ''} ${c.last_name || ''}`,
+      email: (c) => c.email,
+      nationality: (c) => c.nationality,
+      status: (c) => c.status,
+      totalFee: (c) => balances.get(c.id)?.payTotal,
+      paid: (c) => balances.get(c.id)?.paidYet,
+      balanceDue: (c) => balances.get(c.id)?.payBalance,
+      receipts: (c) => balances.get(c.id)?.receiptCount,
+    },
+  );
+
+  const loadPortalDocuments = async (leadId: number) => {
+    try {
+      const res = await fetch(`/api/admin/clients/${leadId}/documents`);
+      const json = await res.json();
+      if (res.ok) setPortalDocuments(json.documents || []);
+    } catch {
+      setPortalDocuments([]);
+    }
   };
 
-  const openQuickPay = (client: DmClientsAttributes) => {
+  const handleViewClient = (client: ClientWithBranch) => {
+    setSelectedClient(client);
+    setShowModal(true);
+    setPortalMsg('');
+    setStatusMessage('');
+    loadPortalDocuments(client.leadId);
+  };
+
+  // Server re-validates compliance/accounts approval itself regardless of
+  // whatever this button's enabled/disabled state shows client-side.
+  const handleGenerateCredentials = async (leadId: number) => {
+    setGeneratingCredentials(true);
+    setPortalMsg('');
+    try {
+      const res = await fetch(`/api/admin/clients/${leadId}/credentials`, { method: 'POST' });
+      const json = await res.json();
+      setPortalMsg(res.ok ? `Portal credentials emailed to ${json.email}.` : (json.error || 'Failed to generate credentials'));
+    } catch {
+      setPortalMsg('Failed to generate credentials');
+    } finally {
+      setGeneratingCredentials(false);
+    }
+  };
+
+  const handleReviewDocument = async (leadId: number, documentId: string, status: 'Approved' | 'Rejected' | 'Resubmit Requested') => {
+    const note = status !== 'Approved' ? (prompt('Add a note for the client (optional):') ?? undefined) : undefined;
+    const res = await fetch(`/api/admin/clients/${leadId}/documents`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_id: documentId, status, review_note: note }),
+    });
+    if (res.ok) await loadPortalDocuments(leadId);
+  };
+
+  const handlePostStatus = async (leadId: number) => {
+    if (!statusMessage.trim()) return;
+    setPostingStatus(true);
+    try {
+      const res = await fetch(`/api/admin/clients/${leadId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: statusMessage.trim() }),
+      });
+      if (res.ok) setStatusMessage('');
+    } finally {
+      setPostingStatus(false);
+    }
+  };
+
+  const openQuickPay = (client: ClientWithBranch) => {
     const balance = balances.get(client.id) || null;
     setQuickPay({
       client,
@@ -100,62 +202,51 @@ export default function ClientsManagement() {
     });
   };
 
-  const printReceipt = (receipt: any, client: DmClientsAttributes, qp: QuickPayState) => {
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
-<title>Payment Receipt</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;color:#222;font-size:11pt;padding:50px 60px 80px}
-  .header{border-bottom:3px solid #003399;padding-bottom:14px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
-  .brand{font-size:15pt;font-weight:700;color:#002266}
-  .sub{font-size:9pt;color:#666;margin-top:3px}
-  .badge{background:#003399;color:#fff;padding:6px 16px;border-radius:4px;font-weight:700;font-size:10pt}
-  table{width:100%;border-collapse:collapse;margin:16px 0}
-  td{padding:9px 12px;font-size:10.5pt}
-  tr:nth-child(even) td:first-child{background:#0044B3;color:#fff;font-weight:600}
-  tr:nth-child(odd)  td:first-child{background:#002266;color:#fff;font-weight:600}
-  tr:nth-child(even) td:last-child{background:#E8EEFB}
-  tr:nth-child(odd)  td:last-child{background:#fff}
-  .total-row td:first-child{background:#001A4D!important;font-size:11.5pt}
-  .total-row td:last-child{background:#DCE6F9!important;font-weight:700;font-size:12pt;color:#001A4D}
-  .footer{margin-top:30px;border-top:2px solid #003399;padding-top:10px;text-align:center;color:#666;font-size:9pt}
-  @media print{@page{size:A4;margin:0}body{padding:40px 50px 60px}}
-</style></head><body>
-<div class="header">
-  <div>
-    <div class="brand">DM IMMIGRATION CONSULTANTS DMCC</div>
-    <div class="sub">Dubai Branch · 3703, Latifa Tower, Sheikh Zayed Road, Dubai UAE</div>
-    <div class="sub">Ph: +971 04 344 7757 · info@dm-consultant.com</div>
-  </div>
-  <div class="badge">OFFICIAL RECEIPT</div>
-</div>
-<div style="margin-bottom:18px;">
-  <div style="font-size:10pt;color:#666;">Receipt No: <strong>${receipt.receiptNumber || receipt.paymentNumber || 'N/A'}</strong></div>
-  <div style="font-size:10pt;color:#666;margin-top:4px;">Date: <strong>${qp.date ? new Date(qp.date).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}</strong></div>
-</div>
-<table>
-  <tr><td>Client Name</td><td>${client.first_name} ${client.last_name}</td></tr>
-  <tr><td>Email</td><td>${client.email}</td></tr>
-  <tr><td>Payment Method</td><td>${qp.method.replace('_',' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}</td></tr>
-  ${qp.txnId ? `<tr><td>Transaction ID</td><td>${qp.txnId}</td></tr>` : ''}
-  <tr><td>Total Amount</td><td>AED ${Number(qp.balance?.payTotal || 0).toLocaleString()}</td></tr>
-  <tr><td>Previously Paid</td><td>AED ${Number(qp.balance?.paidYet || 0).toLocaleString()}</td></tr>
-  <tr><td>Amount Paid (This Receipt)</td><td>AED ${Number(qp.amount || 0).toLocaleString()}</td></tr>
-  <tr class="total-row"><td>Remaining Balance</td><td>AED ${Math.max(0, Number(qp.balance?.payBalance || 0) - Number(qp.amount || 0)).toLocaleString()}</td></tr>
-</table>
-<p style="margin-top:16px;font-size:10pt;color:#444;">This receipt confirms payment received by DM Immigration Consultants DMCC. Please retain for your records.</p>
-<div style="margin-top:40px;display:flex;justify-content:space-between;font-size:10pt;">
-  <div>Client Signature: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
-  <div>Authorised Signatory: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
-</div>
-<div class="footer">DM Immigration Consultants DMCC · Registered in Dubai · DMCC License · www.dm-consultant.com</div>
-</body></html>`;
-    const win = window.open('', '_blank', 'width=860,height=1100');
-    if (!win) { alert('Allow pop-ups to view the receipt.'); return; }
-    win.document.write(html);
-    win.document.close();
-    win.addEventListener('load', () => setTimeout(() => win.print(), 300));
-    if (win.document.readyState === 'complete') setTimeout(() => win.print(), 500);
+  const openOpportunityFlow = (client: ClientWithBranch) => {
+    const params = new URLSearchParams({
+      leadId: String(client.leadId),
+      stage: 'closed',
+    });
+    if (client.opportunityId) params.set('opportunityId', String(client.opportunityId));
+    window.location.href = `/admin/leads/opportunity-flow?${params.toString()}`;
+  };
+
+  // Branch branding (legal name, address, contact, licence) is resolved from
+  // the client's own dm_branch record via the centralized receipt template
+  // shared with the Opportunity Flow wizard and Lead Management's quick-pay,
+  // instead of a "Dubai HQ vs. everyone else" special case kept only here.
+  const printReceipt = (receipt: any, client: ClientWithBranch, qp: QuickPayState) => {
+    const branchDetails = getLeadBranchDetails({
+      dmBranch: {
+        name: client.branchName,
+        address: client.branchAddress,
+        email: client.branchEmail,
+        mobile: client.branchMobile,
+        licenseNumber: client.branchLicenseNumber,
+        vatGstPercent: client.branchVatGstPercent,
+      },
+    });
+    printReceiptDocument({
+      receiptNumber: receipt.receiptNumber || receipt.paymentNumber,
+      paymentDate: qp.date,
+      clientName: `${client.first_name} ${client.last_name}`,
+      email: client.email,
+      agreementNumber: receipt.agreementNumber,
+      companyName: branchDetails.companyName,
+      branchName: branchDetails.branchName,
+      branchAddress: branchDetails.branchAddress,
+      branchEmail: branchDetails.branchEmail,
+      branchPhone: branchDetails.branchPhone,
+      licenseNumber: branchDetails.licenseNumber,
+      vatGstPercent: branchDetails.vatGstPercent,
+      paymentMethod: qp.method,
+      transactionId: qp.txnId,
+      currency: currencyCode,
+      totalAmount: qp.balance?.payTotal,
+      previouslyPaid: qp.balance?.paidYet,
+      paidAmount: qp.amount,
+      remainingBalance: Math.max(0, Number(qp.balance?.payBalance || 0) - Number(qp.amount || 0)),
+    });
   };
 
   const submitQuickPay = async () => {
@@ -242,38 +333,38 @@ export default function ClientsManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <SearchableSelect className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          </SearchableSelect>
+          <SearchableSelect className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             <option value="">All Verification</option>
             <option value="1">Verified</option>
             <option value="0">Not Verified</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Clients Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nationality</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Fee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance Due</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receipts</th>
+                <SortableTh label="Client" sortKey="name" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
+                <SortableTh label="Email" sortKey="email" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
+                <SortableTh label="Nationality" sortKey="nationality" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
+                <SortableTh label="Total Fee" sortKey="totalFee" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
+                <SortableTh label="Paid" sortKey="paid" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
+                <SortableTh label="Balance Due" sortKey="balanceDue" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
+                <SortableTh label="Receipts" sortKey="receipts" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredClients.map((client) => {
+              {sortedClients.map((client) => {
                 const bal = balances.get(client.id);
                 const hasBalance = bal && Number(bal.payBalance) > 0;
                 return (
@@ -340,6 +431,14 @@ export default function ClientsManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <button onClick={() => handleViewClient(client)} className="text-xs text-blue-600 hover:text-blue-900 font-medium">View</button>
+                        <button
+                          onClick={() => openOpportunityFlow(client)}
+                          title="Open opportunity flow"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          Opportunity Flow
+                        </button>
                         {hasBalance && (
                           <button
                             onClick={() => openQuickPay(client)}
@@ -425,11 +524,73 @@ export default function ClientsManagement() {
                   <p><span className="font-medium">Created:</span> {selectedClient.created.toLocaleDateString()}</p>
                 </div>
               </div>
+
+              {/* Client Portal: credential generation, document review, status updates */}
+              <div className="mt-4 rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-gray-700">Client Portal</h4>
+                  <button
+                    onClick={() => handleGenerateCredentials(selectedClient.leadId)}
+                    disabled={generatingCredentials}
+                    className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900 disabled:opacity-50"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                    {generatingCredentials ? 'Generating…' : 'Generate Client Portal Credentials'}
+                  </button>
+                </div>
+                {portalMsg && <p className="mt-2 text-xs text-slate-600">{portalMsg}</p>}
+
+                {portalDocuments.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="flex items-center gap-1 text-xs font-medium text-slate-500"><FileCheck2 className="h-3.5 w-3.5" /> Uploaded Documents</p>
+                    {portalDocuments.map((doc) => (
+                      <div key={doc.document_id} className="flex items-center justify-between rounded-md border border-slate-100 p-2 text-xs">
+                        <div>
+                          <p className="font-medium text-slate-800">{doc.document_label}</p>
+                          <p className="text-slate-500">{doc.status}{doc.file_name ? ` · ${doc.file_name}` : ''}</p>
+                        </div>
+                        {doc.status === 'Submitted' && (
+                          <div className="flex gap-1">
+                            <button onClick={() => handleReviewDocument(selectedClient.leadId, doc.document_id, 'Approved')} className="rounded bg-emerald-100 px-2 py-1 text-emerald-700 hover:bg-emerald-200">Approve</button>
+                            <button onClick={() => handleReviewDocument(selectedClient.leadId, doc.document_id, 'Resubmit Requested')} className="rounded bg-amber-100 px-2 py-1 text-amber-700 hover:bg-amber-200">Resubmit</button>
+                            <button onClick={() => handleReviewDocument(selectedClient.leadId, doc.document_id, 'Rejected')} className="rounded bg-red-100 px-2 py-1 text-red-700 hover:bg-red-200">Reject</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-3 flex gap-2">
+                  <input
+                    type="text"
+                    value={statusMessage}
+                    onChange={(e) => setStatusMessage(e.target.value)}
+                    placeholder="Post a status update visible to the client…"
+                    className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => handlePostStatus(selectedClient.leadId)}
+                    disabled={postingStatus || !statusMessage.trim()}
+                    className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    <Send className="h-3.5 w-3.5" /> Post
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="mt-6 flex justify-end space-x-3">
               <button onClick={() => setShowModal(false)}
                 className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors">
                 Close
+              </button>
+              <button onClick={() => setConversationHistoryLeadId(selectedClient.leadId)}
+                className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">
+                Conversation History
+              </button>
+              <button onClick={() => openOpportunityFlow(selectedClient)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+                <FileText className="w-4 h-4" /> Opportunity Flow
               </button>
               {balances.get(selectedClient.id) && Number(balances.get(selectedClient.id)?.payBalance) > 0 && (
                 <button onClick={() => { setShowModal(false); openQuickPay(selectedClient); }}
@@ -437,7 +598,6 @@ export default function ClientsManagement() {
                   <DollarSign className="w-4 h-4" /> Collect Balance Payment
                 </button>
               )}
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Edit Client</button>
             </div>
           </div>
         </div>
@@ -490,7 +650,7 @@ export default function ClientsManagement() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                    <select
+                    <SearchableSelect
                       value={quickPay.method}
                       onChange={e => setQuickPay(p => p ? { ...p, method: e.target.value } : null)}
                       className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
@@ -501,7 +661,17 @@ export default function ClientsManagement() {
                       <option value="debit_card">Debit Card</option>
                       <option value="cheque">Cheque</option>
                       <option value="online">Online</option>
-                    </select>
+                      <optgroup label="Bank">
+                        {BANK_PAYMENT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Card / POS">
+                        {CARD_PAYMENT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </optgroup>
+                    </SearchableSelect>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date</label>
@@ -543,13 +713,17 @@ export default function ClientsManagement() {
                 className="px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">
                 {quickPay.success ? 'Close' : 'Cancel'}
               </button>
-              {quickPay.success && quickPay.receipt ? (
+              {quickPay.success && quickPay.receipt && quickPay.receipt.accountantStatus === 'verified' ? (
                 <button
                   onClick={() => printReceipt(quickPay.receipt, quickPay.client, quickPay)}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
                 >
                   <Printer className="w-4 h-4" /> Print Receipt
                 </button>
+              ) : quickPay.success && quickPay.receipt ? (
+                <span className="text-xs font-medium text-amber-700 bg-amber-100 border border-amber-200 rounded-full px-3 py-2">
+                  Awaiting accounts verification
+                </span>
               ) : (
                 <button
                   onClick={submitQuickPay}
@@ -563,6 +737,14 @@ export default function ClientsManagement() {
             </div>
           </div>
         </div>
+      )}
+
+      {conversationHistoryLeadId && (
+        <ConversationHistoryModal
+          leadId={conversationHistoryLeadId}
+          clientName={selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name}` : undefined}
+          onClose={() => setConversationHistoryLeadId(null)}
+        />
       )}
     </div>
   );

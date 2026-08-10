@@ -26,26 +26,26 @@ interface DmEvaluationsAttributes {
 interface DmEvaluationsCreationAttributes extends Optional<DmEvaluationsAttributes, never> {}
 
 class DmEvaluations extends Model<DmEvaluationsAttributes, DmEvaluationsCreationAttributes> implements DmEvaluationsAttributes {
-  public id!: number;
-  public client_name!: string;
-  public dob!: Date;
-  public contact!: string;
-  public location!: string;
-  public marrital_status!: string;
-  public experience!: string;
-  public email_address!: string;
-  public occupation_code!: string;
-  public skill_type!: string;
-  public age_marks!: number;
-  public qualification_marks!: number;
-  public work_exp_marks!: number;
-  public lang_ab_marks!: number;
-  public french_marks!: number;
-  public adap_marks!: number;
-  public arranged_marks!: number;
-  public created!: Date;
-  public created_by!: number;
-  public deleted!: number;
+  declare id: number;
+  declare client_name: string;
+  declare dob: Date;
+  declare contact: string;
+  declare location: string;
+  declare marrital_status: string;
+  declare experience: string;
+  declare email_address: string;
+  declare occupation_code: string;
+  declare skill_type: string;
+  declare age_marks: number;
+  declare qualification_marks: number;
+  declare work_exp_marks: number;
+  declare lang_ab_marks: number;
+  declare french_marks: number;
+  declare adap_marks: number;
+  declare arranged_marks: number;
+  declare created: Date;
+  declare created_by: number;
+  declare deleted: number;
 
   public static associate(models: any) {
   }

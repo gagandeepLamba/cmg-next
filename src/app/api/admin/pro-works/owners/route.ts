@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PROService } from '@/services/pro-service';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+
+// Owner records (passport/Emirates ID/POA/bank signatories) are the most
+// restricted PRO data — gated the same way the authenticated /api/v1 twin of
+// this endpoint already is (pro.owners.restricted, checked ahead of this fix
+// only there, never here — see the systematic-audit bug report).
+const OWNER_PERMISSIONS = ['pro.owners.restricted', 'admin.access'];
 
 const roles = ['Owner', 'Partner', 'Investor', 'Director', 'Signatory'] as const;
 type OwnerRole = typeof roles[number];
@@ -29,6 +36,8 @@ const isRole = (value: unknown): value is OwnerRole => (
 );
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, OWNER_PERMISSIONS);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const records = await PROService.listOwnerDocuments({
@@ -44,6 +53,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, OWNER_PERMISSIONS);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
 
@@ -81,6 +92,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, OWNER_PERMISSIONS);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json() as Record<string, unknown>;
     const ownerId = readString(body, 'owner_id');

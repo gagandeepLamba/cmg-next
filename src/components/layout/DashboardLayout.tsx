@@ -5,7 +5,9 @@ import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { canAccessAdminPath, getDefaultAdminPathForUser } from '@/lib/roleAccess';
+import { isCeo } from '@/lib/roleChecks';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
+import ForcePasswordChangeModal from '@/components/auth/ForcePasswordChangeModal';
 import {
   BarChart3,
   Users,
@@ -41,7 +43,8 @@ import {
   MapPin,
   Activity,
   CheckCircle,
-  TrendingDown
+  TrendingDown,
+  Upload
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -55,6 +58,10 @@ interface NavItem {
   permission?: string;
   permissions?: string[];
   badge?: number;
+  // Hides the item unless the current user is CEO, regardless of permission
+  // grants — for pages meant to stay CEO-exclusive even if someone else is
+  // later given the permissions this group otherwise checks (e.g. leads.view).
+  ceoOnly?: boolean;
 }
 
 interface GlobalSearchResult {
@@ -69,7 +76,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logout, hasPermission, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(true); // Set sidebar open by default
+  // Closed by default: on lg+ screens the sidebar is always visible regardless
+  // of this state (see the `lg:translate-x-0` override below), so this only
+  // ever controls the mobile/tablet overlay - starting it `true` meant every
+  // admin page loaded with a full-screen sidebar + backdrop blocking the
+  // actual content below the lg breakpoint.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [globalSearchResults, setGlobalSearchResults] = useState<GlobalSearchResult[]>([]);
@@ -86,7 +98,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
     {
       title: 'Dashboard',
       items: [
-        { name: 'Dashboard', href: '/admin', icon: Home },
+        { name: 'Dashboard', href: getDefaultAdminPathForUser(user), icon: Home },
         { name: 'Analytics', href: '/admin/analytics', icon: TrendingUp, permission: 'analytics.view' },
       ]
     },
@@ -94,15 +106,18 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
       title: 'Lead Management',
       items: [
         { name: 'Leads', href: '/admin/leads', icon: Users, permission: 'leads.view' },
+        { name: 'Bulk Lead Upload', href: '/admin/leads/bulk-upload', icon: Upload, ceoOnly: true },
         { name: 'Clients', href: '/admin/clients', icon: UserCheck, permission: 'clients.view' },
         { name: 'Follow-ups', href: '/admin/follow-ups', icon: Bell, permission: 'leads.view' },
         { name: 'Appointments', href: '/admin/appointments', icon: Calendar, permission: 'appointments.manage' },
         { name: 'Calendar', href: '/admin/calendar', icon: Calendar, permission: 'appointments.view' },
         { name: 'Agreements', href: '/admin/agreements', icon: FileCheck, permission: 'agreements.view' },
+        { name: 'Sample Agreement', href: '/admin/sample-agreement', icon: FileText, permission: 'agreements.view' },
         { name: 'Documents', href: '/admin/documents', icon: FileText, permission: 'documents.view' },
         { name: 'Payments', href: '/admin/payments', icon: CreditCard, permissions: ['sales.view', 'admin.access'] },
         { name: 'Invoices', href: '/admin/invoices', icon: FileText, permissions: ['sales.view', 'admin.access'] },
         { name: 'Discount Management', href: '/admin/discount-approvals', icon: DollarSign, permissions: ['sales.update', 'admin.access'] },
+        { name: 'Balance Payments', href: '/admin/balance-payments', icon: DollarSign },
         { name: 'Compliance Approvals', href: '/admin/compliance-approvals', icon: Shield, permissions: ['leads.view', 'admin.access'] },
         { name: 'Lead Pool', href: '/admin/lead-pool', icon: Users, permissions: ['leads.view', 'transfers.manage'] },
         { name: 'Lead Assignment', href: '/admin/lead-assignment-availability', icon: UserPlus, permissions: ['sales.view', 'sales.update', 'admin.access'] },
@@ -110,6 +125,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'Client Recognition', href: '/admin/client-recognition', icon: Award, permission: 'recognition.manage' },
         { name: 'B2B', href: '/admin/b2b', icon: Briefcase, permission: 'b2b.manage' },
         { name: 'Counselors', href: '/admin/counselors', icon: MessageSquare, permission: 'counselors.manage' },
+        { name: 'Immigration Tools', href: '/admin/immigration-tools', icon: Plane, permission: 'leads.view' },
       ]
     },
     {
@@ -120,6 +136,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'Lead Source Analytics', href: '/admin/reports/lead-source-analytics', icon: TrendingUp, permission: 'reports.view' },
         { name: 'Lead Performance', href: '/admin/reports/lead-performance', icon: Award, permission: 'reports.view' },
         { name: 'Conversion Funnel', href: '/admin/reports/lead-conversion-funnel', icon: Target, permission: 'reports.view' },
+        { name: 'Sales Performance', href: '/admin/reports/sales-performance', icon: DollarSign, permissions: ['reports.view', 'finance.view', 'sales.view'] },
         { name: 'Lead Aging', href: '/admin/reports/lead-aging', icon: Clock, permission: 'reports.view' },
         { name: 'Operations Report', href: '/admin/ops-report', icon: Activity, permission: 'reports.view' },
       ]
@@ -127,13 +144,15 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
     {
       title: 'Operations',
       items: [
+        { name: 'Ops Dashboard', href: '/admin/ops-dashboard', icon: BarChart3, permissions: ['operations.view', 'operations.manage'] },
         { name: 'Operations Hub', href: '/admin/operations-management', icon: Layers, permission: 'operations.manage' },
-        { name: 'Visit Visa', href: '/admin/ops-visit-visa', icon: Plane, permission: 'operations.manage' },
-        { name: 'Canada Skilled', href: '/admin/ops-skill-canada', icon: Award, permission: 'operations.manage' },
-        { name: 'Australia Skilled', href: '/admin/ops-skill-australia', icon: Globe, permission: 'operations.manage' },
-        { name: 'Job Search', href: '/admin/ops-job-search', icon: Briefcase, permission: 'operations.manage' },
-        { name: 'Work Permit', href: '/admin/ops-work-permit', icon: FileCheck, permission: 'operations.manage' },
-        { name: 'Germany Job Seeker', href: '/admin/ops-germany-jobseeker', icon: MapPin, permission: 'operations.manage' },
+        { name: 'Operations Manager Console', href: '/admin/operations-console', icon: Shield, permissions: ['operations.case_transfer', 'operations.case_status_manage', 'operations.access_control'] },
+        { name: 'Visit Visa', href: '/admin/ops-clients/visit-visa', icon: Plane, permission: 'operations.manage' },
+        { name: 'Canada Skilled', href: '/admin/ops-clients/skill-canada', icon: Award, permission: 'operations.manage' },
+        { name: 'Australia Skilled', href: '/admin/ops-clients/skill-australia', icon: Globe, permission: 'operations.manage' },
+        { name: 'Job Search', href: '/admin/ops-clients/job-search', icon: Briefcase, permission: 'operations.manage' },
+        { name: 'Work Permit', href: '/admin/ops-clients/work-permit', icon: FileCheck, permission: 'operations.manage' },
+        { name: 'Germany Job Seeker', href: '/admin/ops-clients/germany-jobseeker', icon: MapPin, permission: 'operations.manage' },
         { name: 'Ops Follow-ups', href: '/admin/ops-follow-ups', icon: Bell, permission: 'operations.manage' },
         { name: 'Conversations', href: '/admin/ops-conversations', icon: MessageSquare, permission: 'operations.manage' },
       ]
@@ -145,6 +164,10 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'Payment Verification', href: '/admin/finance/payment-verification', icon: CheckCircle, permissions: ['finance.view', 'finance.manage', 'payments.view', 'admin.access'] },
         { name: 'Recovery Report', href: '/admin/recovery-report', icon: TrendingDown, permissions: ['finance.view', 'finance.manage', 'payments.view', 'admin.access'] },
         { name: 'Accounts', href: '/admin/accounts', icon: CreditCard, permissions: ['finance.view', 'finance.manage'] },
+        { name: 'Sales Report', href: '/admin/accounts/sales-report', icon: BarChart3, permissions: ['finance.view', 'finance.manage', 'sales.view'] },
+        { name: 'Chart of Accounts', href: '/admin/accounts/chart-of-accounts', icon: FileText, permissions: ['finance.view', 'finance.manage'] },
+        { name: 'Expenses', href: '/admin/accounts/expenses', icon: DollarSign, permissions: ['finance.view', 'finance.manage'] },
+        { name: 'P&L Report', href: '/admin/accounts/pnl', icon: TrendingUp, permissions: ['finance.view', 'finance.manage'] },
         { name: 'Payments', href: '/admin/payments', icon: DollarSign, permissions: ['finance.view', 'finance.manage', 'payments.view'] },
         { name: 'Invoices', href: '/admin/invoices', icon: FileText, permissions: ['finance.view', 'finance.manage', 'invoices.view'] },
       ]
@@ -155,7 +178,16 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'HR Dashboard', href: '/admin/hr', icon: BarChart3, permissions: ['hr.dashboard', 'hr.view', 'hr.payroll', 'hr.eosb', 'hr.self', 'hr.team.attendance_leave'] },
         { name: 'Employee Data Sheet', href: '/admin/hr/employee-data-sheet', icon: Users, permissions: ['hr.view', 'hr.create', 'hr.update', 'hr.self'] },
         { name: 'Attendance Management', href: '/admin/hr/attendance-management', icon: UserCheck, permissions: ['hr.view', 'hr.create', 'hr.update', 'hr.team.attendance_leave'] },
+        { name: 'Attendance Reports', href: '/admin/hr/attendance-report', icon: BarChart3, permissions: ['hr.view', 'hr.reports.attendance'] },
         { name: 'Leave Management', href: '/admin/hr/leave-management', icon: Calendar, permissions: ['hr.view', 'hr.create', 'hr.update', 'hr.team.attendance_leave'] },
+        { name: 'Holiday List', href: '/admin/hr/holidays', icon: Calendar, permissions: ['hr.view', 'hr.create', 'hr.update'] },
+        // My Leave Application / My Resignation are self-service actions every
+        // employee needs (file leave/resignation for themselves), so - unlike
+        // every other item in this group - they carry no permission gate.
+        { name: 'My Leave Application', href: '/admin/my-leave', icon: Calendar },
+        { name: 'My Payslips', href: '/admin/my-payslips', icon: FileCheck },
+        { name: 'My Resignation', href: '/admin/my-resignation', icon: FileCheck },
+        { name: 'Company Handbook', href: '/admin/company-handbook', icon: FileText },
         { name: 'Payroll Management', href: '/admin/hr/payroll-management', icon: DollarSign, permissions: ['hr.payroll', 'hr.view'] },
         { name: 'EOSB', href: '/admin/hr/eosb', icon: FileCheck, permissions: ['hr.eosb', 'hr.view'] },
         { name: 'Payslip Generation', href: '/admin/hr/payslip-generation', icon: CreditCard, permissions: ['hr.payroll', 'hr.view'] },
@@ -177,6 +209,13 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'Insurance List', href: '/admin/pro-works/insurance-list', icon: Shield, permissions: ['pro.view', 'pro.create', 'pro.update'] },
         { name: 'GCC Branch Documents', href: '/admin/pro-works/gcc-branch-documents', icon: Globe, permissions: ['pro.view', 'pro.create', 'pro.update'] },
         { name: 'Owners Database', href: '/admin/pro-works/owners-document-database', icon: Database, permissions: ['pro.owners.restricted', 'admin.access'] },
+      ]
+    },
+    {
+      title: 'IT Support',
+      items: [
+        { name: 'IT Dashboard', href: '/admin/it-support', icon: BarChart3, permissions: ['it.dashboard', 'it.view', 'it.self'] },
+        { name: 'My Tickets', href: '/admin/it-support/my-tickets', icon: FileCheck, permissions: ['it.self'] },
       ]
     },
     {
@@ -217,12 +256,23 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'Settings', href: '/admin/settings', icon: Settings, permission: 'settings.manage' },
       ]
     },
+    {
+      // Pinned last so it always renders at the bottom of the sidebar. No
+      // permission gate on either item - every logged-in employee, regardless
+      // of role, needs their own profile and attendance/breaks.
+      title: 'My Space',
+      items: [
+        { name: 'My Profile', href: '/admin/profile', icon: User },
+        { name: 'My Attendance & Breaks', href: '/admin/my-attendance', icon: Clock },
+      ]
+    },
   ];
 
 // Flatten all navigation items for filtering
   const allNavigationItems = navigationGroups.flatMap(group => group.items);
 
   const filteredNavigation = allNavigationItems.filter(item => {
+    if (item.ceoOnly && !isCeo(user as any)) return false;
     if (!canAccessAdminPath(user, item.href)) return false;
 
     const itemPermissions = item.permissions || (item.permission ? [item.permission] : []);
@@ -303,6 +353,8 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen cmg-page-shell">
+      <ForcePasswordChangeModal />
+
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -317,14 +369,10 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0 flex flex-col
       `}>
-        <div className="flex items-center justify-between h-20 px-5 border-b border-[var(--cmg-border)] flex-shrink-0">
-          <div className="flex items-center min-w-0">
-            <div className="relative h-11 w-24 flex-shrink-0">
-              <Image src="/logo.jpeg" alt="CMG" fill sizes="96px" className="object-contain" priority />
-            </div>
-            <div className="ml-3 min-w-0">
-              <span className="block text-sm font-bold text-[var(--cmg-ink)] leading-tight">CMG</span>
-              <span className="block text-xs font-medium text-[var(--cmg-muted)]">CRM Portal</span>
+        <div className="cmg-brand-header flex items-center justify-between px-5 py-4 border-b border-[var(--cmg-border)] flex-shrink-0">
+          <div className="flex min-w-0 items-center">
+            <div className="cmg-logo-frame relative h-14 w-32 flex-shrink-0">
+              <Image src="/cmg-logo.png" alt="CMG Immigration" fill sizes="128px" className="object-contain" priority />
             </div>
           </div>
           <button
@@ -359,7 +407,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
                         className={`
                           w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors border-l-2
                           ${isActive
-                            ? 'bg-[var(--cmg-blue-soft)] text-[var(--cmg-blue)] border-[var(--cmg-gold)]'
+                            ? 'bg-[var(--cmg-blue-soft)] text-[var(--cmg-blue)] border-[var(--cmg-red)]'
                             : 'text-[var(--cmg-muted)] border-transparent hover:bg-[#f3f6fb] hover:text-[var(--cmg-ink)]'
                           }
                         `}
@@ -393,7 +441,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top navigation */}
-        <header className="bg-white/95 backdrop-blur shadow-sm border-b border-[var(--cmg-border)] flex-shrink-0">
+        <header className="relative z-40 bg-white/95 backdrop-blur shadow-sm border-b border-[var(--cmg-border)] flex-shrink-0">
           <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
             <div className="flex items-center">
               <button

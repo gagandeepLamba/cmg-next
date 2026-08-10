@@ -45,9 +45,11 @@ import { DmB2bInvoices } from './DmB2bInvoices';
 import { DmBatch } from './DmBatch';
 import { DmBranch } from './DmBranch';
 import { DmBranchAllocations } from './DmBranchAllocations';
+import { DmBranchExchangeRateMap } from './DmBranchExchangeRateMap';
 import { DmBusinessFee } from './DmBusinessFee';
 import { DmBusinessPaymentPlan } from './DmBusinessPaymentPlan';
 import { DmBusinessPortugalPaymentPlan } from './DmBusinessPortugalPaymentPlan';
+import { DmCallRequest } from './DmCallRequest';
 import { DmCampaigns } from './DmCampaigns';
 import { DmCf7db2916 } from './DmCf7db2916';
 import { DmCf7db3232 } from './DmCf7db3232';
@@ -68,7 +70,9 @@ import { DmCounsilorAllocations } from './DmCounsilorAllocations';
 import { DmCountries } from './DmCountries';
 import { DmCountriesTypeProgram } from './DmCountriesTypeProgram';
 import { DmCountryProces } from './DmCountryProces';
+import { DmCoaAccount } from './DmCoaAccount';
 import { DmCurrency } from './DmCurrency';
+import { DmExchangeRate } from './DmExchangeRate';
 import { DmDepartment } from './DmDepartment';
 import { DmDupLiveChatLeads } from './DmDupLiveChatLeads';
 import { DmDupLpLeads } from './DmDupLpLeads';
@@ -132,6 +136,7 @@ import { DmObservationFile } from './DmObservationFile';
 import { DmOfficialEmails } from './DmOfficialEmails';
 import { DmOldData } from './DmOldData';
 import { DmOldPayment } from './DmOldPayment';
+import { DmClientChecklistStage } from './DmClientChecklistStage';
 import { DmOperationAllocations } from './DmOperationAllocations';
 import { DmOperationStageData } from './DmOperationStageData';
 import { DmOpportunityComplianceApprovals } from './DmOpportunityComplianceApprovals';
@@ -266,17 +271,7 @@ import { QualificationSpouseOld } from './QualificationSpouseOld';
 import { StudentLeadsLogs } from './StudentLeadsLogs';
 import { Target } from './Target';
 import { TaskRemarks } from './TaskRemarks';
-import { WpCf7db2916 } from './WpCf7db2916';
-import { WpCf7db3232 } from './WpCf7db3232';
-import { WpCf7db3284 } from './WpCf7db3284';
-import { WpCf7db3606 } from './WpCf7db3606';
-import { WpCf7db3848 } from './WpCf7db3848';
-import { WpCf7db3870 } from './WpCf7db3870';
-import { WpCf7db3881 } from './WpCf7db3881';
-import { WpCf7db4077 } from './WpCf7db4077';
-import { WpCf7db4086 } from './WpCf7db4086';
-import { WpCf7db5499 } from './WpCf7db5499';
-import { WpCf7db5500 } from './WpCf7db5500';
+
 import {
   HrAttendanceRecord,
   HrEmployeeDocument,
@@ -300,8 +295,10 @@ import {
   ProOwnerDocument,
   ProWpsRecord,
 } from './HrProModels';
+import { ItSupportTicket, ItSupportTicketComment } from './ItSupportModels';
 import { DmOpportunityWorkflowReview } from './DmOpportunityWorkflowReview';
 import { DmOpportunityWorkflowAuditLog } from './DmOpportunityWorkflowAuditLog';
+import { DmRemarks } from './DmRemarks';
 import { DmOpportunityHandoverNote } from './DmOpportunityHandoverNote';
 import { DmOpportunityAccountingVerification } from './DmOpportunityAccountingVerification';
 import { DmClientUploadPortal } from './DmClientUploadPortal';
@@ -354,9 +351,11 @@ const models = {
   DmBatch: DmBatch,
   DmBranch: DmBranch,
   DmBranchAllocations: DmBranchAllocations,
+  DmBranchExchangeRateMap: DmBranchExchangeRateMap,
   DmBusinessFee: DmBusinessFee,
   DmBusinessPaymentPlan: DmBusinessPaymentPlan,
   DmBusinessPortugalPaymentPlan: DmBusinessPortugalPaymentPlan,
+  DmCallRequest: DmCallRequest,
   DmCampaigns: DmCampaigns,
   DmCf7db2916: DmCf7db2916,
   DmCf7db3232: DmCf7db3232,
@@ -377,7 +376,9 @@ const models = {
   DmCountries: DmCountries,
   DmCountriesTypeProgram: DmCountriesTypeProgram,
   DmCountryProces: DmCountryProces,
+  DmCoaAccount: DmCoaAccount,
   DmCurrency: DmCurrency,
+  DmExchangeRate: DmExchangeRate,
   DmDepartment: DmDepartment,
   DmDupLiveChatLeads: DmDupLiveChatLeads,
   DmDupLpLeads: DmDupLpLeads,
@@ -441,6 +442,7 @@ const models = {
   DmOfficialEmails: DmOfficialEmails,
   DmOldData: DmOldData,
   DmOldPayment: DmOldPayment,
+  DmClientChecklistStage: DmClientChecklistStage,
   DmOperationAllocations: DmOperationAllocations,
   DmOperationStageData: DmOperationStageData,
   DmOpportunityComplianceApprovals: DmOpportunityComplianceApprovals,
@@ -575,17 +577,6 @@ const models = {
   StudentLeadsLogs: StudentLeadsLogs,
   Target: Target,
   TaskRemarks: TaskRemarks,
-  WpCf7db2916: WpCf7db2916,
-  WpCf7db3232: WpCf7db3232,
-  WpCf7db3284: WpCf7db3284,
-  WpCf7db3606: WpCf7db3606,
-  WpCf7db3848: WpCf7db3848,
-  WpCf7db3870: WpCf7db3870,
-  WpCf7db3881: WpCf7db3881,
-  WpCf7db4077: WpCf7db4077,
-  WpCf7db4086: WpCf7db4086,
-  WpCf7db5499: WpCf7db5499,
-  WpCf7db5500: WpCf7db5500,
   HrAttendanceRecord,
   HrEmployeeDocument,
   HrEmployeeLetter,
@@ -614,6 +605,7 @@ const models = {
   DmClientUploadPortal,
   DmClientUploadChecklistItem,
   DmOpportunityPaymentSchedule,
+  DmRemarks,
 };
 
 type ModelWithAssociate = {
@@ -684,9 +676,12 @@ export { DmBatch } from './DmBatch';
 export { DmBranch } from './DmBranch';
 export type { DmBranchAttributes } from './DmBranch';
 export { DmBranchAllocations } from './DmBranchAllocations';
+export { DmBranchExchangeRateMap } from './DmBranchExchangeRateMap';
+export type { DmBranchExchangeRateMapAttributes } from './DmBranchExchangeRateMap';
 export { DmBusinessFee } from './DmBusinessFee';
 export { DmBusinessPaymentPlan } from './DmBusinessPaymentPlan';
 export { DmBusinessPortugalPaymentPlan } from './DmBusinessPortugalPaymentPlan';
+export { DmCallRequest } from './DmCallRequest';
 export { DmCampaigns } from './DmCampaigns';
 export type { DmCampaignsAttributes } from './DmCampaigns';
 export { DmCf7db2916 } from './DmCf7db2916';
@@ -710,7 +705,11 @@ export { DmCountries } from './DmCountries';
 export type { DmCountriesAttributes } from './DmCountries';
 export { DmCountriesTypeProgram } from './DmCountriesTypeProgram';
 export { DmCountryProces } from './DmCountryProces';
+export { DmCoaAccount } from './DmCoaAccount';
+export type { DmCoaAccountAttributes } from './DmCoaAccount';
 export { DmCurrency } from './DmCurrency';
+export { DmExchangeRate } from './DmExchangeRate';
+export type { DmExchangeRateAttributes } from './DmExchangeRate';
 export { DmDepartment } from './DmDepartment';
 export type { DmDepartmentAttributes, DmDepartmentCreationAttributes } from './DmDepartment';
 export { DmDupLiveChatLeads } from './DmDupLiveChatLeads';
@@ -779,6 +778,8 @@ export { DmObservationFile } from './DmObservationFile';
 export { DmOfficialEmails } from './DmOfficialEmails';
 export { DmOldData } from './DmOldData';
 export { DmOldPayment } from './DmOldPayment';
+export { DmClientChecklistStage } from './DmClientChecklistStage';
+export type { DmClientChecklistStageAttributes, DmClientChecklistStageCreationAttributes } from './DmClientChecklistStage';
 export { DmOperationAllocations } from './DmOperationAllocations';
 export { DmOperationStageData } from './DmOperationStageData';
 export type { DmOperationStageDataAttributes, DmOperationStageDataCreationAttributes } from './DmOperationStageData';
@@ -910,17 +911,7 @@ export { QualificationSpouseOld } from './QualificationSpouseOld';
 export { StudentLeadsLogs } from './StudentLeadsLogs';
 export { Target } from './Target';
 export { TaskRemarks } from './TaskRemarks';
-export { WpCf7db2916 } from './WpCf7db2916';
-export { WpCf7db3232 } from './WpCf7db3232';
-export { WpCf7db3284 } from './WpCf7db3284';
-export { WpCf7db3606 } from './WpCf7db3606';
-export { WpCf7db3848 } from './WpCf7db3848';
-export { WpCf7db3870 } from './WpCf7db3870';
-export { WpCf7db3881 } from './WpCf7db3881';
-export { WpCf7db4077 } from './WpCf7db4077';
-export { WpCf7db4086 } from './WpCf7db4086';
-export { WpCf7db5499 } from './WpCf7db5499';
-export { WpCf7db5500 } from './WpCf7db5500';
+
 
 export { DmcOpportunities } from './DmcOpportunities';
 export { DmcOpportunityQuotations } from './DmcOpportunityQuotations';
@@ -957,6 +948,7 @@ export {
   ProOwnerDocument,
   ProWpsRecord,
 } from './HrProModels';
+export { ItSupportTicket, ItSupportTicketComment } from './ItSupportModels';
 
 // Legacy-friendly aliases used in older service layers
 export { DmcForumLeads as Lead } from './DmcForumLeads';
@@ -984,3 +976,5 @@ export { DmClientUploadChecklistItem } from './DmClientUploadChecklistItem';
 export type { DmClientUploadChecklistItemAttributes } from './DmClientUploadChecklistItem';
 export { DmOpportunityPaymentSchedule } from './DmOpportunityPaymentSchedule';
 export type { DmOpportunityPaymentScheduleAttributes } from './DmOpportunityPaymentSchedule';
+export { DmRemarks } from './DmRemarks';
+export type { DmRemarksAttributes } from './DmRemarks';

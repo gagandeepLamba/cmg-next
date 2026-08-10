@@ -16,15 +16,15 @@ interface DmClientUploadPortalAttributes {
 interface DmClientUploadPortalCreationAttributes extends Optional<DmClientUploadPortalAttributes, 'id' | 'opportunityId' | 'agreementNumber' | 'expiresAt'> {}
 
 class DmClientUploadPortal extends Model<DmClientUploadPortalAttributes, DmClientUploadPortalCreationAttributes> implements DmClientUploadPortalAttributes {
-  public id!: number;
-  public clientId!: string;
-  public leadId!: number;
-  public opportunityId!: number | null;
-  public agreementNumber!: string | null;
-  public accessToken!: string;
-  public status!: 'active' | 'closed' | 'expired';
-  public expiresAt!: Date | null;
-  public createdAt!: Date;
+  declare id: number;
+  declare clientId: string;
+  declare leadId: number;
+  declare opportunityId: number | null;
+  declare agreementNumber: string | null;
+  declare accessToken: string;
+  declare status: 'active' | 'closed' | 'expired';
+  declare expiresAt: Date | null;
+  declare createdAt: Date;
 
   public static associate(models: any) {
     DmClientUploadPortal.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'lead' });

@@ -17,16 +17,16 @@ interface DmClientUploadChecklistItemAttributes {
 interface DmClientUploadChecklistItemCreationAttributes extends Optional<DmClientUploadChecklistItemAttributes, 'id' | 'fileUrl' | 'uploadedAt' | 'verifiedBy' | 'verifiedAt' | 'notes'> {}
 
 class DmClientUploadChecklistItem extends Model<DmClientUploadChecklistItemAttributes, DmClientUploadChecklistItemCreationAttributes> implements DmClientUploadChecklistItemAttributes {
-  public id!: number;
-  public portalId!: number;
-  public itemName!: string;
-  public required!: boolean;
-  public status!: 'pending' | 'uploaded' | 'verified' | 'rejected';
-  public fileUrl!: string | null;
-  public uploadedAt!: Date | null;
-  public verifiedBy!: number | null;
-  public verifiedAt!: Date | null;
-  public notes!: string | null;
+  declare id: number;
+  declare portalId: number;
+  declare itemName: string;
+  declare required: boolean;
+  declare status: 'pending' | 'uploaded' | 'verified' | 'rejected';
+  declare fileUrl: string | null;
+  declare uploadedAt: Date | null;
+  declare verifiedBy: number | null;
+  declare verifiedAt: Date | null;
+  declare notes: string | null;
 
   public static associate(models: any) {
     DmClientUploadChecklistItem.belongsTo(models.DmClientUploadPortal, { foreignKey: 'portalId', targetKey: 'id', as: 'portal' });

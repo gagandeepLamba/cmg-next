@@ -77,6 +77,7 @@ HrPayslip.init({
   pay_period: { type: DataTypes.STRING(20), allowNull: false },
   gross_salary: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
   net_salary: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0 },
+  currency_code: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'AED' },
   storage_key: { type: DataTypes.STRING(500), allowNull: false },
   signed_url: { type: DataTypes.TEXT, allowNull: false },
   signed_url_expires_at: { type: DataTypes.DATE, allowNull: false },
@@ -145,12 +146,19 @@ HrHeadcountSnapshot.init({
   on_leave: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { sequelize, modelName: 'HrHeadcountSnapshot', tableName: 'dm_hr_headcount_snapshots', timestamps: false });
 
+// Column names match the schema the v1 API route (src/app/api/v1/[...path]/route.ts) actually
+// creates and uses - this model previously described a different, never-created shape
+// (document_type/file_url only) that no code path ever wrote to.
 class HrEmployeeDocument extends Model {}
 HrEmployeeDocument.init({
   document_id: { type: DataTypes.CHAR(36), primaryKey: true },
   employee_id: { type: DataTypes.CHAR(36), allowNull: false },
-  document_type: { type: DataTypes.STRING(120), allowNull: false },
-  file_url: { type: DataTypes.STRING(500), allowNull: false },
+  document_type: { type: DataTypes.STRING(255), allowNull: false },
+  document_url: { type: DataTypes.STRING(500), allowNull: false },
+  expiry_date: { type: DataTypes.DATEONLY, allowNull: true },
+  notes: { type: DataTypes.TEXT, allowNull: true },
+  deleted_at: { type: DataTypes.DATE, allowNull: true },
+  created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
 }, { sequelize, modelName: 'HrEmployeeDocument', tableName: 'dm_hr_employee_documents', timestamps: false });
 
 class ProCompany extends Model {}

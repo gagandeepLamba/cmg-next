@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { put } from '@vercel/blob';
+import { basename, join } from 'path';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 // Simple UUID generator
 function generateUUID(): string {
@@ -12,6 +13,8 @@ function generateUUID(): string {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -24,12 +27,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    const allowedTypes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
     const fileType = file.type;
-    
+
     if (!allowedTypes.includes(fileType)) {
       return NextResponse.json(
-        { error: 'Invalid file type. Allowed types: JPEG, PNG, GIF, WebP' },
+        { error: 'Invalid file type. Allowed types: JPEG, PNG, GIF, WebP, PDF, DOC, DOCX' },
         { status: 400 }
       );
     }
@@ -43,27 +50,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'events');
-    try {
-      await mkdir(uploadsDir, { recursive: true });
-    } catch (error) {
-      // Directory might already exist
-    }
-
     // Generate unique filename
     const fileExtension = file.name.split('.').pop();
     const uniqueFileName = `${generateUUID()}.${fileExtension}`;
-    const filePath = join(uploadsDir, uniqueFileName);
 
-    // Convert file to buffer
-    const buffer = Buffer.from(await file.arrayBuffer());
-    
-    // Write file
-    await writeFile(filePath, buffer);
-
-    // Return the file URL
-    const fileUrl = `/uploads/events/${uniqueFileName}`;
+    // Vercel's serverless functions have a read-only filesystem, so files are
+    // stored in Vercel Blob rather than written to local disk.
+    const blob = await put(`events/${uniqueFileName}`, file, {
+      access: 'public',
+    });
+    const fileUrl = blob.url;
 
     return NextResponse.json({
       success: true,
@@ -83,10 +79,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const filename = searchParams.get('filename');
-    
+
     if (!filename) {
       return NextResponse.json(
         { error: 'Filename parameter is required' },
@@ -94,8 +92,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // In production, you would validate access permissions here
-    const filePath = join(process.cwd(), 'public', 'uploads', 'events', filename);
+    // basename() strips any directory components (e.g. `../../etc/passwd`),
+    // so this can only ever resolve to a file directly inside the events dir.
+    const filePath = join(process.cwd(), 'public', 'uploads', 'events', basename(filename));
     
     try {
       const fileBuffer = await import('fs').then(fs => fs.promises.readFile(filePath));

@@ -10,10 +10,10 @@ interface DmcAuhEmailLeadsAttributes {
 interface DmcAuhEmailLeadsCreationAttributes extends Optional<DmcAuhEmailLeadsAttributes, never> {}
 
 class DmcAuhEmailLeads extends Model<DmcAuhEmailLeadsAttributes, DmcAuhEmailLeadsCreationAttributes> implements DmcAuhEmailLeadsAttributes {
-  public id!: number;
-  public email!: string;
-  public email_sent!: number;
-  public created!: Date;
+  declare id: number;
+  declare email: string;
+  declare email_sent: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

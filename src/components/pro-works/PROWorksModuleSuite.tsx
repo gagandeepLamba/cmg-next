@@ -1,5 +1,7 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DataTable } from '@/components/ui/data-table';
 import { useEffect, useMemo, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import {
@@ -390,7 +392,14 @@ const badge = (status: string) => {
 };
 
 export default function PROWorksModuleSuite({ activeModule = 'company-documents' }: { activeModule?: ModuleKey }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, currencyCode } = useAuth();
+  const formatMoney = (value: number) => {
+    try {
+      return new Intl.NumberFormat('en-AE', { style: 'currency', currency: currencyCode, maximumFractionDigits: 0 }).format(value);
+    } catch {
+      return `${currencyCode} ${Number(value || 0).toLocaleString()}`;
+    }
+  };
   const [documents, setDocuments] = useState<ProDocument[]>([]);
   const [employeeRecords, setEmployeeRecords] = useState<EmployeeCompliance[]>([]);
   const [wpsRuns, setWpsRuns] = useState<WpsRecord[]>([]);
@@ -658,8 +667,12 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
 
   const canCreate = hasPermission('pro.create');
   const canViewOwners = hasPermission('pro.owners.restricted') || hasPermission('admin.access');
+  const canUseProAddForm = activeModule !== 'renewal-reminders' && (
+    activeModule === 'owners-document-database' ? canViewOwners : canCreate
+  );
   const canViewCurrentModule = hasPermission('pro.view') ||
-    (activeModule === 'wps-management' && hasPermission('pro.wps.view'));
+    (activeModule === 'wps-management' && hasPermission('pro.wps.view')) ||
+    (activeModule === 'owners-document-database' && canViewOwners);
   const runRenewalScan = async (dryRun: boolean) => {
     setRenewalBusy(true);
     try {
@@ -737,9 +750,9 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Document Type</span>
-              <select value={documentForm.doc_type} onChange={(event) => setDocumentForm({ ...documentForm, doc_type: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
+              <SearchableSelect value={documentForm.doc_type} onChange={(event) => setDocumentForm({ ...documentForm, doc_type: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required>
                 {docTypeOptions.map((type) => <option key={type}>{type}</option>)}
-              </select>
+              </SearchableSelect>
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Document Number</span>
@@ -851,9 +864,9 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Visa Type</span>
-              <select value={employeeImmigrationForm.visa_type} onChange={(event) => setEmployeeImmigrationForm({ ...employeeImmigrationForm, visa_type: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+              <SearchableSelect value={employeeImmigrationForm.visa_type} onChange={(event) => setEmployeeImmigrationForm({ ...employeeImmigrationForm, visa_type: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 {visaTypeOptions.map((type) => <option key={type}>{type}</option>)}
-              </select>
+              </SearchableSelect>
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Visa Issue</span>
@@ -873,9 +886,9 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Contract Type</span>
-              <select value={employeeImmigrationForm.contract_type} onChange={(event) => setEmployeeImmigrationForm({ ...employeeImmigrationForm, contract_type: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+              <SearchableSelect value={employeeImmigrationForm.contract_type} onChange={(event) => setEmployeeImmigrationForm({ ...employeeImmigrationForm, contract_type: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 {contractTypeOptions.map((type) => <option key={type}>{type}</option>)}
-              </select>
+              </SearchableSelect>
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">MOHRE Ref</span>
@@ -1106,10 +1119,10 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
           <label className="block">
             <span className="text-sm font-medium text-slate-700">Document Type</span>
-            <select value={renewalFilters.documentType} onChange={(event) => setRenewalFilters({ ...renewalFilters, documentType: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <SearchableSelect value={renewalFilters.documentType} onChange={(event) => setRenewalFilters({ ...renewalFilters, documentType: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
               <option value="">All types</option>
               {(renewalTracker?.filters.documentTypes || []).map((type) => <option key={type}>{type}</option>)}
-            </select>
+            </SearchableSelect>
           </label>
           <label className="block">
             <span className="text-sm font-medium text-slate-700">Entity</span>
@@ -1117,10 +1130,10 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
           </label>
           <label className="block">
             <span className="text-sm font-medium text-slate-700">Responsible Officer</span>
-            <select value={renewalFilters.responsibleOfficer} onChange={(event) => setRenewalFilters({ ...renewalFilters, responsibleOfficer: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <SearchableSelect value={renewalFilters.responsibleOfficer} onChange={(event) => setRenewalFilters({ ...renewalFilters, responsibleOfficer: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
               <option value="">All officers</option>
               {(renewalTracker?.filters.responsibleOfficers || []).map((officer) => <option key={officer} value={officer}>{officer.replace(/_/g, ' ')}</option>)}
-            </select>
+            </SearchableSelect>
           </label>
           <div className="flex items-end">
             <button type="button" onClick={() => setRenewalFilters({ documentType: '', entity: '', responsibleOfficer: '' })} className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
@@ -1231,9 +1244,9 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Category</span>
-              <select value={insuranceForm.insurance_category} onChange={(event) => setInsuranceForm({ ...insuranceForm, insurance_category: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+              <SearchableSelect value={insuranceForm.insurance_category} onChange={(event) => setInsuranceForm({ ...insuranceForm, insurance_category: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 {insuranceCategoryOptions.map((category) => <option key={category}>{category}</option>)}
-              </select>
+              </SearchableSelect>
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Employee ID</span>
@@ -1261,9 +1274,9 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Network</span>
-              <select value={insuranceForm.network_code} onChange={(event) => setInsuranceForm({ ...insuranceForm, network_code: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+              <SearchableSelect value={insuranceForm.network_code} onChange={(event) => setInsuranceForm({ ...insuranceForm, network_code: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 {insuranceNetworkOptions.map((network) => <option key={network}>{network}</option>)}
-              </select>
+              </SearchableSelect>
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Coverage Amount</span>
@@ -1360,9 +1373,9 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Country</span>
-              <select value={gccBranchForm.country} onChange={(event) => setGccBranchForm({ ...gccBranchForm, country: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+              <SearchableSelect value={gccBranchForm.country} onChange={(event) => setGccBranchForm({ ...gccBranchForm, country: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                 {gccCountryOptions.map((country) => <option key={country}>{country}</option>)}
-              </select>
+              </SearchableSelect>
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">City</span>
@@ -1448,7 +1461,7 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
             <Metric label="Expiring" value={owners.filter((item) => ownerExpiryStatus(item) === 'Expiring').length.toString()} />
             <Metric label="Total share" value={`${owners.reduce((sum, item) => sum + Number(item.sharePercentage || 0), 0).toFixed(2)}%`} />
           </div>
-          {canCreate && showAddForm && (
+          {canViewOwners && showAddForm && (
             <form
               onSubmit={async (event) => {
                 event.preventDefault();
@@ -1502,9 +1515,9 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
                 </label>
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700">Role</span>
-                  <select value={ownerForm.role} onChange={(event) => setOwnerForm({ ...ownerForm, role: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                  <SearchableSelect value={ownerForm.role} onChange={(event) => setOwnerForm({ ...ownerForm, role: event.target.value })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                     {ownerRoleOptions.map((role) => <option key={role}>{role}</option>)}
-                  </select>
+                  </SearchableSelect>
                 </label>
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700">Nationality</span>
@@ -1610,7 +1623,7 @@ export default function PROWorksModuleSuite({ activeModule = 'company-documents'
             <Download className="h-4 w-4" />
             Export
           </button>
-          {canCreate && (
+          {canUseProAddForm && (
             <button
               onClick={() => setShowAddForm(v => !v)}
               className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium ${showAddForm ? 'bg-slate-600 hover:bg-slate-700' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
@@ -1680,30 +1693,6 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DataTable({ headers, rows }: { headers: string[]; rows: Array<Array<ReactNode>> }) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <table className="min-w-full divide-y divide-slate-200">
-        <thead className="bg-slate-50">
-          <tr>
-            {headers.map((header) => (
-              <th key={header} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{header}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {rows.map((row, index) => (
-            <tr key={index} className="hover:bg-slate-50">
-              {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="px-4 py-3 text-sm text-slate-700">{cell}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 function RecordTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return (

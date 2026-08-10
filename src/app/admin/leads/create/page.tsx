@@ -1,10 +1,13 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import AdminLayout from '@/components/layout/AdminLayout';
 import { ArrowLeft, Save, X, Phone, Mail, MapPin, Calendar, DollarSign, Users, Target, Globe, Briefcase, Shield, CheckCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { isFoeOrBranchManagerOrCeo } from '@/lib/roleChecks';
+import { ALL_COUNTRIES } from '@/lib/countries';
+import { calculateAgeFromDob } from '@/lib/utils';
 
 interface LeadFormData {
   // Lead Information
@@ -70,6 +73,15 @@ export default function AdminCreateLeadPage() {
   const isOpportunityMode = searchParams.get('mode') === 'opportunity';
   const [loading, setLoading] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [duplicateInfo, setDuplicateInfo] = useState<{
+    leadId: number;
+    ownerId: number | null;
+    ownerName: string | null;
+    status: string;
+  } | null>(null);
+  const [transferReason, setTransferReason] = useState('');
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferRequested, setTransferRequested] = useState(false);
   const [formData, setFormData] = useState<LeadFormData>({
     // Lead Information
     salutation: '',
@@ -86,7 +98,7 @@ export default function AdminCreateLeadPage() {
     city: '',
     state: '',
     postalCode: '',
-    country: '',
+    country: '--None--',
     
     // Personal Information
     genderIdentity: '',
@@ -102,7 +114,10 @@ export default function AdminCreateLeadPage() {
     // Assignment
     leadOwner: '',
     assignedDate: '',
-    autoAssign: true,
+    // Off by default: a lead should only be auto-assigned via round-robin when
+    // explicitly requested. If no counselor is picked and this stays unchecked,
+    // the lead enters unassigned for a FOE/Branch Manager/CEO to assign later.
+    autoAssign: false,
     reEnquiry: false,
     reEnquiryCounter: 0,
     
@@ -134,29 +149,79 @@ export default function AdminCreateLeadPage() {
   const [programTypes, setProgramTypes] = useState<any[]>([]);
   const [leadSources, setLeadSources] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
+  const [ownerBranchFilter, setOwnerBranchFilter] = useState('');
   const [loadingPrograms, setLoadingPrograms] = useState(false);
   const [loadingTypes, setLoadingTypes] = useState(false);
 
   // Get logged-in user
   const { user } = useAuth();
+  const isCeoUser = String((user as any)?.roleName || '').trim().toLowerCase() === 'ceo';
+  // FOE and Branch Manager only ever add leads for their own branch's staff;
+  // CEO can pick any branch via the selector below.
+  const isBranchLockedRole = isFoeOrBranchManagerOrCeo(user as any) && !isCeoUser;
+  // Plain counselors never see or choose the Counselor field — a new lead
+  // they add is always assigned to themselves (enforced server-side too).
+  const isPlainCounsellor = !isCeoUser && !isBranchLockedRole;
+  const effectiveOwnerBranch = isBranchLockedRole ? String(user?.branch || '') : ownerBranchFilter;
+  const leadOwnerOptions = effectiveOwnerBranch
+    ? employees.filter((e) => String(e.branch || '') === effectiveOwnerBranch)
+    : employees;
 
   // Fetch countries, lead sources, and employees on component mount
   useEffect(() => {
     fetchCountries();
     fetchLeadSources();
     fetchEmployees();
+    fetchBranches();
   }, []);
 
-  // Set lead owner to logged-in user when user data is available
+  // Default the counselor to the logged-in user when they are themselves a
+  // counselor. FOE/Branch Manager/CEO aren't counselors, so they must
+  // explicitly pick one from the dropdown instead of defaulting to themselves.
   useEffect(() => {
-    if (user && !formData.leadOwner) {
+    if (user && !formData.leadOwner && !isCeoUser && !isBranchLockedRole) {
       setFormData(prev => ({
         ...prev,
         leadOwner: user.id.toString(),
         assignedDate: new Date().toISOString().split('T')[0]
       }));
+    } else if (user && !formData.assignedDate) {
+      setFormData(prev => ({ ...prev, assignedDate: new Date().toISOString().split('T')[0] }));
     }
-  }, [user]);
+  }, [user, isCeoUser, isBranchLockedRole]);
+
+  // Check the email/phone against existing leads as the person types (debounced),
+  // instead of only finding out about the duplicate after they hit Save.
+  useEffect(() => {
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    const phoneValid = phoneDigits.length >= 7;
+    if (!emailValid && !phoneValid) return;
+
+    const handle = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams();
+        if (emailValid) params.set('email', formData.email);
+        if (phoneValid) params.set('phone', formData.phone);
+        const res = await fetch(`/api/leads/check-duplicate?${params.toString()}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.duplicate) {
+          setDuplicateInfo({
+            leadId: json.duplicateLeadId,
+            ownerId: json.duplicateLeadOwnerId ?? null,
+            ownerName: json.duplicateLeadOwner ?? null,
+            status: json.duplicateLeadStatus || 'New',
+          });
+        }
+      } catch (error) {
+        console.error('Error checking for duplicate lead:', error);
+      }
+    }, 600);
+
+    return () => clearTimeout(handle);
+  }, [formData.email, formData.phone]);
 
   const fetchCountries = async () => {
     try {
@@ -220,13 +285,27 @@ export default function AdminCreateLeadPage() {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('/api/employees/active');
+      // Only counselors can be a lead's owner from this form — CEO sees every
+      // branch, FOE/Branch Manager are locked server-side to their own branch.
+      const response = await fetch('/api/employees/active?role=counsellor');
       if (response.ok) {
         const data = await response.json();
         setEmployees(data);
       }
     } catch (error) {
       console.error('Error fetching employees:', error);
+    }
+  };
+
+  const fetchBranches = async () => {
+    try {
+      const response = await fetch('/api/branches?limit=200&status=1');
+      if (response.ok) {
+        const data = await response.json();
+        setBranches(data.branches || []);
+      }
+    } catch (error) {
+      console.error('Error fetching branches:', error);
     }
   };
 
@@ -248,10 +327,32 @@ export default function AdminCreateLeadPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     if (formErrors.length > 0) setFormErrors([]);
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-    }));
+    // A stale "this lead already exists" panel from a previous email/phone
+    // shouldn't linger once the person edits either field again.
+    if ((name === 'email' || name === 'phone') && duplicateInfo) {
+      setDuplicateInfo(null);
+      setTransferRequested(false);
+      setTransferReason('');
+    }
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+      };
+      if (name === 'dateOfBirth') {
+        next.age = calculateAgeFromDob(value);
+      }
+      // Prospect leads are prioritized P1-P4 instead of the Hot/Warm/Cold
+      // scale, so switching status in/out of Prospect must re-pick a
+      // priority that's actually valid for the now-active option list.
+      if (name === 'status') {
+        const wasProspect = prev.status === 'Prospect';
+        const isProspect = value === 'Prospect';
+        if (isProspect && !wasProspect) next.priority = 'P1';
+        else if (!isProspect && wasProspect) next.priority = 'Medium';
+      }
+      return next;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -264,6 +365,7 @@ export default function AdminCreateLeadPage() {
     }
 
     setFormErrors([]);
+    setDuplicateInfo(null);
     setLoading(true);
 
     try {
@@ -274,7 +376,11 @@ export default function AdminCreateLeadPage() {
         },
         body: JSON.stringify({
           ...formData,
-          branch: user?.branch || 1,
+          // CEO isn't tied to one branch — the lead (and any agreement later
+          // generated for it) must use whichever branch the CEO picked in the
+          // selector above, not the CEO's own (empty) branch. Every other
+          // role has no branch picker and always uses their own branch.
+          branch: isCeoUser ? (ownerBranchFilter || user?.branch || 1) : (user?.branch || 1),
           autoAssign: formData.autoAssign,
           created_by_admin: true,
           admin_created: true,
@@ -283,31 +389,78 @@ export default function AdminCreateLeadPage() {
 
       if (response.ok) {
         const result = await response.json();
+        const addedByLabel = `${user?.name || 'you'}${user?.roleName ? ` (${user.roleName})` : ''}`;
         if (isOpportunityMode && result?.id) {
-          alert('Lead created! Opening opportunity flow...');
+          window.toast.success(`Lead added by ${addedByLabel}. Opening opportunity flow...`);
           router.push(`/admin/leads/opportunity-flow?leadId=${result.id}`);
         } else {
-          alert('Lead created successfully by admin!');
-          router.push('/admin/leads');
+          window.toast.success(`Lead added by ${addedByLabel}`);
+          // The Leads list keeps its status/tab filters (e.g. "New Leads") in
+          // React state, not the URL, so a fresh push to '/admin/leads'
+          // always landed back on the unfiltered default view. Going back
+          // returns to the exact filtered page state the user came from.
+          if (typeof window !== 'undefined' && window.history.length > 1) {
+            router.back();
+          } else {
+            router.push('/admin/leads');
+          }
         }
       } else {
         const error = await response.json();
-        const messages = Array.isArray(error.errors) ? error.errors.join('\n') : error.message || error.error || 'Unknown error';
-        alert(`Error creating lead: ${messages}`);
+        if (response.status === 409 && error.duplicateLeadId) {
+          setDuplicateInfo({
+            leadId: error.duplicateLeadId,
+            ownerId: error.duplicateLeadOwnerId ?? null,
+            ownerName: error.duplicateLeadOwner ?? null,
+            status: error.duplicateLeadStatus || 'New',
+          });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          const messages = Array.isArray(error.errors) ? error.errors.join('\n') : error.message || error.error || 'Unknown error';
+          window.toast.error(`Error creating lead: ${messages}`);
+        }
       }
     } catch (error) {
       console.error('Error creating lead:', error);
-      alert('Error creating lead. Please try again.');
+      window.toast.error('Error creating lead. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleRequestTransfer = async () => {
+    if (!duplicateInfo?.ownerId || !user) return;
+    setTransferSubmitting(true);
+    try {
+      const res = await fetch('/api/lead-reassignments-working', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: duplicateInfo.leadId,
+          fromEmployeeId: duplicateInfo.ownerId,
+          toEmployeeId: user.id,
+          reassignmentType: 'transfer',
+          reason: transferReason.trim() || `${user.name || 'A counselor'} re-enquired on this lead and is requesting ownership.`,
+          previousStatus: duplicateInfo.status,
+          newStatus: duplicateInfo.status,
+          createdBy: user.id,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.success === false) throw new Error(json.error || 'Failed to submit transfer request');
+      setTransferRequested(true);
+    } catch (err) {
+      window.toast.error(err instanceof Error ? err.message : 'Failed to submit transfer request');
+    } finally {
+      setTransferSubmitting(false);
+    }
+  };
+
   const salutations = ['--None--', 'Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.'];
   const genderOptions = ['--None--', 'Male', 'Female', 'Other', 'Prefer not to say'];
-  const staticCountries = ['--None--', 'United States', 'Canada', 'United Kingdom', 'Australia', 'India', 'UAE', 'Germany', 'France', 'Singapore'];
-  const priorities = ['Hot', 'Warm', 'Cold'];
-  const statuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Closed'];
+  const staticCountries = ALL_COUNTRIES;
+  const priorities = formData.status === 'Prospect' ? ['P1', 'P2', 'P3', 'P4'] : ['Hot', 'Warm', 'Cold'];
+  const statuses = ['New', 'Contacted', 'Qualified', 'Prospect', 'Converted', 'Closed'];
 
   return (
   
@@ -342,6 +495,41 @@ export default function AdminCreateLeadPage() {
               </ul>
             </div>
           )}
+          {duplicateInfo && (
+            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <p className="font-semibold">
+                A lead with this email or phone already exists (Lead #{duplicateInfo.leadId})
+                {duplicateInfo.ownerName ? `, currently owned by ${duplicateInfo.ownerName}.` : ', and is currently unassigned.'}
+              </p>
+              {duplicateInfo.ownerId ? (
+                transferRequested ? (
+                  <p className="mt-2 text-green-700">
+                    Transfer request submitted — it&apos;s pending approval from a Branch Manager or CEO.
+                  </p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    <textarea
+                      value={transferReason}
+                      onChange={(e) => setTransferReason(e.target.value)}
+                      placeholder="Reason for requesting this lead (optional)"
+                      rows={2}
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRequestTransfer}
+                      disabled={transferSubmitting}
+                      className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {transferSubmitting ? 'Submitting...' : 'Request Transfer'}
+                    </button>
+                  </div>
+                )
+              ) : (
+                <p className="mt-2">This lead is currently unassigned — contact your Branch Manager to have it assigned to you.</p>
+              )}
+            </div>
+          )}
           {/* Lead Information Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-3 border-b">Lead Information</h2>
@@ -349,7 +537,7 @@ export default function AdminCreateLeadPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Salutation</label>
-                <select
+                <SearchableSelect
                   name="salutation"
                   value={formData.salutation}
                   onChange={handleInputChange}
@@ -358,7 +546,7 @@ export default function AdminCreateLeadPage() {
                   {salutations.map(option => (
                     <option key={option} value={option}>{option}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
 
               <div>
@@ -523,7 +711,7 @@ export default function AdminCreateLeadPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
-                <select
+                <SearchableSelect
                   name="country"
                   value={formData.country}
                   onChange={handleInputChange}
@@ -532,7 +720,7 @@ export default function AdminCreateLeadPage() {
                   {staticCountries.map(option => (
                     <option key={option} value={option}>{option}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
           </div>
@@ -544,30 +732,30 @@ export default function AdminCreateLeadPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Gender Identity <span className="text-red-500">*</span>
+                  Gender Identity
                 </label>
-                <select
+                <SearchableSelect
                   name="genderIdentity"
                   value={formData.genderIdentity}
                   onChange={handleInputChange}
-                  required
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   {genderOptions.map(option => (
                     <option key={option} value={option}>{option}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Age</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Age (auto-calculated)</label>
                 <input
                   type="number"
                   name="age"
                   value={formData.age}
                   onChange={handleInputChange}
-                  placeholder="Age"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled
+                  placeholder="Set Date of Birth"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
@@ -591,7 +779,7 @@ export default function AdminCreateLeadPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Lead Source</label>
-                <select
+                <SearchableSelect
                   name="leadSource"
                   value={formData.leadSource}
                   onChange={handleInputChange}
@@ -602,7 +790,7 @@ export default function AdminCreateLeadPage() {
                       {source.name || source}
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
 
               <div>
@@ -650,9 +838,9 @@ export default function AdminCreateLeadPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Country <span className="text-red-500">*</span>
+                  Country
                 </label>
-                <select
+                <SearchableSelect
                   name="programCountry"
                   value={formData.programCountry}
                   onChange={handleInputChange}
@@ -664,15 +852,15 @@ export default function AdminCreateLeadPage() {
                       {country.name}
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Program <span className="text-red-500">*</span>
+                  Program
                 </label>
                 <div className="relative">
-                  <select
+                  <SearchableSelect
                     name="program"
                     value={formData.program}
                     onChange={handleInputChange}
@@ -685,7 +873,7 @@ export default function AdminCreateLeadPage() {
                         {program.name}
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                   {loadingPrograms && (
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                       <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
@@ -696,10 +884,10 @@ export default function AdminCreateLeadPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Program Type <span className="text-red-500">*</span>
+                  Program Type
                 </label>
                 <div className="relative">
-                  <select
+                  <SearchableSelect
                     name="programType"
                     value={formData.programType}
                     onChange={handleInputChange}
@@ -712,7 +900,7 @@ export default function AdminCreateLeadPage() {
                         {type.type}
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                   {loadingTypes && (
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                       <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
@@ -743,22 +931,45 @@ export default function AdminCreateLeadPage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-3 border-b">Assignment</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Lead Owner</label>
-                <select
-                  name="leadOwner"
-                  value={formData.leadOwner}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select Lead Owner</option>
-                  {employees.map(employee => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {isCeoUser && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Branch</label>
+                  <SearchableSelect
+                    value={ownerBranchFilter}
+                    onChange={(e) => setOwnerBranchFilter(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">-- All Branches --</option>
+                    {branches.map((branch: any) => (
+                      <option key={branch.id} value={String(branch.id)}>
+                        {branch.branch}
+                      </option>
+                    ))}
+                  </SearchableSelect>
+                </div>
+              )}
+
+              {!isPlainCounsellor && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Counselor</label>
+                  <SearchableSelect
+                    name="leadOwner"
+                    value={formData.leadOwner}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select Counselor</option>
+                    {leadOwnerOptions.map(employee => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.name}
+                      </option>
+                    ))}
+                  </SearchableSelect>
+                  {isBranchLockedRole && (
+                    <p className="text-xs text-gray-500 mt-1">Showing counselors in your branch only.</p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Date</label>
@@ -866,16 +1077,18 @@ export default function AdminCreateLeadPage() {
                 <span className="ml-2 text-sm text-gray-700">Chat Lead / Bot Lead</span>
               </label>
 
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  name="roundrobin"
-                  checked={formData.roundrobin}
-                  onChange={handleInputChange}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="ml-2 text-sm text-gray-700">Roundrobin</span>
-              </label>
+              {!isPlainCounsellor && (
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="roundrobin"
+                    checked={formData.roundrobin}
+                    onChange={handleInputChange}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Roundrobin</span>
+                </label>
+              )}
 
               <label className="flex items-center">
                 <input
@@ -897,7 +1110,7 @@ export default function AdminCreateLeadPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select
+                <SearchableSelect
                   name="status"
                   value={formData.status}
                   onChange={handleInputChange}
@@ -906,12 +1119,12 @@ export default function AdminCreateLeadPage() {
                   {statuses.map(option => (
                     <option key={option} value={option}>{option}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
-                <select
+                <SearchableSelect
                   name="priority"
                   value={formData.priority}
                   onChange={handleInputChange}
@@ -920,7 +1133,7 @@ export default function AdminCreateLeadPage() {
                   {priorities.map(option => (
                     <option key={option} value={option}>{option}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
 
               <div className="md:col-span-2">
@@ -940,16 +1153,18 @@ export default function AdminCreateLeadPage() {
           {/* Form Actions */}
           <div className="flex justify-between items-center bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center space-x-4">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  name="autoAssign"
-                  checked={formData.autoAssign}
-                  onChange={handleInputChange}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="ml-2 text-sm text-gray-700">Assign using active assignment rule</span>
-              </label>
+              {!isPlainCounsellor && (
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="autoAssign"
+                    checked={formData.autoAssign}
+                    onChange={handleInputChange}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Assign using active assignment rule</span>
+                </label>
+              )}
             </div>
 
             <div className="flex items-center space-x-4">
@@ -996,11 +1211,6 @@ function validateLeadForm(data: LeadFormData): string[] {
   if (data.whatsappNumber && (phoneDigits(data.whatsappNumber).length < 7 || phoneDigits(data.whatsappNumber).length > 15)) {
     errors.push('Enter a valid WhatsApp number with 7 to 15 digits.');
   }
-
-  if (!data.genderIdentity || data.genderIdentity === '--None--') errors.push('Select a gender identity.');
-  if (!data.programCountry) errors.push('Select a program country.');
-  if (!data.program) errors.push('Select a program.');
-  if (!data.programType) errors.push('Select a program type.');
 
   if (data.age && (!Number.isInteger(Number(data.age)) || Number(data.age) < 0 || Number(data.age) > 120)) {
     errors.push('Age must be a whole number between 0 and 120.');

@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
 import { resolveLeadAutoAssignment } from '@/lib/leadAutoAssignment';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { isFoeOrBranchManagerOrCeo } from '@/lib/roleChecks';
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const branchId = Number.parseInt(searchParams.get('branchId') || '1', 10);
@@ -48,6 +52,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
+  if (!isFoeOrBranchManagerOrCeo(auth)) {
+    return NextResponse.json({ success: false, error: 'Only FOE, Branch Manager, or CEO can assign leads' }, { status: 403 });
+  }
   try {
     const body = await request.json();
     const leadId = Number.parseInt(String(body.leadId || ''), 10);

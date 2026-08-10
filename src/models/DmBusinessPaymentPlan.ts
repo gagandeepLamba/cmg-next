@@ -22,22 +22,22 @@ interface DmBusinessPaymentPlanAttributes {
 interface DmBusinessPaymentPlanCreationAttributes extends Optional<DmBusinessPaymentPlanAttributes, never> {}
 
 class DmBusinessPaymentPlan extends Model<DmBusinessPaymentPlanAttributes, DmBusinessPaymentPlanCreationAttributes> implements DmBusinessPaymentPlanAttributes {
-  public leadId!: number;
-  public legal_fees!: number;
-  public total_fees!: number;
-  public vat!: number;
-  public first_payment!: number;
-  public due_diligence_fees!: number;
-  public government_application_fees!: number;
-  public government_passport_fees!: number;
-  public governement_cert_of_naturalization!: number;
-  public second_payment!: number;
-  public bank_charges!: number;
-  public refund!: number;
-  public balance_payment!: number;
-  public created!: Date;
-  public created_by!: number;
-  public id!: number;
+  declare leadId: number;
+  declare legal_fees: number;
+  declare total_fees: number;
+  declare vat: number;
+  declare first_payment: number;
+  declare due_diligence_fees: number;
+  declare government_application_fees: number;
+  declare government_passport_fees: number;
+  declare governement_cert_of_naturalization: number;
+  declare second_payment: number;
+  declare bank_charges: number;
+  declare refund: number;
+  declare balance_payment: number;
+  declare created: Date;
+  declare created_by: number;
+  declare id: number;
 
   public static associate(models: any) {
   }

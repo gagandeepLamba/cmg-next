@@ -13,13 +13,13 @@ interface DmLeadsEmailersAttributes {
 interface DmLeadsEmailersCreationAttributes extends Optional<DmLeadsEmailersAttributes, never> {}
 
 class DmLeadsEmailers extends Model<DmLeadsEmailersAttributes, DmLeadsEmailersCreationAttributes> implements DmLeadsEmailersAttributes {
-  public id!: number;
-  public email!: string;
-  public name!: string;
-  public branch!: number;
-  public created!: Date;
-  public sent!: number;
-  public month!: string;
+  declare id: number;
+  declare email: string;
+  declare name: string;
+  declare branch: number;
+  declare created: Date;
+  declare sent: number;
+  declare month: string;
 
   public static associate(models: any) {
   }

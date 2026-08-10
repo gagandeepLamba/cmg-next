@@ -16,15 +16,15 @@ interface DmPermissionAttributes {
 interface DmPermissionCreationAttributes extends Optional<DmPermissionAttributes, 'id' | 'description' | 'status' | 'created_at' | 'updated_at'> {}
 
 class DmPermission extends Model<DmPermissionAttributes, DmPermissionCreationAttributes> implements DmPermissionAttributes {
-  public id!: number;
-  public permission_key!: string;
-  public module!: string;
-  public action!: string;
-  public label!: string;
-  public description!: string | null;
-  public status!: number;
-  public created_at!: Date;
-  public updated_at!: Date;
+  declare id: number;
+  declare permission_key: string;
+  declare module: string;
+  declare action: string;
+  declare label: string;
+  declare description: string | null;
+  declare status: number;
+  declare created_at: Date;
+  declare updated_at: Date;
 
   public static associate(models: any) {
     DmPermission.hasMany(models.DmRolePermission, { foreignKey: 'permission_id', sourceKey: 'id', as: 'rolePermissions' });

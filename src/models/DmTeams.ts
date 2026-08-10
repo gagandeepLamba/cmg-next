@@ -11,11 +11,11 @@ interface DmTeamsAttributes {
 interface DmTeamsCreationAttributes extends Optional<DmTeamsAttributes, never> {}
 
 class DmTeams extends Model<DmTeamsAttributes, DmTeamsCreationAttributes> implements DmTeamsAttributes {
-  public id!: number;
-  public team!: string;
-  public status!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare team: string;
+  declare status: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

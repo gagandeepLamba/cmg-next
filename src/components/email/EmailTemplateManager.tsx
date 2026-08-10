@@ -1,11 +1,12 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import {
-  Mail, Plus, Edit, Trash2, Eye, Send, Filter, Search,
-  FileText, Users, BarChart3, Clock, CheckCircle, AlertCircle,
-  TrendingUp, Download, Copy, Play, Pause, Settings,
-  Calendar, Globe, Tag, Star, MoreVertical
+  Mail, Plus, Edit, Trash2, Eye, Send, Search,
+  FileText, Users, BarChart3, CheckCircle,
+  TrendingUp, Copy, RefreshCw, X, Pause, MoreVertical, Star
 } from 'lucide-react';
 
 interface EmailTemplate {
@@ -63,57 +64,77 @@ export default function EmailTemplateManager() {
   const [activeTab, setActiveTab] = useState<'templates' | 'campaigns' | 'recipients' | 'analytics'>('templates');
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [campaigns, setCampaigns] = useState<EmailCampaign[]>([]);
+  const { sorted: sortedCampaigns, sortKey: campaignSortKey, sortDirection: campaignSortDirection, toggleSort: toggleCampaignSort } = useSortableData(
+    campaigns,
+    {
+      campaign: (c) => c.name,
+      template: (c) => c.templateName,
+      status: (c) => c.status,
+      recipients: (c) => c.performance.totalRecipients,
+      performance: (c) => c.performance.openRate,
+      sent: (c) => c.sentAt,
+    },
+  );
   const [recipients, setRecipients] = useState<EmailRecipient[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [showCampaignModal, setShowCampaignModal] = useState(false);
-  const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [templateForm, setTemplateForm] = useState({ id: '', name: '', subject: '', htmlContent: '', status: 'active' });
+
+  const loadTemplates = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/email-templates');
+      const json = await res.json();
+      if (json.success) setTemplates(json.templates);
+    } catch (error) {
+      console.error('Error loading email templates:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setTemplates([]);
+    loadTemplates();
     setCampaigns([]);
     setRecipients([]);
   }, []);
 
-  const handleSendCampaign = async (campaignId: string) => {
+  const openNewTemplateModal = () => {
+    setTemplateForm({ id: '', name: '', subject: '', htmlContent: '', status: 'active' });
+    setShowTemplateModal(true);
+  };
+
+  const openEditTemplateModal = (template: EmailTemplate) => {
+    setTemplateForm({ id: template.id, name: template.name, subject: template.subject, htmlContent: (template as any).htmlContent || '', status: template.status });
+    setShowTemplateModal(true);
+  };
+
+  const handleSaveTemplate = async () => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Update campaign status
-      setCampaigns(prev => prev.map(c => 
-        c.id === campaignId 
-          ? { ...c, status: 'sending' }
-          : c
-      ));
-      
-      // After some time, mark as sent
-      setTimeout(() => {
-        setCampaigns(prev => prev.map(c => 
-          c.id === campaignId 
-            ? { 
-                ...c, 
-                status: 'sent',
-                sentAt: new Date().toISOString(),
-                performance: {
-                  ...c.performance,
-                  sentCount: c.performance.totalRecipients,
-                  deliveredCount: Math.floor(c.performance.totalRecipients * 0.94),
-                  openedCount: Math.floor(c.performance.totalRecipients * 0.47),
-                  clickedCount: Math.floor(c.performance.totalRecipients * 0.09)
-                }
-              }
-            : c
-        ));
-      }, 3000);
-      
+      if (templateForm.id) {
+        const res = await fetch('/api/email-templates', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: templateForm.id, data: templateForm }),
+        });
+        if (!res.ok) throw new Error('Failed to update template');
+      } else {
+        const res = await fetch('/api/email-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create_template', data: templateForm }),
+        });
+        if (!res.ok) throw new Error('Failed to create template');
+      }
+      setShowTemplateModal(false);
+      loadTemplates();
     } catch (error) {
-      console.error('Error sending campaign:', error);
+      window.toast.error(error instanceof Error ? error.message : 'Failed to save template');
     } finally {
       setLoading(false);
     }
@@ -123,24 +144,20 @@ export default function EmailTemplateManager() {
     if (!confirm('Are you sure you want to delete this template?')) {
       return;
     }
-    
-    setTemplates(prev => prev.filter(t => t.id !== templateId));
+    await fetch(`/api/email-templates?id=${templateId}`, { method: 'DELETE' });
+    loadTemplates();
   };
 
-  const handleDuplicateTemplate = (template: EmailTemplate) => {
-    const duplicatedTemplate: EmailTemplate = {
-      ...template,
-      id: `template-${Date.now()}`,
-      name: `${template.name} (Copy)`,
-      metadata: {
-        ...template.metadata,
-        createdAt: new Date().toISOString(),
-        usageCount: 0,
-        lastUsed: undefined
-      }
-    };
-    
-    setTemplates(prev => [...prev, duplicatedTemplate]);
+  const handleDuplicateTemplate = async (template: EmailTemplate) => {
+    await fetch('/api/email-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create_template',
+        data: { name: `${template.name} (Copy)`, subject: template.subject, htmlContent: (template as any).htmlContent || '', status: 'inactive' },
+      }),
+    });
+    loadTemplates();
   };
 
   const getStatusColor = (status: string) => {
@@ -199,19 +216,15 @@ export default function EmailTemplateManager() {
             <p className="text-gray-600 mt-1">Create, manage, and send email templates to bulk users</p>
           </div>
           <div className="flex items-center space-x-4">
+            <button onClick={loadTemplates} className="flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+            </button>
             <button
-              onClick={() => setShowTemplateModal(true)}
+              onClick={openNewTemplateModal}
               className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               <Plus className="w-4 h-4 mr-2" />
               New Template
-            </button>
-            <button
-              onClick={() => setShowCampaignModal(true)}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              <Send className="w-4 h-4 mr-2" />
-              New Campaign
             </button>
           </div>
         </div>
@@ -343,7 +356,7 @@ export default function EmailTemplateManager() {
                   />
                 </div>
                 
-                <select
+                <SearchableSelect
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -353,9 +366,9 @@ export default function EmailTemplateManager() {
                   <option value="transactional">Transactional</option>
                   <option value="notification">Notification</option>
                   <option value="newsletter">Newsletter</option>
-                </select>
+                </SearchableSelect>
                 
-                <select
+                <SearchableSelect
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -364,7 +377,7 @@ export default function EmailTemplateManager() {
                   <option value="active">Active</option>
                   <option value="draft">Draft</option>
                   <option value="inactive">Inactive</option>
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 
@@ -389,7 +402,7 @@ export default function EmailTemplateManager() {
                     </div>
                     <div className="flex items-center space-x-2 ml-4">
                       <button
-                        onClick={() => setSelectedTemplate(template)}
+                        onClick={() => openEditTemplateModal(template)}
                         className="text-blue-600 hover:text-blue-800"
                       >
                         <Eye className="w-4 h-4" />
@@ -400,7 +413,7 @@ export default function EmailTemplateManager() {
                       >
                         <Copy className="w-4 h-4" />
                       </button>
-                      <button className="text-gray-600 hover:text-gray-800">
+                      <button onClick={() => openEditTemplateModal(template)} className="text-gray-600 hover:text-gray-800">
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
@@ -444,17 +457,17 @@ export default function EmailTemplateManager() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Campaign</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Template</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recipients</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performance</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sent</th>
+                    <SortableTh label="Campaign" sortKey="campaign" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="Template" sortKey="template" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="Status" sortKey="status" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="Recipients" sortKey="recipients" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="Performance" sortKey="performance" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <SortableTh label="Sent" sortKey="sent" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {campaigns.map((campaign) => (
+                  {sortedCampaigns.map((campaign) => (
                     <tr key={campaign.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
@@ -523,17 +536,12 @@ export default function EmailTemplateManager() {
                     className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                
-                <button
-                  onClick={() => setShowRecipientModal(true)}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Recipient
-                </button>
               </div>
             </div>
 
+            {recipients.length === 0 && (
+              <p className="text-sm text-gray-400">No recipient lists yet.</p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {recipients.map((recipient) => (
                 <div key={recipient.id} className="border border-gray-200 rounded-lg p-6">
@@ -668,6 +676,49 @@ export default function EmailTemplateManager() {
           </div>
         )}
       </div>
+
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 max-h-[85vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">{templateForm.id ? 'Edit Template' : 'New Template'}</h3>
+              <button onClick={() => setShowTemplateModal(false)} className="text-gray-500 hover:text-gray-700"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input type="text" value={templateForm.name} onChange={(e) => setTemplateForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Template name" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <input type="text" value={templateForm.subject} onChange={(e) => setTemplateForm(f => ({ ...f, subject: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Email subject" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                <textarea value={templateForm.htmlContent} onChange={(e) => setTemplateForm(f => ({ ...f, htmlContent: e.target.value }))}
+                  rows={8} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm" placeholder="Email body / HTML" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <SearchableSelect value={templateForm.status} onChange={(e) => setTemplateForm(f => ({ ...f, status: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </SearchableSelect>
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-200 flex justify-end space-x-4">
+              <button onClick={() => setShowTemplateModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={handleSaveTemplate} disabled={loading || !templateForm.name}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {loading ? 'Saving...' : 'Save Template'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

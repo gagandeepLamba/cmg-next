@@ -1,5 +1,7 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Users, Search, RefreshCw, ChevronLeft, ChevronRight,
@@ -26,6 +28,8 @@ interface Lead {
 }
 
 interface Branch { id: number; name: string; }
+
+interface FilterOption { value: string; label: string; }
 
 interface Counsellor {
   id: number;
@@ -85,6 +89,8 @@ export default function LeadPool() {
   const [marketFilter, setMarket]       = useState('');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [page, setPage]                 = useState(1);
+  const [serviceOptions, setServiceOptions] = useState<FilterOption[]>([]);
+  const [sourceOptions, setSourceOptions]   = useState<FilterOption[]>([]);
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -133,6 +139,20 @@ export default function LeadPool() {
   // Initial load
   useEffect(() => { load(1); setPage(1); }, [load]);
 
+  // Service/Market Source filter options - loaded from the real dm_service/
+  // dm_source tables (their IDs don't line up with a small fixed 1-8 range,
+  // so these can't be hardcoded without silently matching zero leads).
+  useEffect(() => {
+    fetch('/api/lead-filter-options')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!json) return;
+        setServiceOptions(json.services || []);
+        setSourceOptions(json.sources || []);
+      })
+      .catch(() => {});
+  }, []);
+
   // Debounce search
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -144,6 +164,17 @@ export default function LeadPool() {
   const total     = data?.total ?? 0;
   const totalPages = data?.pagination.totalPages ?? 1;
   const allOnPageSelected = pageLeads.length > 0 && pageLeads.every(l => selectedIds.has(l.id));
+  const { sorted: sortedPageLeads, sortKey: leadPoolSortKey, sortDirection: leadPoolSortDirection, toggleSort: toggleLeadPoolSort } = useSortableData(
+    pageLeads,
+    {
+      name: (l) => `${l.fname} ${l.lname}`.trim(),
+      contact: (l) => l.phone,
+      status: (l) => l.status,
+      branch: (l) => l.branchName,
+      assignedTo: (l) => l.assigneeName || l.counsellorName,
+      date: (l) => l.created,
+    },
+  );
 
   const togglePageAll = () => {
     if (allOnPageSelected) {
@@ -280,7 +311,7 @@ export default function LeadPool() {
               className="w-full pl-9 pr-3 py-2 text-sm border border-[var(--cmg-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)] text-[var(--cmg-ink)]"
             />
           </div>
-          <select value={statusFilter} onChange={e => setStatus(e.target.value)}
+          <SearchableSelect value={statusFilter} onChange={e => setStatus(e.target.value)}
             className="text-sm border border-[var(--cmg-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)] text-[var(--cmg-ink)]">
             <option value="">All Statuses</option>
             <option value="New">New</option>
@@ -290,20 +321,20 @@ export default function LeadPool() {
             <option value="Client">Client</option>
             <option value="Pending">Pending</option>
             <option value="No Response">No Response</option>
-          </select>
-          <select value={priorityFilter} onChange={e => setPriority(e.target.value)}
+          </SearchableSelect>
+          <SearchableSelect value={priorityFilter} onChange={e => setPriority(e.target.value)}
             className="text-sm border border-[var(--cmg-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)] text-[var(--cmg-ink)]">
             <option value="">All Priorities</option>
             <option value="High">High</option>
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
-          </select>
-          <select value={assignedFilter} onChange={e => setAssigned(e.target.value)}
+          </SearchableSelect>
+          <SearchableSelect value={assignedFilter} onChange={e => setAssigned(e.target.value)}
             className="text-sm border border-[var(--cmg-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)] text-[var(--cmg-ink)]">
             <option value="">All Leads</option>
             <option value="unassigned">Unassigned Only</option>
             <option value="assigned">Assigned Only</option>
-          </select>
+          </SearchableSelect>
           <button onClick={() => setShowMoreFilters(v => !v)}
             className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-[var(--cmg-border)] text-[var(--cmg-muted)] hover:bg-[#f3f6fb]">
             <Filter className="w-4 h-4" />
@@ -336,44 +367,34 @@ export default function LeadPool() {
             </div>
             {/* Branch filter (admin only) */}
             {data?.roleCategory !== 'branch_manager' && data?.branches && data.branches.length > 0 && (
-              <select value={branchFilter} onChange={e => setBranch(e.target.value)}
+              <SearchableSelect value={branchFilter} onChange={e => setBranch(e.target.value)}
                 className="text-sm border border-[var(--cmg-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)] text-[var(--cmg-ink)]">
                 <option value="">All Branches</option>
                 {(data.branches as Branch[]).map(b => (
                   <option key={b.id} value={String(b.id)}>{b.name}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             )}
             {/* Nationality */}
             <input type="text" placeholder="Nationality..." value={nationalityFilter}
               onChange={e => setNationality(e.target.value)}
               className="text-sm border border-[var(--cmg-border)] rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)] text-[var(--cmg-ink)]" />
             {/* Service Interest */}
-            <select value={serviceFilter} onChange={e => setService(e.target.value)}
+            <SearchableSelect value={serviceFilter} onChange={e => setService(e.target.value)}
               className="text-sm border border-[var(--cmg-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)] text-[var(--cmg-ink)]">
               <option value="">All Services</option>
-              <option value="1">Visit Visa</option>
-              <option value="2">Student Visa</option>
-              <option value="3">Work Permit</option>
-              <option value="4">Business Immigration</option>
-              <option value="5">Family Sponsorship</option>
-              <option value="6">Permanent Residency</option>
-              <option value="7">Citizenship</option>
-              <option value="8">Tourist Visa</option>
-            </select>
+              {serviceOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </SearchableSelect>
             {/* Market Source */}
-            <select value={marketFilter} onChange={e => setMarket(e.target.value)}
+            <SearchableSelect value={marketFilter} onChange={e => setMarket(e.target.value)}
               className="text-sm border border-[var(--cmg-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)] text-[var(--cmg-ink)]">
               <option value="">All Sources</option>
-              <option value="1">Walk-in</option>
-              <option value="2">Referral</option>
-              <option value="3">Facebook</option>
-              <option value="4">Instagram</option>
-              <option value="5">Website</option>
-              <option value="6">Google</option>
-              <option value="7">WhatsApp</option>
-              <option value="8">Email</option>
-            </select>
+              {sourceOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </SearchableSelect>
           </div>
         )}
       </div>
@@ -428,18 +449,18 @@ export default function LeadPool() {
                       className="rounded border-slate-300 text-[var(--cmg-blue)] focus:ring-[var(--cmg-blue)]"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]">Lead</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]">Contact</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]">Status</th>
+                  <SortableTh label="Lead" sortKey="name" activeKey={leadPoolSortKey} direction={leadPoolSortDirection} onSort={toggleLeadPoolSort} className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]" />
+                  <SortableTh label="Contact" sortKey="contact" activeKey={leadPoolSortKey} direction={leadPoolSortDirection} onSort={toggleLeadPoolSort} className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]" />
+                  <SortableTh label="Status" sortKey="status" activeKey={leadPoolSortKey} direction={leadPoolSortDirection} onSort={toggleLeadPoolSort} className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]" />
                   {data?.roleCategory === 'admin' && (
-                    <th className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]">Branch</th>
+                    <SortableTh label="Branch" sortKey="branch" activeKey={leadPoolSortKey} direction={leadPoolSortDirection} onSort={toggleLeadPoolSort} className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]" />
                   )}
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]">Assigned To</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]">Date</th>
+                  <SortableTh label="Assigned To" sortKey="assignedTo" activeKey={leadPoolSortKey} direction={leadPoolSortDirection} onSort={toggleLeadPoolSort} className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]" />
+                  <SortableTh label="Date" sortKey="date" activeKey={leadPoolSortKey} direction={leadPoolSortDirection} onSort={toggleLeadPoolSort} className="px-4 py-3 text-left font-semibold text-[var(--cmg-ink)]" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--cmg-border)]">
-                {pageLeads.map(lead => {
+                {sortedPageLeads.map(lead => {
                   const isChecked = selectAllDb || selectedIds.has(lead.id);
                   const name = `${lead.fname} ${lead.lname}`.trim() || `Lead #${lead.id}`;
                   const assignee = lead.assigneeName || lead.counsellorName || '';
@@ -543,7 +564,7 @@ export default function LeadPool() {
             </div>
 
             <div className="flex-1 flex items-center gap-3 flex-wrap">
-              <select
+              <SearchableSelect
                 value={counsellorId}
                 onChange={e => setCounsellorId(e.target.value)}
                 className="flex-1 min-w-52 text-sm border border-[var(--cmg-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--cmg-blue)] text-[var(--cmg-ink)]"
@@ -554,7 +575,7 @@ export default function LeadPool() {
                     {c.name}{data?.roleCategory === 'admin' && c.branchName ? ` (${c.branchName})` : ''}
                   </option>
                 ))}
-              </select>
+              </SearchableSelect>
 
               {!confirmVisible ? (
                 <button
@@ -563,7 +584,7 @@ export default function LeadPool() {
                     setConfirmVisible(true);
                   }}
                   disabled={!counsellorId}
-                  className="flex items-center gap-2 bg-[#003399] hover:bg-[#002266] disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
+                  className="flex items-center gap-2 bg-[#35AE22] hover:bg-[#1C6B10] disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
                 >
                   Transfer
                   <ArrowRight className="w-4 h-4" />
@@ -577,7 +598,7 @@ export default function LeadPool() {
                   <button
                     onClick={handleTransfer}
                     disabled={transferring}
-                    className="flex items-center gap-2 bg-[#003399] hover:bg-[#002266] disabled:opacity-70 text-white text-sm font-medium px-4 py-2 rounded-lg"
+                    className="flex items-center gap-2 bg-[#35AE22] hover:bg-[#1C6B10] disabled:opacity-70 text-white text-sm font-medium px-4 py-2 rounded-lg"
                   >
                     {transferring ? (
                       <span className="flex items-center gap-2">

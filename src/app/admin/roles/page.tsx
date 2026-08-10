@@ -1,11 +1,29 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { DmRole } from '@/models/DmRole';
 import type { DmRoleAttributes } from '@/models/DmRole';
+import { useBulkSelection } from '@/hooks/useBulkSelection';
+import BulkActionBar from '@/components/admin/BulkActionBar';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 export default function RolesManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [roles, setRoles] = useState<DmRoleAttributes[]>([]);
+  const { sorted: sortedRoles, sortKey: roleSortKey, sortDirection: roleSortDirection, toggleSort: toggleRoleSort } = useSortableData(
+    roles,
+    {
+      name: (r) => r.name,
+      type: (r) => r.type,
+      hierarchy: (r) => r.hierarchy,
+      departmentId: (r) => r.department_id,
+      status: (r) => r.status,
+    },
+  );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<DmRoleAttributes | null>(null);
@@ -21,6 +39,8 @@ export default function RolesManagement() {
   const [filters, setFilters] = useState({
     status: ''
   });
+  const { selectedIds, toggleOne, toggleAll, clear, isSelected, allSelected } = useBulkSelection(roles);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     fetchRoles();
@@ -88,11 +108,11 @@ export default function RolesManagement() {
         fetchRoles();
       } else {
         const error = await response.json();
-        alert('Error deleting role: ' + error.error);
+        window.toast.error('Error deleting role: ' + error.error);
       }
     } catch (error) {
       console.error('Error deleting role:', error);
-      alert('Error deleting role');
+      window.toast.error('Error deleting role');
     }
   };
 
@@ -111,11 +131,11 @@ export default function RolesManagement() {
         fetchRoles();
       } else {
         const error = await response.json();
-        alert('Error adding role: ' + error.error);
+        window.toast.error('Error adding role: ' + error.error);
       }
     } catch (error) {
       console.error('Error adding role:', error);
-      alert('Error adding role');
+      window.toast.error('Error adding role');
     }
   };
 
@@ -137,16 +157,46 @@ export default function RolesManagement() {
         fetchRoles();
       } else {
         const error = await response.json();
-        alert('Error updating role: ' + error.error);
+        window.toast.error('Error updating role: ' + error.error);
       }
     } catch (error) {
       console.error('Error updating role:', error);
-      alert('Error updating role');
+      window.toast.error('Error updating role');
     }
   };
 
   const getStatusColor = (status: number) => {
     return status === 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+  };
+
+  const setBulkStatus = async (status: 0 | 1) => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch('/api/admin/roles', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status }),
+        })
+      ));
+      clear();
+      fetchRoles();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch(`/api/admin/roles?id=${id}`, { method: 'DELETE' })
+      ));
+      clear();
+      fetchRoles();
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   if (loading) {
@@ -185,7 +235,7 @@ export default function RolesManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select 
+          <SearchableSelect 
             value={filters.status}
             onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -193,39 +243,45 @@ export default function RolesManagement() {
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Roles Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role Name
+                <th className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Hierarchy
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Department ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <SortableTh label="Role Name" sortKey="name" activeKey={roleSortKey} direction={roleSortDirection} onSort={toggleRoleSort} />
+                <SortableTh label="Type" sortKey="type" activeKey={roleSortKey} direction={roleSortDirection} onSort={toggleRoleSort} />
+                <SortableTh label="Hierarchy" sortKey="hierarchy" activeKey={roleSortKey} direction={roleSortDirection} onSort={toggleRoleSort} />
+                <SortableTh label="Department ID" sortKey="departmentId" activeKey={roleSortKey} direction={roleSortDirection} onSort={toggleRoleSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={roleSortKey} direction={roleSortDirection} onSort={toggleRoleSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {roles.map((role: DmRoleAttributes) => (
+              {sortedRoles.map((role: DmRoleAttributes) => (
                 <tr key={role.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected(role.id)}
+                      onChange={(e) => toggleOne(role.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
                       {role.name}
@@ -264,12 +320,14 @@ export default function RolesManagement() {
                     >
                       Edit
                     </button>
-                    <button 
-                      onClick={() => handleDeleteRole(role.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteRole(role.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -277,6 +335,17 @@ export default function RolesManagement() {
           </table>
         </div>
       </div>
+
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        busy={bulkBusy}
+        onActivate={() => setBulkStatus(1)}
+        onDeactivate={() => setBulkStatus(0)}
+        onDelete={handleBulkDelete}
+        onClear={clear}
+        entityLabel="role"
+        deleteConfirmMessage={`Delete ${selectedIds.size} role(s)? This may affect associated employees. This cannot be undone.`}
+      />
 
       {/* Pagination */}
       <div className="bg-white rounded-lg shadow p-4">
@@ -466,7 +535,7 @@ function RoleFormModal({ title, initialData, onSubmit, onClose }: RoleFormModalP
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Status *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.status}
                 onChange={(e) => setFormData(prev => ({ ...prev, status: parseInt(e.target.value) }))}
@@ -474,7 +543,7 @@ function RoleFormModal({ title, initialData, onSubmit, onClose }: RoleFormModalP
               >
                 <option value="1">Active</option>
                 <option value="0">Inactive</option>
-              </select>
+              </SearchableSelect>
             </div>
           </div>
           <div className="mt-6 flex justify-end space-x-3">

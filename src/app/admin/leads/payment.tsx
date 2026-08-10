@@ -1,7 +1,10 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
+import { BANK_PAYMENT_OPTIONS, CARD_PAYMENT_OPTIONS } from '@/lib/paymentOptions';
 
 interface PaymentWizardProps {
   leadId: number;
@@ -18,6 +21,7 @@ interface Payment {
 }
 
 export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWizardProps) {
+  const { currencyCode } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [paymentData, setPaymentData] = useState({
     leadId: leadId,
@@ -44,6 +48,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
   const [existingPayments, setExistingPayments] = useState<Payment[]>([]);
   const [receiptPreview, setReceiptPreview] = useState(false);
   const [processedReceiptNumber, setProcessedReceiptNumber] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -140,6 +145,8 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
   };
 
   const processPayments = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
     try {
       const receiptNumber = getReceiptNumber();
       const finalData = {
@@ -162,17 +169,20 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
         onPaymentProcessed(result.paymentId);
         setCurrentStep(4); // Success step
       } else {
-        throw new Error('Failed to process payments');
+        const errorBody = await response.json().catch(() => null);
+        throw new Error(errorBody?.message || 'Failed to process payments');
       }
     } catch (error) {
       console.error('Error processing payments:', error);
-      alert('Failed to process payments. Please try again.');
+      window.toast.error(error instanceof Error ? error.message : 'Failed to process payments. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const numberValue = (value: unknown) => Number(value || 0);
 
-  const formatMoney = (value: unknown) => `AED ${numberValue(value).toLocaleString('en-AE', {
+  const formatMoney = (value: unknown) => `${currencyCode} ${numberValue(value).toLocaleString('en-AE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })}`;
@@ -275,7 +285,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
     const bodyWidth = pageWidth - margin * 2;
     const clientName = `${lead?.fname || ''} ${lead?.mname || ''} ${lead?.lname || ''}`.replace(/\s+/g, ' ').trim();
     const serviceName = lead?.service_interest_label || lead?.service_interest || 'Service';
-    const currency = lead?.currency || lead?.branchCurrency || 'AED';
+    const currency = lead?.currency || lead?.branchCurrency || currencyCode;
     const money = (value: unknown) => `${currency} ${numberValue(value).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const paymentMethod = paymentData.payments.map(p => p.method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())).join(', ');
     const transactionRef = paymentData.payments.map(p => p.reference).filter(Boolean).join(', ');
@@ -360,7 +370,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
     drawDataRow('Date of Supply', payDate);
     drawDataRow('Payment Date', payDate);
     drawDataRow('Client Name', clientName || 'N/A');
-    drawDataRow('AG / Opportunity ID', `AG-${lead?.id || 'N/A'}`);
+    drawDataRow('Agreement No.', lead?.agreement_number || 'N/A');
     drawDataRow('Service / Program', serviceName);
     const counselorText = [lead?.assignedEmployeeName, lead?.dmBranch?.name].filter(Boolean).join(' — ') || 'N/A';
     drawDataRow('Counselor', counselorText);
@@ -535,7 +545,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method *</label>
-                          <select
+                          <SearchableSelect
                             value={payment.method}
                             onChange={(e) => handlePaymentChange(index, 'method', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -546,7 +556,17 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                             <option value="bank_transfer">Bank Transfer</option>
                             <option value="cheque">Cheque</option>
                             <option value="online">Online Payment</option>
-                          </select>
+                            <optgroup label="Bank">
+                              {BANK_PAYMENT_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Card / POS">
+                              {CARD_PAYMENT_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </optgroup>
+                          </SearchableSelect>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
@@ -631,12 +651,12 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                       {paymentData.payments.map((payment, index) => (
                         <div key={index} className="flex justify-between text-sm">
                           <span>Payment {index + 1} ({payment.method.replace('_', ' ').toUpperCase()}):</span>
-                          <span className="font-medium">${parseFloat(payment.amount || '0').toFixed(2)}</span>
+                          <span className="font-medium">{currencyCode} {parseFloat(payment.amount || '0').toFixed(2)}</span>
                         </div>
                       ))}
                       <div className="flex justify-between text-lg font-bold border-t pt-2">
                         <span>Total Amount:</span>
-                        <span className="text-blue-600">${paymentData.totalAmount.toFixed(2)}</span>
+                        <span className="text-blue-600">{currencyCode} {paymentData.totalAmount.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -655,7 +675,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                             Installment Tag
                             <span className="ml-1 text-xs text-gray-400">(receipt suffix)</span>
                           </label>
-                          <select
+                          <SearchableSelect
                             value={paymentData.paymentTag}
                             onChange={(e) => {
                               handleInputChange('paymentTag', e.target.value);
@@ -670,7 +690,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                             <option value="GOV">GOV — Government Fee</option>
                             <option value="VAT">VAT — Standalone VAT</option>
                             <option value="REF">REF — Refund</option>
-                          </select>
+                          </SearchableSelect>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -776,11 +796,12 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                 </motion.button>
                 <motion.button
                   onClick={processPayments}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                  disabled={isProcessing}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  Process Payments
+                  {isProcessing ? 'Processing...' : 'Process Payments'}
                 </motion.button>
               </div>
             </div>
@@ -817,6 +838,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
 
                 <div className="mb-6">
                   <h3 className="font-semibold text-gray-900 mb-2">Payment Details:</h3>
+                  <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
@@ -843,6 +865,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                       </tr>
                     </tfoot>
                   </table>
+                  </div>
                 </div>
 
                 <div className="text-center text-sm text-gray-600">
@@ -1030,7 +1053,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
               transition={{ delay: 0.5 }}
             >
               <h3 className="text-xl font-bold text-gray-900 mb-4">Payment History</h3>
-              <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="bg-white rounded-lg shadow overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -1067,7 +1090,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
                           <div className="text-sm font-medium text-gray-900">{payment.receiptNumber}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">${payment.amount.toLocaleString()}</div>
+                          <div className="text-sm text-gray-900">{currencyCode} {payment.amount.toLocaleString()}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">{payment.method.replace('_', ' ').toUpperCase()}</div>

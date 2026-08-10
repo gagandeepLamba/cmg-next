@@ -14,14 +14,14 @@ interface QualificationOldAttributes {
 interface QualificationOldCreationAttributes extends Optional<QualificationOldAttributes, 'leadid' | 'qualifctn' | 'specilization' | 'university' | 'rating'> {}
 
 class QualificationOld extends Model<QualificationOldAttributes, QualificationOldCreationAttributes> implements QualificationOldAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public qualifctn!: string | null;
-  public specilization!: string | null;
-  public university!: string | null;
-  public assesment_body!: string;
-  public type!: string;
-  public rating!: string | null;
+  declare id: number;
+  declare leadid: number | null;
+  declare qualifctn: string | null;
+  declare specilization: string | null;
+  declare university: string | null;
+  declare assesment_body: string;
+  declare type: string;
+  declare rating: string | null;
 
   public static associate(models: any) {
   }

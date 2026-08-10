@@ -1,6 +1,12 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useBulkSelection } from '@/hooks/useBulkSelection';
+import BulkActionBar from '@/components/admin/BulkActionBar';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 interface Service {
   id: number;
@@ -30,7 +36,19 @@ interface LookupData {
 const emptyForm = { name: '', flag: '', slogan_logo: '', status: 1 };
 
 export default function ProgramsManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [services, setServices] = useState<Service[]>([]);
+  const { sorted: sortedServices, sortKey: serviceSortKey, sortDirection: serviceSortDirection, toggleSort: toggleServiceSort } = useSortableData(
+    services,
+    {
+      id: (s) => s.id,
+      name: (s) => s.name,
+      flag: (s) => s.flag,
+      sloganLogo: (s) => s.slogan_logo,
+      status: (s) => s.status,
+    },
+  );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -44,6 +62,13 @@ export default function ProgramsManagement() {
 
   // Mapping modal state
   const [mappings, setMappings] = useState<Mapping[]>([]);
+  const { sorted: sortedMappings, sortKey: mappingSortKey, sortDirection: mappingSortDirection, toggleSort: toggleMappingSort } = useSortableData(
+    mappings,
+    {
+      country: (m) => m.countryName || m.country,
+      type: (m) => m.typeName || m.type,
+    },
+  );
   const [mappingLoading, setMappingLoading] = useState(false);
   const [mapForm, setMapForm] = useState({ countryId: '', typeId: '' });
   const [mapError, setMapError] = useState('');
@@ -56,6 +81,10 @@ export default function ProgramsManagement() {
   const [formData, setFormData] = useState(emptyForm);
   const [formError, setFormError] = useState('');
   const [formBusy, setFormBusy] = useState(false);
+
+  // Bulk actions
+  const { selectedIds, toggleOne, toggleAll, clear, isSelected, allSelected } = useBulkSelection(services);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     fetch('/api/admin/lookup')
@@ -161,7 +190,37 @@ export default function ProgramsManagement() {
     if (!confirm('Delete this program? Existing country mappings and fees will not be removed.')) return;
     const res = await fetch(`/api/admin/programs?id=${id}`, { method: 'DELETE' });
     if (res.ok) fetchServices();
-    else alert('Failed to delete program');
+    else window.toast.error('Failed to delete program');
+  };
+
+  const setBulkStatus = async (status: 0 | 1) => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch('/api/admin/programs', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status }),
+        })
+      ));
+      clear();
+      fetchServices();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch(`/api/admin/programs?id=${id}`, { method: 'DELETE' })
+      ));
+      clear();
+      fetchServices();
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   const handleAddMapping = async () => {
@@ -229,7 +288,7 @@ export default function ProgramsManagement() {
             onChange={e => setSearchTerm(e.target.value)}
             className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <select
+          <SearchableSelect
             value={statusFilter}
             onChange={e => { setStatusFilter(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -237,7 +296,7 @@ export default function ProgramsManagement() {
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
@@ -252,16 +311,35 @@ export default function ProgramsManagement() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {['ID', 'Program Name', 'Flag', 'Slogan/Logo', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
-                  ))}
+                  <th className="px-6 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={(e) => toggleAll(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
+                  <SortableTh label="ID" sortKey="id" activeKey={serviceSortKey} direction={serviceSortDirection} onSort={toggleServiceSort} />
+                  <SortableTh label="Program Name" sortKey="name" activeKey={serviceSortKey} direction={serviceSortDirection} onSort={toggleServiceSort} />
+                  <SortableTh label="Flag" sortKey="flag" activeKey={serviceSortKey} direction={serviceSortDirection} onSort={toggleServiceSort} />
+                  <SortableTh label="Slogan/Logo" sortKey="sloganLogo" activeKey={serviceSortKey} direction={serviceSortDirection} onSort={toggleServiceSort} />
+                  <SortableTh label="Status" sortKey="status" activeKey={serviceSortKey} direction={serviceSortDirection} onSort={toggleServiceSort} />
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {services.length === 0 ? (
-                  <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400">No programs found</td></tr>
-                ) : services.map(svc => (
+                {sortedServices.length === 0 ? (
+                  <tr><td colSpan={7} className="px-6 py-10 text-center text-gray-400">No programs found</td></tr>
+                ) : sortedServices.map(svc => (
                   <tr key={svc.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={isSelected(svc.id)}
+                        onChange={(e) => toggleOne(svc.id, e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-900">{svc.id}</td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{svc.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{svc.flag || '—'}</td>
@@ -275,7 +353,9 @@ export default function ProgramsManagement() {
                       <button onClick={() => setViewingService(svc)} className="text-blue-600 hover:text-blue-800">View</button>
                       <button onClick={() => openEdit(svc)} className="text-indigo-600 hover:text-indigo-800">Edit</button>
                       <button onClick={() => openMappings(svc)} className="text-green-600 hover:text-green-800">Map Countries</button>
-                      <button onClick={() => handleDelete(svc.id)} className="text-red-600 hover:text-red-800">Delete</button>
+                      {canDelete && (
+                        <button onClick={() => handleDelete(svc.id)} className="text-red-600 hover:text-red-800">Delete</button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -285,18 +365,29 @@ export default function ProgramsManagement() {
         )}
       </div>
 
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        busy={bulkBusy}
+        onActivate={() => setBulkStatus(1)}
+        onDeactivate={() => setBulkStatus(0)}
+        onDelete={handleBulkDelete}
+        onClear={clear}
+        entityLabel="program"
+        deleteConfirmMessage={`Delete ${selectedIds.size} program(s)? Existing country mappings and fees will not be removed. This cannot be undone.`}
+      />
+
       {/* Pagination */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-600">
           <div className="flex items-center gap-2">
             Show
-            <select
+            <SearchableSelect
               value={pagination.limit}
               onChange={e => setPagination(p => ({ ...p, limit: Number(e.target.value), page: 1 }))}
               className="border border-gray-300 rounded px-2 py-1"
             >
               {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
+            </SearchableSelect>
             entries &mdash; {pagination.total} total
           </div>
           <div className="flex items-center gap-2">
@@ -398,14 +489,14 @@ export default function ProgramsManagement() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
+                <SearchableSelect
                   value={formData.status}
                   onChange={e => setFormData(p => ({ ...p, status: Number(e.target.value) }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value={1}>Active</option>
                   <option value={0}>Inactive</option>
-                </select>
+                </SearchableSelect>
               </div>
               {formError && <p className="text-sm text-red-600">{formError}</p>}
               <div className="flex justify-end gap-3 pt-2">
@@ -449,23 +540,25 @@ export default function ProgramsManagement() {
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Country</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Program Type</th>
+                      <SortableTh label="Country" sortKey="country" activeKey={mappingSortKey} direction={mappingSortDirection} onSort={toggleMappingSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Program Type" sortKey="type" activeKey={mappingSortKey} direction={mappingSortDirection} onSort={toggleMappingSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {mappings.map(m => (
+                    {sortedMappings.map(m => (
                       <tr key={m.id} className="hover:bg-gray-50">
                         <td className="px-4 py-2.5">{m.countryName || `Country #${m.country}`}</td>
                         <td className="px-4 py-2.5">{m.typeName || `Type #${m.type}`}</td>
                         <td className="px-4 py-2.5 text-right">
-                          <button
-                            onClick={() => handleRemoveMapping(m.id)}
-                            className="text-xs text-red-600 hover:text-red-800 hover:underline"
-                          >
-                            Remove
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => handleRemoveMapping(m.id)}
+                              className="text-xs text-red-600 hover:text-red-800 hover:underline"
+                            >
+                              Remove
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -478,7 +571,7 @@ export default function ProgramsManagement() {
             <div className="border-t pt-4">
               <p className="text-sm font-medium text-gray-700 mb-3">Add New Mapping</p>
               <div className="flex gap-2">
-                <select
+                <SearchableSelect
                   value={mapForm.countryId}
                   onChange={e => setMapForm(p => ({ ...p, countryId: e.target.value }))}
                   className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -487,8 +580,8 @@ export default function ProgramsManagement() {
                   {lookup.countries.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
-                </select>
-                <select
+                </SearchableSelect>
+                <SearchableSelect
                   value={mapForm.typeId}
                   onChange={e => setMapForm(p => ({ ...p, typeId: e.target.value }))}
                   className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -497,7 +590,7 @@ export default function ProgramsManagement() {
                   {lookup.programTypes.map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
-                </select>
+                </SearchableSelect>
                 <button
                   onClick={handleAddMapping}
                   disabled={mapBusy || !mapForm.countryId || !mapForm.typeId}

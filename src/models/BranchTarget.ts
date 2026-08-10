@@ -14,14 +14,14 @@ interface BranchTargetAttributes {
 interface BranchTargetCreationAttributes extends Optional<BranchTargetAttributes, 'branch' | 'month' | 'year' | 'appointment' | 'sales' | 'leads' | 'target_date_id'> {}
 
 class BranchTarget extends Model<BranchTargetAttributes, BranchTargetCreationAttributes> implements BranchTargetAttributes {
-  public id!: number;
-  public branch!: number | null;
-  public month!: number | null;
-  public year!: number | null;
-  public appointment!: number | null;
-  public sales!: number | null;
-  public leads!: number | null;
-  public target_date_id!: number | null;
+  declare id: number;
+  declare branch: number | null;
+  declare month: number | null;
+  declare year: number | null;
+  declare appointment: number | null;
+  declare sales: number | null;
+  declare leads: number | null;
+  declare target_date_id: number | null;
 
   public static associate(models: any) {
     BranchTarget.belongsTo(models.DmBranch, { foreignKey: 'branch', targetKey: 'id', as: 'branchDetails' });

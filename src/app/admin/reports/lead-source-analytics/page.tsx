@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 
 type SourceRow = {
   source: string;
@@ -29,6 +30,16 @@ export default function LeadSourceAnalyticsPage() {
     load();
   }, []);
 
+  const { sorted: sortedSources, sortKey: sourceSortKey, sortDirection: sourceSortDirection, toggleSort: toggleSourceSort } = useSortableData(
+    sources,
+    {
+      source: (s) => s.source,
+      leads: (s) => s.count,
+      converted: (s) => s.convertedCount,
+      conversion: (s) => s.conversionRate,
+    },
+  );
+
   if (loading) return <div className="p-6 text-gray-600">Loading lead source analytics...</div>;
 
   return (
@@ -42,17 +53,18 @@ export default function LeadSourceAnalyticsPage() {
         <Stat label="Converted" value={summary.totalConverted} />
         <Stat label="Conversion rate" value={`${Number(summary.overallConversionRate || 0).toFixed(1)}%`} />
       </div>
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="overflow-x-auto rounded-lg bg-white shadow">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {['Source', 'Leads', 'Converted', 'Conversion'].map((header) => (
-                <th key={header} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">{header}</th>
-              ))}
+              <SortableTh label="Source" sortKey="source" activeKey={sourceSortKey} direction={sourceSortDirection} onSort={toggleSourceSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Leads" sortKey="leads" activeKey={sourceSortKey} direction={sourceSortDirection} onSort={toggleSourceSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Converted" sortKey="converted" activeKey={sourceSortKey} direction={sourceSortDirection} onSort={toggleSourceSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+              <SortableTh label="Conversion" sortKey="conversion" activeKey={sourceSortKey} direction={sourceSortDirection} onSort={toggleSourceSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
-            {sources.map((source) => (
+            {sortedSources.map((source) => (
               <tr key={source.source}>
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">{source.source}</td>
                 <td className="px-6 py-4 text-sm text-gray-700">{source.count}</td>

@@ -1,6 +1,8 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useEffect, useMemo, useState } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { Database, ExternalLink, RefreshCw } from 'lucide-react';
 
 type LegacyModule = {
@@ -58,6 +60,17 @@ export default function LegacyModulesPage() {
     return data.data.filter((module) => module.status === filter);
   }, [data, filter]);
 
+  const { sorted: sortedModules, sortKey: moduleSortKey, sortDirection: moduleSortDirection, toggleSort: toggleModuleSort } = useSortableData(
+    modules,
+    {
+      module: (m) => m.name,
+      table: (m) => m.table,
+      rows: (m) => m.recordCount,
+      oldPhp: (m) => m.oldFile,
+      status: (m) => m.status,
+    },
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -101,7 +114,7 @@ export default function LegacyModulesPage() {
             <Database className="mr-2 h-4 w-4" />
             {data?.legacyRoot || 'Legacy path'} 
           </div>
-          <select
+          <SearchableSelect
             value={filter}
             onChange={(event) => setFilter(event.target.value as typeof filter)}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm"
@@ -111,7 +124,7 @@ export default function LegacyModulesPage() {
             <option value="partial">Partial</option>
             <option value="page-only">Page only</option>
             <option value="needed">Needed</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
@@ -120,11 +133,11 @@ export default function LegacyModulesPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Module</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Table</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Rows</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Old PHP</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+                <SortableTh label="Module" sortKey="module" activeKey={moduleSortKey} direction={moduleSortDirection} onSort={toggleModuleSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+                <SortableTh label="Table" sortKey="table" activeKey={moduleSortKey} direction={moduleSortDirection} onSort={toggleModuleSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+                <SortableTh label="Rows" sortKey="rows" activeKey={moduleSortKey} direction={moduleSortDirection} onSort={toggleModuleSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+                <SortableTh label="Old PHP" sortKey="oldPhp" activeKey={moduleSortKey} direction={moduleSortDirection} onSort={toggleModuleSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
+                <SortableTh label="Status" sortKey="status" activeKey={moduleSortKey} direction={moduleSortDirection} onSort={toggleModuleSort} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Next Module</th>
               </tr>
             </thead>
@@ -134,7 +147,7 @@ export default function LegacyModulesPage() {
                   <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">Loading modules...</td>
                 </tr>
               ) : (
-                modules.map((module) => (
+                sortedModules.map((module) => (
                   <tr key={module.name} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{module.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{module.table}</td>

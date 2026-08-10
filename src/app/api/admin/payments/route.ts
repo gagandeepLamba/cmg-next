@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Op } from 'sequelize';
 import { Dm3partyPayment, DmcForumLeadsFee, DmcForumLeads } from '@/models';
+import { verifyToken } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['payments.view', 'finance.view']);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
@@ -79,6 +84,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['payments.view', 'payments.create', 'finance.view', 'finance.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
     const { type, ...data } = body;
@@ -108,6 +115,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['payments.view', 'payments.create', 'finance.view', 'finance.manage']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
     const { id, type, ...updateData } = body;
@@ -142,6 +151,13 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const token = request.cookies.get('auth-token')?.value
+      || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    if (!currentUser || !isCeo(currentUser)) {
+      return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const type = searchParams.get('type') || 'thirdparty';

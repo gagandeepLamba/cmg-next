@@ -8,6 +8,7 @@ interface DmcOpportunitiesAttributes {
   opportunityName: string;
   opportunityType: string;
   serviceType: string | null;
+  productType: string | null;
   estimatedValue: number;
   actualValue: number;
   currency: string;
@@ -45,50 +46,51 @@ interface DmcOpportunitiesAttributes {
   documentsVerified: boolean;
 }
 
-interface DmcOpportunitiesCreationAttributes extends Optional<DmcOpportunitiesAttributes, 'id' | 'opportunityType' | 'serviceType' | 'actualValue' | 'actualCloseDate' | 'source' | 'campaign' | 'leadSource' | 'branchId' | 'lostReason' | 'competitor' | 'nextActionDate' | 'conversionDate' | 'retentionAmount' | 'retentionStatus' | 'retentionDate' | 'agreementId'> {}
+interface DmcOpportunitiesCreationAttributes extends Optional<DmcOpportunitiesAttributes, 'id' | 'opportunityType' | 'serviceType' | 'productType' | 'actualValue' | 'actualCloseDate' | 'source' | 'campaign' | 'leadSource' | 'branchId' | 'lostReason' | 'competitor' | 'nextActionDate' | 'conversionDate' | 'retentionAmount' | 'retentionStatus' | 'retentionDate' | 'agreementId'> {}
 
 class DmcOpportunities extends Model<DmcOpportunitiesAttributes, DmcOpportunitiesCreationAttributes> implements DmcOpportunitiesAttributes {
-  public id!: number;
-  public leadId!: number;
-  public opportunityNumber!: string;
-  public opportunityName!: string;
-  public opportunityType!: string;
-  public serviceType!: string | null;
-  public estimatedValue!: number;
-  public actualValue!: number;
-  public currency!: string;
-  public priority!: 'low' | 'medium' | 'high' | 'urgent';
-  public status!: 'prospect' | 'qualified' | 'quotation_sent' | 'negotiation' | 'won' | 'lost' | 'closed';
-  public stage!: string;
-  public probability!: number;
-  public expectedCloseDate!: Date;
-  public actualCloseDate!: Date | null;
-  public description!: string;
-  public serviceRequired!: string;
-  public source!: string;
-  public campaign!: string;
-  public leadSource!: string | null;
-  public branchId!: number | null;
-  public assignedTo!: number;
-  public createdBy!: number;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-  public lostReason!: string | null;
-  public competitor!: string | null;
-  public nextAction!: string;
-  public nextActionDate!: Date | null;
-  public tags!: string;
-  public notes!: string;
-  public conversionDate!: Date | null;
-  public retentionAmount!: number;
-  public retentionStatus!: 'pending' | 'approved' | 'rejected';
-  public retentionDate!: Date | null;
-  public agreementGenerated!: boolean;
-  public agreementId!: number | null;
-  public agreementSent!: boolean;
-  public agreementSigned!: boolean;
-  public paymentReceived!: boolean;
-  public documentsVerified!: boolean;
+  declare id: number;
+  declare leadId: number;
+  declare opportunityNumber: string;
+  declare opportunityName: string;
+  declare opportunityType: string;
+  declare serviceType: string | null;
+  declare productType: string | null;
+  declare estimatedValue: number;
+  declare actualValue: number;
+  declare currency: string;
+  declare priority: 'low' | 'medium' | 'high' | 'urgent';
+  declare status: 'prospect' | 'qualified' | 'quotation_sent' | 'negotiation' | 'won' | 'lost' | 'closed';
+  declare stage: string;
+  declare probability: number;
+  declare expectedCloseDate: Date;
+  declare actualCloseDate: Date | null;
+  declare description: string;
+  declare serviceRequired: string;
+  declare source: string;
+  declare campaign: string;
+  declare leadSource: string | null;
+  declare branchId: number | null;
+  declare assignedTo: number;
+  declare createdBy: number;
+  declare createdAt: Date;
+  declare updatedAt: Date;
+  declare lostReason: string | null;
+  declare competitor: string | null;
+  declare nextAction: string;
+  declare nextActionDate: Date | null;
+  declare tags: string;
+  declare notes: string;
+  declare conversionDate: Date | null;
+  declare retentionAmount: number;
+  declare retentionStatus: 'pending' | 'approved' | 'rejected';
+  declare retentionDate: Date | null;
+  declare agreementGenerated: boolean;
+  declare agreementId: number | null;
+  declare agreementSent: boolean;
+  declare agreementSigned: boolean;
+  declare paymentReceived: boolean;
+  declare documentsVerified: boolean;
 
   public static associate(models: any) {
     DmcOpportunities.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLead' });
@@ -135,6 +137,11 @@ DmcOpportunities.init(
     serviceType: {
       type: DataTypes.STRING(255),
       allowNull: true
+    },
+    productType: {
+      type: DataTypes.STRING(40),
+      allowNull: true,
+      field: 'product_type'
     },
     estimatedValue: {
       type: DataTypes.DECIMAL(15, 2),

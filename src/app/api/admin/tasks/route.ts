@@ -1,5 +1,14 @@
 import { DmTask } from '@/models';
 import { createCrudHandlers } from '@/lib/apiCrud';
+import { connectDB } from '@/lib/sequelize';
+
+let dbReady = false;
+const ensureDB = async () => {
+  if (!dbReady) {
+    await connectDB();
+    dbReady = true;
+  }
+};
 
 const handlers = createCrudHandlers({
   model: DmTask,
@@ -9,6 +18,8 @@ const handlers = createCrudHandlers({
     status: 'status',
     assignedTo: 'asignTo',
     assignedBy: 'asignBy',
+    opportunityId: 'opportunityId',
+    visaType: 'visaType',
   },
   attributes: [
     'id',
@@ -22,11 +33,15 @@ const handlers = createCrudHandlers({
     'doc',
     'notf',
     'created',
+    'opportunityId',
+    'visaType',
   ],
   defaults: (body) => ({
     created: body.created || new Date(),
     date_created: body.date_created || new Date().toISOString().slice(0, 10),
   }),
+  requiredPermissions: ['operations.view', 'operations.manage'],
+  before: ensureDB,
 });
 
 export const GET = handlers.GET;

@@ -30,30 +30,30 @@ interface DmEvaluationsSkillsAttributes {
 interface DmEvaluationsSkillsCreationAttributes extends Optional<DmEvaluationsSkillsAttributes, never> {}
 
 class DmEvaluationsSkills extends Model<DmEvaluationsSkillsAttributes, DmEvaluationsSkillsCreationAttributes> implements DmEvaluationsSkillsAttributes {
-  public id!: number;
-  public client_id!: number;
-  public skill_age_remarks!: string;
-  public skill_age_marks!: number;
-  public level_of_edu_remarks!: string;
-  public level_of_edu_marks!: number;
-  public first_level_prof_remarks!: string;
-  public first_level_prof_marks!: number;
-  public second_level_prof_remarks!: string;
-  public second_level_prof_marks!: number;
-  public canadian_work_exp_remarks!: string;
-  public canadian_work_exp_marks!: number;
-  public level_of_edu_acc_remarks!: string;
-  public level_of_edu_acc_marks!: number;
-  public canadian_work_exp_acc_remarks!: string;
-  public canadian_work_exp_acc_marks!: number;
-  public offcial_lang_prof_remarks!: string;
-  public offcial_lang_prof_marks!: number;
-  public level_of_edu_lang_abl_remarks!: string;
-  public level_of_edu_lang_abl_marks!: number;
-  public foreign_work_exp_remarks!: string;
-  public foreign_work_exp_marks!: number;
-  public created!: Date;
-  public created_by!: number;
+  declare id: number;
+  declare client_id: number;
+  declare skill_age_remarks: string;
+  declare skill_age_marks: number;
+  declare level_of_edu_remarks: string;
+  declare level_of_edu_marks: number;
+  declare first_level_prof_remarks: string;
+  declare first_level_prof_marks: number;
+  declare second_level_prof_remarks: string;
+  declare second_level_prof_marks: number;
+  declare canadian_work_exp_remarks: string;
+  declare canadian_work_exp_marks: number;
+  declare level_of_edu_acc_remarks: string;
+  declare level_of_edu_acc_marks: number;
+  declare canadian_work_exp_acc_remarks: string;
+  declare canadian_work_exp_acc_marks: number;
+  declare offcial_lang_prof_remarks: string;
+  declare offcial_lang_prof_marks: number;
+  declare level_of_edu_lang_abl_remarks: string;
+  declare level_of_edu_lang_abl_marks: number;
+  declare foreign_work_exp_remarks: string;
+  declare foreign_work_exp_marks: number;
+  declare created: Date;
+  declare created_by: number;
 
   public static associate(models: any) {
   }

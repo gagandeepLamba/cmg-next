@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { mkdir, writeFile } from 'fs/promises';
-import { join, extname } from 'path';
+import { extname } from 'path';
 import crypto from 'crypto';
+import { put } from '@vercel/blob';
 import { sequelize } from '@/lib/sequelize';
 
 const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
@@ -35,11 +35,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ to
     if (!(items as any[]).length) return NextResponse.json({ error: 'Checklist item not found.' }, { status: 404 });
     const extension = extname(file.name).toLowerCase() || '.bin';
     const filename = `${crypto.randomUUID()}${extension}`;
-    const directory = join(process.cwd(), 'public', 'uploads', 'client-documents', String(record.id));
-    await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, filename), Buffer.from(await file.arrayBuffer()));
-    const url = `/uploads/client-documents/${record.id}/${filename}`;
-    await sequelize.query('UPDATE dm_client_upload_checklist_items SET status=\'uploaded\', file_url=?, uploaded_at=NOW(), notes=NULL WHERE id=?', { replacements: [url, itemId] });
-    return NextResponse.json({ success: true, fileUrl: url });
+    // Serverless functions (Vercel) have a read-only filesystem, so client
+    // uploads go to Vercel Blob rather than local disk — the returned
+    // blob.url is a permanent, publicly-fetchable HTTPS URL.
+    const blob = await put(`client-documents/${record.id}/${filename}`, file, {
+      access: 'public',
+    });
+    await sequelize.query('UPDATE dm_client_upload_checklist_items SET status=\'uploaded\', file_url=?, uploaded_at=NOW(), notes=NULL WHERE id=?', { replacements: [blob.url, itemId] });
+    return NextResponse.json({ success: true, fileUrl: blob.url });
   } catch (error) { console.error('Client portal upload failed:', error); return NextResponse.json({ error: 'Unable to save this document.' }, { status: 500 }); }
 }

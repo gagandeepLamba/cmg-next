@@ -1,9 +1,11 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
 import { Trophy, TrendingUp, TrendingDown, Target, Building, Award, Medal } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
@@ -36,6 +38,7 @@ interface MonthlyTrend {
 }
 
 export default function BranchWiseRevenueLeaderboardReport() {
+  const { currencyCode } = useAuth();
   const [branchData, setBranchData] = useState<BranchPerformance[]>([]);
   const [regionalData, setRegionalData] = useState<RegionalSummary[]>([]);
   const [monthlyTrends, setMonthlyTrends] = useState<MonthlyTrend[]>([]);
@@ -220,7 +223,7 @@ export default function BranchWiseRevenueLeaderboardReport() {
             <div>
               <p className="text-sm text-gray-600">Total Revenue</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${(totalRevenue / 1000000).toFixed(2)}M
+                {currencyCode} {(totalRevenue / 1000000).toFixed(2)}M
               </p>
             </div>
           </div>
@@ -232,7 +235,7 @@ export default function BranchWiseRevenueLeaderboardReport() {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Filters & Sorting</h3>
           <div className="flex space-x-4">
-            <select
+            <SearchableSelect
               value={selectedRegion}
               onChange={(e) => setSelectedRegion(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -241,8 +244,8 @@ export default function BranchWiseRevenueLeaderboardReport() {
               {regionalData.map(region => (
                 <option key={region.region} value={region.region}>{region.region}</option>
               ))}
-            </select>
-            <select
+            </SearchableSelect>
+            <SearchableSelect
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -251,7 +254,7 @@ export default function BranchWiseRevenueLeaderboardReport() {
               <option value="achievement">Sort by Achievement</option>
               <option value="growth">Sort by Growth</option>
               <option value="clients">Sort by Clients</option>
-            </select>
+            </SearchableSelect>
           </div>
         </div>
       </div>
@@ -325,8 +328,8 @@ export default function BranchWiseRevenueLeaderboardReport() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{branch.branch}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{branch.region}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${(branch.revenue / 1000).toFixed(0)}K</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${(branch.target / 1000).toFixed(0)}K</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{currencyCode} {(branch.revenue / 1000).toFixed(0)}K</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{currencyCode} {(branch.target / 1000).toFixed(0)}K</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <div className="flex items-center">
                       <div className="flex-1 bg-gray-200 rounded-full h-2 mr-2 max-w-20">
@@ -347,7 +350,7 @@ export default function BranchWiseRevenueLeaderboardReport() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{branch.clients}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${branch.avgClientValue.toLocaleString()}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{currencyCode} {branch.avgClientValue.toLocaleString()}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getRankChange(branch.rank, branch.previousRank)}
                   </td>

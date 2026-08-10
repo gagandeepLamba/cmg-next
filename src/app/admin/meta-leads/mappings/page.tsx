@@ -1,7 +1,11 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useCallback } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { Plus, Trash2, Edit2, Check, X, Info } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 interface Mapping {
   id: number;
@@ -54,7 +58,20 @@ const emptyForm: {
 };
 
 export default function MetaMappingsPage() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [rows, setRows]       = useState<Mapping[]>([]);
+  const { sorted: sortedRows, sortKey: mappingSortKey, sortDirection: mappingSortDirection, toggleSort: toggleMappingSort } = useSortableData(
+    rows,
+    {
+      scope: (m) => m.scope_type,
+      metaField: (m) => m.meta_field_key,
+      crmField: (m) => m.crm_field_key,
+      fallback: (m) => m.fallback_value,
+      transform: (m) => m.transform_type,
+      status: (m) => (m.is_enabled ? 'Enabled' : 'Disabled'),
+    },
+  );
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId]   = useState<number | null>(null);
@@ -154,12 +171,12 @@ export default function MetaMappingsPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Scope</label>
-              <select value={form.scope_type} onChange={e => setForm(p => ({ ...p, scope_type: e.target.value as ScopeType }))}
+              <SearchableSelect value={form.scope_type} onChange={e => setForm(p => ({ ...p, scope_type: e.target.value as ScopeType }))}
                 className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500">
                 <option value="GLOBAL">Global</option>
                 <option value="CAMPAIGN">Campaign</option>
                 <option value="FORM">Form</option>
-              </select>
+              </SearchableSelect>
             </div>
             {(form.scope_type as string) === 'CAMPAIGN' && (
               <div>
@@ -185,12 +202,12 @@ export default function MetaMappingsPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">CRM Field Key *</label>
-              <select value={form.crm_field_key} onChange={e => setForm(p => ({ ...p, crm_field_key: e.target.value }))}
+              <SearchableSelect value={form.crm_field_key} onChange={e => setForm(p => ({ ...p, crm_field_key: e.target.value }))}
                 className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500">
                 <option value="">Select CRM field</option>
                 {CRM_FIELDS.map(f => <option key={f} value={f}>{f}</option>)}
                 <option value="__custom__">Custom field name</option>
-              </select>
+              </SearchableSelect>
               {form.crm_field_key === '__custom__' && (
                 <input value="" onChange={e => setForm(p => ({ ...p, crm_field_key: e.target.value }))}
                   placeholder="Enter custom field name"
@@ -205,10 +222,10 @@ export default function MetaMappingsPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Transform</label>
-              <select value={form.transform_type} onChange={e => setForm(p => ({ ...p, transform_type: e.target.value }))}
+              <SearchableSelect value={form.transform_type} onChange={e => setForm(p => ({ ...p, transform_type: e.target.value }))}
                 className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500">
                 {TRANSFORMS.map(t => <option key={t} value={t}>{t || 'None'}</option>)}
-              </select>
+              </SearchableSelect>
             </div>
             <div className="flex items-center gap-2 pt-5">
               <input type="checkbox" id="is_enabled" checked={form.is_enabled === 1}
@@ -245,21 +262,21 @@ export default function MetaMappingsPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-gray-100 bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500">
             <tr>
-              <th className="px-4 py-3 text-left">Scope</th>
-              <th className="px-4 py-3 text-left">Meta Field</th>
-              <th className="px-4 py-3 text-left">CRM Field</th>
-              <th className="px-4 py-3 text-left">Fallback</th>
-              <th className="px-4 py-3 text-left">Transform</th>
-              <th className="px-4 py-3 text-left">Status</th>
+              <SortableTh label="Scope" sortKey="scope" activeKey={mappingSortKey} direction={mappingSortDirection} onSort={toggleMappingSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Meta Field" sortKey="metaField" activeKey={mappingSortKey} direction={mappingSortDirection} onSort={toggleMappingSort} className="px-4 py-3 text-left" />
+              <SortableTh label="CRM Field" sortKey="crmField" activeKey={mappingSortKey} direction={mappingSortDirection} onSort={toggleMappingSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Fallback" sortKey="fallback" activeKey={mappingSortKey} direction={mappingSortDirection} onSort={toggleMappingSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Transform" sortKey="transform" activeKey={mappingSortKey} direction={mappingSortDirection} onSort={toggleMappingSort} className="px-4 py-3 text-left" />
+              <SortableTh label="Status" sortKey="status" activeKey={mappingSortKey} direction={mappingSortDirection} onSort={toggleMappingSort} className="px-4 py-3 text-left" />
               <th className="px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
-            ) : rows.length === 0 ? (
+            ) : sortedRows.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No mappings. Add one above.</td></tr>
-            ) : rows.map(m => (
+            ) : sortedRows.map(m => (
               <tr key={m.id} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5">
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${SCOPE_COLORS[m.scope_type]}`}>
@@ -284,10 +301,12 @@ export default function MetaMappingsPage() {
                       className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
                       <Edit2 className="h-4 w-4" />
                     </button>
-                    <button onClick={() => handleDelete(m.id)}
-                      className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {canDelete && (
+                      <button onClick={() => handleDelete(m.id)}
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

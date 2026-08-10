@@ -14,14 +14,14 @@ interface DmJsOpsNominationAttributes {
 interface DmJsOpsNominationCreationAttributes extends Optional<DmJsOpsNominationAttributes, never> {}
 
 class DmJsOpsNomination extends Model<DmJsOpsNominationAttributes, DmJsOpsNominationCreationAttributes> implements DmJsOpsNominationAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public date_of_landing!: number;
-  public service!: number;
-  public document_file!: number;
-  public created!: number;
-  public created_by!: number;
-  public tab!: number;
+  declare id: number;
+  declare lead_id: number;
+  declare date_of_landing: number;
+  declare service: number;
+  declare document_file: number;
+  declare created: number;
+  declare created_by: number;
+  declare tab: number;
 
   public static associate(models: any) {
   }

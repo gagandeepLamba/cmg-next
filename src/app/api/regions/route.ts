@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DmRegion, DmBranch, DmEmployee } from '@/models'
 import { Op } from 'sequelize'
+import { requireAuth, isAuthError } from '@/lib/apiAuth'
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['branches.manage'])
+  if (isAuthError(auth)) return auth
   try {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -70,6 +73,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['branches.manage'])
+  if (isAuthError(auth)) return auth
   try {
     const data = await request.json()
 

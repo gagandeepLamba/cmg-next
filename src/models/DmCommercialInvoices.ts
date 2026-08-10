@@ -22,22 +22,22 @@ interface DmCommercialInvoicesAttributes {
 interface DmCommercialInvoicesCreationAttributes extends Optional<DmCommercialInvoicesAttributes, 'region' | 'branch' | 'company' | 'purpose' | 'narration' | 'vat' | 'taxAmt' | 'totPayAmt' | 'payment_mode' | 'amount' | 'discount' | 'status' | 'created' | 'Counsilor' | 'created_by'> {}
 
 class DmCommercialInvoices extends Model<DmCommercialInvoicesAttributes, DmCommercialInvoicesCreationAttributes> implements DmCommercialInvoicesAttributes {
-  public id!: number;
-  public region!: number | null;
-  public branch!: number | null;
-  public company!: string | null;
-  public purpose!: string | null;
-  public narration!: string | null;
-  public vat!: number | null;
-  public taxAmt!: number | null;
-  public totPayAmt!: number | null;
-  public payment_mode!: string | null;
-  public amount!: number | null;
-  public discount!: number | null;
-  public status!: number | null;
-  public created!: Date | null;
-  public Counsilor!: number | null;
-  public created_by!: number | null;
+  declare id: number;
+  declare region: number | null;
+  declare branch: number | null;
+  declare company: string | null;
+  declare purpose: string | null;
+  declare narration: string | null;
+  declare vat: number | null;
+  declare taxAmt: number | null;
+  declare totPayAmt: number | null;
+  declare payment_mode: string | null;
+  declare amount: number | null;
+  declare discount: number | null;
+  declare status: number | null;
+  declare created: Date | null;
+  declare Counsilor: number | null;
+  declare created_by: number | null;
 
   public static associate(models: any) {
   }

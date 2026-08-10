@@ -16,15 +16,15 @@ interface DmProspectsAttributes {
 interface DmProspectsCreationAttributes extends Optional<DmProspectsAttributes, 'id' | 'date' | 'oldNew' | 'status' | 'createdAt' | 'updatedAt'> {}
 
 class DmProspects extends Model<DmProspectsAttributes, DmProspectsCreationAttributes> implements DmProspectsAttributes {
-  public id!: number;
-  public agreementNumber!: string;
-  public date!: Date;
-  public oldNew!: string;
-  public noc!: string;
-  public counselorId!: number;
-  public status!: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare agreementNumber: string;
+  declare date: Date;
+  declare oldNew: string;
+  declare noc: string;
+  declare counselorId: number;
+  declare status: string;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmProspects.belongsTo(models.DmEmployee, { foreignKey: 'counselorId', targetKey: 'id', as: 'counselor' });

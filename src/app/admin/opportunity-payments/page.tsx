@@ -1,5 +1,7 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect } from 'react'
 import Layout from '@/components/Layout'
 
@@ -35,6 +37,18 @@ interface PaymentSchedule {
 
 export default function OpportunityPaymentsPage() {
   const [opportunityPayments, setOpportunityPayments] = useState<OpportunityPayment[]>([])
+  const { sorted: sortedOpportunityPayments, sortKey: oppPaymentSortKey, sortDirection: oppPaymentSortDirection, toggleSort: toggleOppPaymentSort } = useSortableData(
+    opportunityPayments,
+    {
+      opportunity: (o) => o.opportunityName,
+      client: (o) => o.clientName,
+      amount: (o) => parseFloat(o.totalAmount),
+      structure: (o) => o.paymentStructure,
+      status: (o) => o.status,
+      progress: (o) => parseFloat(o.totalPaid) / parseFloat(o.totalAmount || '1'),
+      nextPayment: (o) => o.nextPaymentDue,
+    },
+  )
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({
     search: '',
@@ -230,7 +244,7 @@ export default function OpportunityPaymentsPage() {
                 <label htmlFor="status" className="block text-sm font-medium text-gray-700">
                   Status
                 </label>
-                <select
+                <SearchableSelect
                   id="status"
                   name="status"
                   value={filters.status}
@@ -242,14 +256,14 @@ export default function OpportunityPaymentsPage() {
                   <option value="partial">Partial</option>
                   <option value="completed">Completed</option>
                   <option value="overdue">Overdue</option>
-                </select>
+                </SearchableSelect>
               </div>
 
               <div>
                 <label htmlFor="paymentStructure" className="block text-sm font-medium text-gray-700">
                   Payment Structure
                 </label>
-                <select
+                <SearchableSelect
                   id="paymentStructure"
                   name="paymentStructure"
                   value={filters.paymentStructure}
@@ -261,14 +275,14 @@ export default function OpportunityPaymentsPage() {
                   <option value="installment">Installment</option>
                   <option value="milestone">Milestone</option>
                   <option value="hybrid">Hybrid</option>
-                </select>
+                </SearchableSelect>
               </div>
 
               <div>
                 <label htmlFor="branch" className="block text-sm font-medium text-gray-700">
                   Branch
                 </label>
-                <select
+                <SearchableSelect
                   id="branch"
                   name="branch"
                   value={filters.branch}
@@ -279,7 +293,7 @@ export default function OpportunityPaymentsPage() {
                   <option value="Dubai">Dubai</option>
                   <option value="Abu Dhabi">Abu Dhabi</option>
                   <option value="Sharjah">Sharjah</option>
-                </select>
+                </SearchableSelect>
               </div>
 
               <div>
@@ -369,38 +383,24 @@ export default function OpportunityPaymentsPage() {
         {/* Opportunity Payments Table */}
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-            <div className="overflow-hidden">
+            <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Opportunity
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Client
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Amount
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Structure
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Progress
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Next Payment
-                    </th>
+                    <SortableTh label="Opportunity" sortKey="opportunity" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                    <SortableTh label="Client" sortKey="client" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                    <SortableTh label="Amount" sortKey="amount" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                    <SortableTh label="Structure" sortKey="structure" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                    <SortableTh label="Status" sortKey="status" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                    <SortableTh label="Progress" sortKey="progress" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
+                    <SortableTh label="Next Payment" sortKey="nextPayment" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
                     <th className="relative px-6 py-3">
                       <span className="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {opportunityPayments.map((opportunity) => (
+                  {sortedOpportunityPayments.map((opportunity) => (
                     <tr key={opportunity.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
@@ -532,7 +532,7 @@ export default function OpportunityPaymentsPage() {
                 </div>
               </div>
 
-              <div className="overflow-hidden">
+              <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>

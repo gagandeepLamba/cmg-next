@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
 
     const role = String(currentUser.type || '').toLowerCase().replace(/[\s-]+/g, '_');
-    const canViewAll = currentUser.role === 1 || ['admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos', 'director_of_operations'].includes(role);
+    const canViewAll = currentUser.role === 1 || ['admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos', 'director_of_operations', 'operation_manager'].includes(role);
     const isBranchManager = ['branch_manager', 'bm'].includes(role) && !canViewAll;
     const isRegionalManager = ['regional_manager', 'rm'].includes(role) && !canViewAll && !isBranchManager;
 
@@ -37,11 +37,11 @@ export async function GET(request: NextRequest) {
       // Super admin, DS, admin: see all follow-ups — no filter
     } else if (isBranchManager) {
       // BM: follow-ups where the assigned employee is in their branch
-      conditions.push(`(e.branch = :branch OR e.branch IS NULL)`);
+      conditions.push(`e.branch = :branch`);
       replacements.branch = currentUser.branch;
     } else if (isRegionalManager) {
       // RM: follow-ups where the assigned employee is in their region
-      conditions.push(`(e.region = :region OR e.region IS NULL)`);
+      conditions.push(`e.region = :region`);
       replacements.region = currentUser.region;
     } else {
       // Counselor: only their own follow-ups
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
         COALESCE(cp.name, l.country_interest) AS countryName,
         COALESCE(s.name, l.service_interest) AS serviceName,
         e.name AS employeeName, e.branch AS employeeBranch,
-        b.name AS branchName
+        b.branch AS branchName
       FROM dmc_follow_up_reminders r
       LEFT JOIN dmc_forum_leads l ON r.lead_id = l.id
       LEFT JOIN dm_employee e ON r.user_id = e.id

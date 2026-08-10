@@ -1,10 +1,26 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { DmSourceAttributes } from '@/models';
+import { useBulkSelection } from '@/hooks/useBulkSelection';
+import BulkActionBar from '@/components/admin/BulkActionBar';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 export default function MarketSourcesManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [sources, setSources] = useState<DmSourceAttributes[]>([]);
+  const { sorted: sortedSources, sortKey: sourceSortKey, sortDirection: sourceSortDirection, toggleSort: toggleSourceSort } = useSortableData(
+    sources,
+    {
+      id: (s) => s.id,
+      name: (s) => s.name,
+      status: (s) => s.status,
+    },
+  );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSource, setSelectedSource] = useState<DmSourceAttributes | null>(null);
@@ -18,6 +34,8 @@ export default function MarketSourcesManagement() {
     totalPages: 0
   });
   const [filters, setFilters] = useState({ status: '' });
+  const { selectedIds, toggleOne, toggleAll, clear, isSelected, allSelected } = useBulkSelection(sources);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     fetchSources();
@@ -82,11 +100,11 @@ export default function MarketSourcesManagement() {
         fetchSources();
       } else {
         const result = await response.json();
-        alert('Failed to delete source: ' + result.error);
+        window.toast.error('Failed to delete source: ' + result.error);
       }
     } catch (error) {
       console.error('Error deleting source:', error);
-      alert('Failed to delete source');
+      window.toast.error('Failed to delete source');
     }
   };
 
@@ -102,11 +120,11 @@ export default function MarketSourcesManagement() {
         fetchSources();
       } else {
         const result = await response.json();
-        alert('Error adding source: ' + result.error);
+        window.toast.error('Error adding source: ' + result.error);
       }
     } catch (error) {
       console.error('Error adding source:', error);
-      alert('Error adding source');
+      window.toast.error('Error adding source');
     }
   };
 
@@ -124,11 +142,11 @@ export default function MarketSourcesManagement() {
         fetchSources();
       } else {
         const result = await response.json();
-        alert('Error updating source: ' + result.error);
+        window.toast.error('Error updating source: ' + result.error);
       }
     } catch (error) {
       console.error('Error updating source:', error);
-      alert('Error updating source');
+      window.toast.error('Error updating source');
     }
   };
 
@@ -145,6 +163,36 @@ export default function MarketSourcesManagement() {
 
   const getStatusColor = (status: number) =>
     status === 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+
+  const setBulkStatus = async (status: 0 | 1) => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch('/api/admin/market-sources', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status }),
+        })
+      ));
+      clear();
+      fetchSources();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch(`/api/admin/market-sources?id=${id}`, { method: 'DELETE' })
+      ));
+      clear();
+      fetchSources();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -191,7 +239,7 @@ export default function MarketSourcesManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select
+          <SearchableSelect
             value={filters.status}
             onChange={(e) => handleFilterChange(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -199,7 +247,7 @@ export default function MarketSourcesManagement() {
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
           <button
             onClick={handleSearch}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -210,20 +258,36 @@ export default function MarketSourcesManagement() {
       </div>
 
       {/* Sources Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </th>
+                <SortableTh label="ID" sortKey="id" activeKey={sourceSortKey} direction={sourceSortDirection} onSort={toggleSourceSort} />
+                <SortableTh label="Source Name" sortKey="name" activeKey={sourceSortKey} direction={sourceSortDirection} onSort={toggleSourceSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={sourceSortKey} direction={sourceSortDirection} onSort={toggleSourceSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sources.map((source) => (
+              {sortedSources.map((source) => (
                 <tr key={source.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected(source.id)}
+                      onChange={(e) => toggleOne(source.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{source.id}</div>
                   </td>
@@ -248,12 +312,14 @@ export default function MarketSourcesManagement() {
                     >
                       Edit
                     </button>
-                    <button
-                      onClick={() => handleDeleteSource(source.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteSource(source.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -262,12 +328,23 @@ export default function MarketSourcesManagement() {
         </div>
       </div>
 
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        busy={bulkBusy}
+        onActivate={() => setBulkStatus(1)}
+        onDeactivate={() => setBulkStatus(0)}
+        onDelete={handleBulkDelete}
+        onClear={clear}
+        entityLabel="source"
+        deleteConfirmMessage={`Delete ${selectedIds.size} source(s)? This cannot be undone.`}
+      />
+
       {/* Pagination Controls */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700">Show</span>
-            <select
+            <SearchableSelect
               value={pagination.limit}
               onChange={(e) => handleLimitChange(parseInt(e.target.value))}
               className="px-3 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -277,7 +354,7 @@ export default function MarketSourcesManagement() {
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
-            </select>
+            </SearchableSelect>
             <span className="text-sm text-gray-700">entries</span>
           </div>
           <div className="flex items-center gap-2">
@@ -412,7 +489,7 @@ function SourceFormModal({ title, initialData, onSubmit, onClose }: SourceFormMo
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Status *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.status}
                 onChange={(e) => setFormData(prev => ({ ...prev, status: parseInt(e.target.value) }))}
@@ -420,7 +497,7 @@ function SourceFormModal({ title, initialData, onSubmit, onClose }: SourceFormMo
               >
                 <option value={1}>Active</option>
                 <option value={0}>Inactive</option>
-              </select>
+              </SearchableSelect>
             </div>
           </div>
           <div className="mt-6 flex justify-end space-x-3">

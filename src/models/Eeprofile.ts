@@ -18,18 +18,18 @@ interface EeprofileAttributes {
 interface EeprofileCreationAttributes extends Optional<EeprofileAttributes, 'leadid' | 'docrec' | 'docstat' | 'pcfswp' | 'noc' | 'pldate' | 'pfexp' | 'crs' | 'status' | 'type'> {}
 
 class Eeprofile extends Model<EeprofileAttributes, EeprofileCreationAttributes> implements EeprofileAttributes {
-  public id!: number;
-  public leadid!: number | null;
-  public docrec!: string | null;
-  public docstat!: string | null;
-  public pcfswp!: string | null;
-  public noc!: string | null;
-  public snoc!: string;
-  public pldate!: string | null;
-  public pfexp!: string | null;
-  public crs!: string | null;
-  public status!: string | null;
-  public type!: string | null;
+  declare id: number;
+  declare leadid: number | null;
+  declare docrec: string | null;
+  declare docstat: string | null;
+  declare pcfswp: string | null;
+  declare noc: string | null;
+  declare snoc: string;
+  declare pldate: string | null;
+  declare pfexp: string | null;
+  declare crs: string | null;
+  declare status: string | null;
+  declare type: string | null;
 
   public static associate(models: any) {
   }

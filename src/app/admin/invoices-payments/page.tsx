@@ -7,6 +7,9 @@ import {
   CheckCircle, Clock, AlertCircle, X, CreditCard, Wallet, BarChart3,
   ArrowUpRight, ArrowDownRight, XCircle
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getBranchReceiptConfig } from '@/lib/receiptTemplate';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 
 interface Invoice {
   id: number; receipt: string; company: string; purpose: string;
@@ -15,6 +18,8 @@ interface Invoice {
   paymentNumber: string; paidAmount: number; proofOfPaymentUrl: string;
   currency: string; paymentMethod: string; paymentDate: string; oppClientName: string;
   oppClientEmail: string; oppClientPhone: string; serviceName: string;
+  branchAddress: string | null; branchEmail: string | null;
+  branchLicenseNumber: string | null; branchVatGstPercent: number | string | null;
 }
 
 interface Payment {
@@ -26,7 +31,9 @@ interface Payment {
   serviceName: string; branchName: string; counselorName: string;
   fname: string; lname: string; phone: string; email: string;
   accountantStatus: string; accountantRemarks: string; accountantName: string; accountantVerifiedAt: string;
-  leadId: number;
+  leadId: number; agreementNumber: string | null;
+  dmBranchName: string | null; dmBranchAddress: string | null; dmBranchEmail: string | null;
+  dmBranchLicenseNumber: string | null; dmBranchVatGstPercent: number | string | null;
 }
 
 interface Stats {
@@ -37,6 +44,7 @@ interface Stats {
 }
 
 export default function InvoicesPaymentsPage() {
+  const { currencyCode } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'payments' | 'reports'>('overview');
   const [stats, setStats] = useState<Stats | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -83,6 +91,10 @@ export default function InvoicesPaymentsPage() {
   const printInvoice = (inv: Invoice) => {
     const w = window.open('', '_blank');
     if (!w) return;
+    const invBranchLabel = inv.branchName || 'DM Immigration Consultants';
+    const invLicenseLine = inv.branchLicenseNumber
+      ? `${invBranchLabel} | Licence No. ${inv.branchLicenseNumber}`
+      : invBranchLabel;
     w.document.write(`
       <html><head><title>Invoice ${inv.receipt}</title>
       <style>
@@ -102,7 +114,7 @@ export default function InvoicesPaymentsPage() {
         @media print { body { padding: 20px; } }
       </style></head><body>
       <div class="header">
-        <h1>DM IMMIGRATION CONSULTANTS</h1>
+        <h1>${invBranchLabel.toUpperCase()}</h1>
         <p>Professional Immigration Services</p>
       </div>
       <div class="row">
@@ -122,10 +134,10 @@ export default function InvoicesPaymentsPage() {
       </div>
       <table>
         <tr><th>Description</th><th style="text-align:right">Amount</th></tr>
-        <tr><td>Package Amount</td><td style="text-align:right">${inv.currency || 'AED'} ${(inv.totPayAmt || 0).toLocaleString()}</td></tr>
-        ${inv.discount ? `<tr><td>Discount</td><td style="text-align:right; color:red">- ${inv.currency || 'AED'} ${inv.discount.toLocaleString()}</td></tr>` : ''}
-        <tr><td>Amount Received</td><td style="text-align:right">${inv.currency || 'AED'} ${(inv.amount || inv.paidAmount || 0).toLocaleString()}</td></tr>
-        <tr class="total-row"><td>Balance Due</td><td style="text-align:right">${inv.currency || 'AED'} ${(inv.payBalance || 0).toLocaleString()}</td></tr>
+        <tr><td>Package Amount</td><td style="text-align:right">${inv.currency || currencyCode} ${(inv.totPayAmt || 0).toLocaleString()}</td></tr>
+        ${inv.discount ? `<tr><td>Discount</td><td style="text-align:right; color:red">- ${inv.currency || currencyCode} ${inv.discount.toLocaleString()}</td></tr>` : ''}
+        <tr><td>Amount Received</td><td style="text-align:right">${inv.currency || currencyCode} ${(inv.amount || inv.paidAmount || 0).toLocaleString()}</td></tr>
+        <tr class="total-row"><td>Balance Due</td><td style="text-align:right">${inv.currency || currencyCode} ${(inv.payBalance || 0).toLocaleString()}</td></tr>
       </table>
       <div class="row">
         <div class="col"><div class="label">Payment Method</div><div class="value">${inv.paymentMethod || 'N/A'}</div></div>
@@ -134,7 +146,7 @@ export default function InvoicesPaymentsPage() {
       </div>
       ${inv.proofOfPaymentUrl ? `<div style="margin-top:20px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px"><strong>Proof of Payment:</strong> ${inv.proofOfPaymentUrl.split('/').pop()}</div>` : ''}
       <div class="footer">
-        <p>DM Immigration Consultants DMCC | Professional Licence No. 766222</p>
+        <p>${invLicenseLine}</p>
         <p>This is a computer-generated invoice.</p>
       </div>
       <script>window.onload=()=>window.print();</script>
@@ -145,6 +157,32 @@ export default function InvoicesPaymentsPage() {
 
   const fmt = (n: number) => `${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  const { sorted: sortedInvoices, sortKey: invoiceSortKey, sortDirection: invoiceSortDirection, toggleSort: toggleInvoiceSort } = useSortableData(
+    invoices,
+    {
+      invoiceNumber: (inv) => inv.receipt || `INV-${inv.id}`,
+      client: (inv) => inv.oppClientName || inv.company,
+      service: (inv) => inv.serviceName || inv.purpose,
+      amount: (inv) => inv.totPayAmt,
+      balance: (inv) => inv.payBalance,
+      date: (inv) => inv.created,
+    },
+  );
+
+  const { sorted: sortedPayments, sortKey: paymentSortKey, sortDirection: paymentSortDirection, toggleSort: togglePaymentSort } = useSortableData(
+    payments,
+    {
+      paymentNumber: (p) => p.paymentNumber,
+      client: (p) => p.clientName || `${p.fname || ''} ${p.lname || ''}`.trim(),
+      method: (p) => p.paymentMethod,
+      total: (p) => p.totalAmount,
+      paid: (p) => p.paidAmount,
+      balance: (p) => p.remainingBalance,
+      status: (p) => p.status,
+      accountant: (p) => p.accountantStatus,
+    },
+  );
+
   const handleVerifyPayment = async (paymentId: number, status: 'verified' | 'rejected') => {
     setVerifying(true);
     try {
@@ -154,72 +192,28 @@ export default function InvoicesPaymentsPage() {
         body: JSON.stringify({ paymentId, status, remarks: verifyRemarks })
       });
       if (!res.ok) throw new Error('Failed');
-      alert(`Payment ${status} successfully`);
+      window.toast.success(`Payment ${status} successfully`);
       setVerifyPayment(null);
       setVerifyRemarks('');
       fetchData();
     } catch {
-      alert('Failed to update payment status');
+      window.toast.error('Failed to update payment status');
     } finally {
       setVerifying(false);
     }
   };
 
-  const getBranchReceiptConfig = (branchName: string = '', currency: string = 'AED') => {
-    const bn = branchName.toLowerCase();
-    const isKuwait = currency === 'KWD' || bn.includes('kuwait') || bn.includes('disha');
-    const isCMG = bn.includes('commonwealth') || bn.includes('cmg');
-    const isAbuDhabi = bn.includes('abu dhabi') || bn.includes('didactic');
-    if (isKuwait) return {
-      companyName: 'Disha Management Consulting Company',
-      address: 'Office 19/20, 6th Floor, Orient Complex,\nSalmiya, Kuwait City, State of Kuwait',
-      trn: null as string | null,
-      email: 'accounts@disha-kwt.com',
-      headerBg: '#fdf6ee', accentColor: '#7c3d0c', totalBg: '#7c3d0c', labelColor: '#8B5E3C',
-      receiptTitle: 'PAYMENT RECEIPT', hasVat: false, vatRate: 0,
-      totalLabel: 'TOTAL RECEIVED', statusLabel: 'RECEIVED IN FULL',
-      footerNote: 'No VAT or indirect tax applicable in the State of Kuwait',
-      refLabel: 'POS Reference',
-    };
-    if (isCMG) return {
-      companyName: 'Commonwealth Migration Group',
-      address: 'Dubai, United Arab Emirates',
-      trn: '[CMG-TRN-NUMBER]' as string | null,
-      email: 'finance@cwmigrationgroup.ae',
-      headerBg: '#eef2f8', accentColor: '#1e3a5f', totalBg: '#1e3a5f', labelColor: '#4a6fa5',
-      receiptTitle: 'TAX INVOICE / PAYMENT RECEIPT', hasVat: true, vatRate: 5,
-      totalLabel: 'TOTAL PAID (INCL. VAT)', statusLabel: 'PAID IN FULL',
-      footerNote: 'Tax Invoice per UAE Federal Tax Authority',
-      refLabel: 'Bank Reference',
-    };
-    if (isAbuDhabi) return {
-      companyName: 'Didactic Management Consultants',
-      address: '1802 Salam Street,\nAbu Dhabi, United Arab Emirates',
-      trn: '1004344250500003' as string | null,
-      email: 'finance@didactic-auh.com',
-      headerBg: '#eef4ed', accentColor: '#2d5a27', totalBg: '#2d5a27', labelColor: '#4a7c44',
-      receiptTitle: 'TAX INVOICE / PAYMENT RECEIPT', hasVat: true, vatRate: 5,
-      totalLabel: 'TOTAL PAID (INCL. VAT)', statusLabel: 'PAID IN FULL',
-      footerNote: 'Tax Invoice per UAE Federal Tax Authority',
-      refLabel: 'Bank Reference',
-    };
-    return {
-      companyName: 'DM Immigration Consultants DMCC',
-      address: '3703, Latifa Tower, Sheikh Zayed Road,\nDubai, United Arab Emirates',
-      trn: '1004344250500003' as string | null,
-      email: 'finance@dmc-immigration.com',
-      headerBg: '#eef2f8', accentColor: '#2c4a7a', totalBg: '#2c4a7a', labelColor: '#4a6fa5',
-      receiptTitle: 'TAX INVOICE / PAYMENT RECEIPT', hasVat: true, vatRate: 5,
-      totalLabel: 'TOTAL PAID (INCL. VAT)', statusLabel: 'PAID IN FULL',
-      footerNote: 'Tax Invoice per UAE Federal Tax Authority',
-      refLabel: 'Bank Reference',
-    };
-  };
-
   const printReceipt = (p: Payment) => {
     const w = window.open('', '_blank');
     if (!w) return;
-    const cfg = getBranchReceiptConfig(p.branchName, p.currency);
+    const cfg = getBranchReceiptConfig(
+      p.branchName || p.dmBranchName || '',
+      p.currency,
+      p.dmBranchAddress,
+      p.dmBranchEmail,
+      p.dmBranchLicenseNumber,
+      p.dmBranchVatGstPercent,
+    );
     const cur = p.currency || 'AED';
     const fmt2 = (n: number) => `${cur} ${(n || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const totalPaid = p.paidAmount || 0;
@@ -273,7 +267,7 @@ export default function InvoicesPaymentsPage() {
           <div class="dr"><span class="l">Date of Supply</span><span class="v">${payDate}</span></div>
           <div class="dr"><span class="l">Payment Date</span><span class="v">${payDate}</span></div>
           <div class="dr"><span class="l">Client Name</span><span class="v">${clientName}</span></div>
-          <div class="dr"><span class="l">AG / Opportunity ID</span><span class="v">${p.opportunityId ? `AG-${p.opportunityId}` : 'N/A'}</span></div>
+          <div class="dr"><span class="l">Agreement No.</span><span class="v">${p.agreementNumber || 'N/A'}</span></div>
           <div class="dr"><span class="l">Service / Program</span><span class="v">${p.serviceName || 'N/A'}</span></div>
           <div class="dr"><span class="l">Counselor</span><span class="v">${p.counselorName || 'N/A'}</span></div>
           <div class="dr"><span class="l">Payment Method</span><span class="v">${(p.paymentMethod || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</span></div>
@@ -419,19 +413,19 @@ export default function InvoicesPaymentsPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client / Company</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <SortableTh label="Invoice #" sortKey="invoiceNumber" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Client / Company" sortKey="client" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Service" sortKey="service" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Amount" sortKey="amount" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Balance" sortKey="balance" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Date" sortKey="date" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {invoices.length === 0 ? (
+                    {sortedInvoices.length === 0 ? (
                       <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-500">No invoices found</td></tr>
-                    ) : invoices.map(inv => (
+                    ) : sortedInvoices.map(inv => (
                       <tr key={inv.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm font-medium text-blue-600">{inv.receipt || `INV-${inv.id}`}</td>
                         <td className="px-4 py-3">
@@ -472,21 +466,21 @@ export default function InvoicesPaymentsPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment #</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Accountant</th>
+                      <SortableTh label="Payment #" sortKey="paymentNumber" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Client" sortKey="client" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Method" sortKey="method" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Total" sortKey="total" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Paid" sortKey="paid" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Balance" sortKey="balance" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Status" sortKey="status" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <SortableTh label="Accountant" sortKey="accountant" activeKey={paymentSortKey} direction={paymentSortDirection} onSort={togglePaymentSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {payments.length === 0 ? (
+                    {sortedPayments.length === 0 ? (
                       <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-500">No payments found</td></tr>
-                    ) : payments.map(p => (
+                    ) : sortedPayments.map(p => (
                       <tr key={p.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm font-medium text-blue-600">{p.paymentNumber}</td>
                         <td className="px-4 py-3">
@@ -511,7 +505,9 @@ export default function InvoicesPaymentsPage() {
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <button onClick={() => setViewPayment(p)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="View details"><Eye className="w-4 h-4" /></button>
-                            <button onClick={() => printReceipt(p)} className="p-1.5 text-green-600 hover:bg-green-50 rounded" title="Print receipt"><Printer className="w-4 h-4" /></button>
+                            {p.accountantStatus === 'verified' && (
+                              <button onClick={() => printReceipt(p)} className="p-1.5 text-green-600 hover:bg-green-50 rounded" title="Print receipt"><Printer className="w-4 h-4" /></button>
+                            )}
                             <button onClick={() => { setVerifyPayment(p); setVerifyRemarks(p.accountantRemarks || ''); }} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded" title="Verify / Reject"><CheckCircle className="w-4 h-4" /></button>
                           </div>
                         </td>
@@ -668,6 +664,7 @@ export default function InvoicesPaymentsPage() {
                 <div><span className="text-xs text-gray-500">Client</span><p className="text-sm font-medium">{viewPayment.clientName || `${viewPayment.fname || ''} ${viewPayment.lname || ''}`.trim() || 'N/A'}</p></div>
                 <div><span className="text-xs text-gray-500">Email</span><p className="text-sm">{viewPayment.clientEmail || viewPayment.email || '—'}</p></div>
                 <div><span className="text-xs text-gray-500">Service</span><p className="text-sm">{viewPayment.serviceName || '—'}</p></div>
+                <div><span className="text-xs text-gray-500">Agreement No.</span><p className="text-sm">{viewPayment.agreementNumber || '—'}</p></div>
                 <div><span className="text-xs text-gray-500">Branch</span><p className="text-sm">{viewPayment.branchName || '—'}</p></div>
                 <div><span className="text-xs text-gray-500">Total Amount</span><p className="text-sm font-medium">{fmt(viewPayment.totalAmount)}</p></div>
                 <div><span className="text-xs text-gray-500">Paid Amount</span><p className="text-sm font-medium text-green-700">{fmt(viewPayment.paidAmount)}</p></div>
@@ -694,7 +691,9 @@ export default function InvoicesPaymentsPage() {
             </div>
             <div className="border-t px-6 py-3 flex justify-end gap-3">
               <button onClick={() => setViewPayment(null)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Close</button>
-              <button onClick={() => { printReceipt(viewPayment); }} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 flex items-center gap-2"><Printer className="w-4 h-4" /> Print Receipt</button>
+              {viewPayment.accountantStatus === 'verified' && (
+                <button onClick={() => { printReceipt(viewPayment); }} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 flex items-center gap-2"><Printer className="w-4 h-4" /> Print Receipt</button>
+              )}
               <button onClick={() => { setVerifyPayment(viewPayment); setViewPayment(null); setVerifyRemarks(viewPayment.accountantRemarks || ''); }} className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Verify / Reject</button>
             </div>
           </div>

@@ -14,14 +14,14 @@ interface AusNomOldAttributes {
 interface AusNomOldCreationAttributes extends Optional<AusNomOldAttributes, 'agreeNo' | 'nomstate' | 'subdate' | 'nomexpdate' | 'file'> {}
 
 class AusNomOld extends Model<AusNomOldAttributes, AusNomOldCreationAttributes> implements AusNomOldAttributes {
-  public id!: number;
-  public agreeNo!: string | null;
-  public nomstate!: string | null;
-  public subdate!: string | null;
-  public nomexpdate!: string | null;
-  public file!: string | null;
-  public nomStatus!: string;
-  public created!: Date;
+  declare id: number;
+  declare agreeNo: string | null;
+  declare nomstate: string | null;
+  declare subdate: string | null;
+  declare nomexpdate: string | null;
+  declare file: string | null;
+  declare nomStatus: string;
+  declare created: Date;
 
   public static associate(models: any) {
   }

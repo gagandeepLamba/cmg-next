@@ -24,6 +24,18 @@ export async function GET(request: NextRequest) {
     // Cast to number immediately so any non-numeric input becomes NaN → treated as no filter
     const branchId = Number(searchParams.get('branch') || '') || null;
 
+    // Explicit date range (calendar filter on Revenue/Expenses) overrides the
+    // relative `months` lookback for the date-bounded queries below. `months`
+    // still drives Branches/Counselors/Payment Methods, which aren't
+    // filtered by the calendar picker.
+    const dateFrom = searchParams.get('dateFrom') || '';
+    const dateTo = searchParams.get('dateTo') || '';
+    const useRange = !!(dateFrom && dateTo);
+    const rangeReplacements = useRange ? { dateFrom, dateTo } : {};
+    const dateCond = (column: string) => useRange
+      ? `DATE(${column}) BETWEEN :dateFrom AND :dateTo`
+      : `${column} >= DATE_SUB(NOW(), INTERVAL :months MONTH)`;
+
     const [
       summaryRows,
       revenueByMonthRows,
@@ -47,13 +59,13 @@ export async function GET(request: NextRequest) {
           COALESCE(SUM(l.payTotal),0) AS total_revenue,
           COALESCE(SUM(l.paidYet),0) AS collected,
           COALESCE(SUM(l.payBalance),0) AS balance,
-          COALESCE((SELECT SUM(amount) FROM dm_expense WHERE DATE(date) >= DATE_SUB(NOW(),INTERVAL :months MONTH) ${branchId ? 'AND branch = :branchId' : ''}),0) AS total_expenses
+          COALESCE((SELECT SUM(amount) FROM dm_expense WHERE ${dateCond('date')} ${branchId ? 'AND branch = :branchId' : ''}),0) AS total_expenses
         FROM dmc_opportunities o
         LEFT JOIN dmc_forum_leads l ON l.id = o.leadId
         LEFT JOIN dm_branch b ON b.id = o.branchId
-        WHERE o.createdAt >= DATE_SUB(NOW(), INTERVAL :months MONTH)
+        WHERE ${dateCond('o.createdAt')}
         ${branchId ? 'AND o.branchId = :branchId' : ''}`,
-        { replacements: { months, ...(branchId ? { branchId } : {}) }, type: QueryTypes.SELECT }
+        { replacements: { months, ...rangeReplacements, ...(branchId ? { branchId } : {}) }, type: QueryTypes.SELECT }
       ),
 
       // ── Revenue by month ───────────────────────────────────────────────────
@@ -64,11 +76,11 @@ export async function GET(request: NextRequest) {
           0 AS revenue
         FROM dm_pay_history ph
         ${branchId ? 'JOIN dmc_forum_leads l2 ON l2.id=ph.leadId AND l2.branch = :branchId' : ''}
-        WHERE ph.date >= DATE_SUB(NOW(), INTERVAL :months MONTH)
+        WHERE ${dateCond('ph.date')}
           AND (ph.status IS NULL OR ph.status NOT IN ('cancelled','refund'))
         GROUP BY month
         ORDER BY month ASC`,
-        { replacements: { months, ...(branchId ? { branchId } : {}) }, type: QueryTypes.SELECT }
+        { replacements: { months, ...rangeReplacements, ...(branchId ? { branchId } : {}) }, type: QueryTypes.SELECT }
       ),
 
       // ── Recent opportunities (revenue) ─────────────────────────────────────
@@ -82,7 +94,7 @@ export async function GET(request: NextRequest) {
           o.id, o.opportunityName,
           CONCAT(COALESCE(l.fname,''),' ',COALESCE(l.lname,'')) AS lead_name,
           COALESCE(e.name,'Unassigned') AS counselor,
-          COALESCE(b.name,'N/A') AS branch,
+          COALESCE(b.branch,'N/A') AS branch,
           o.status,
           COALESCE(l.payTotal,0) AS total_fee,
           COALESCE(l.paidYet,0) AS paid,
@@ -93,11 +105,11 @@ export async function GET(request: NextRequest) {
         LEFT JOIN dmc_forum_leads l ON l.id = o.leadId
         LEFT JOIN dm_employee e ON e.id = o.assignedTo
         LEFT JOIN dm_branch b ON b.id = o.branchId
-        WHERE o.createdAt >= DATE_SUB(NOW(), INTERVAL :months MONTH)
+        WHERE ${dateCond('o.createdAt')}
         ${branchId ? 'AND o.branchId = :branchId' : ''}
         ORDER BY o.id DESC
         LIMIT 100`,
-        { replacements: { months, ...(branchId ? { branchId } : {}) }, type: QueryTypes.SELECT }
+        { replacements: { months, ...rangeReplacements, ...(branchId ? { branchId } : {}) }, type: QueryTypes.SELECT }
       ),
 
       // ── Recent expenses ────────────────────────────────────────────────────
@@ -110,18 +122,18 @@ export async function GET(request: NextRequest) {
           exp.id,
           DATE_FORMAT(exp.date,'%Y-%m-%d') AS date,
           exp.particular, exp.amount, COALESCE(exp.vat,0) AS vat,
-          COALESCE(b.name,'N/A') AS branch_name,
+          COALESCE(b.branch,'N/A') AS branch_name,
           COALESCE(exp.expense_type,0) AS expense_type,
           COALESCE(exp.transaction_type,'') AS transaction_type,
           COALESCE(exp.is_approval,0) AS is_approval,
           COALESCE(exp.mgmt_approval,0) AS mgmt_approval
         FROM dm_expense exp
         LEFT JOIN dm_branch b ON b.id = exp.branch
-        WHERE exp.date >= DATE_SUB(NOW(), INTERVAL :months MONTH)
+        WHERE ${dateCond('exp.date')}
         ${branchId ? 'AND exp.branch = :branchId' : ''}
         ORDER BY exp.date DESC
         LIMIT 200`,
-        { replacements: { months, ...(branchId ? { branchId } : {}) }, type: QueryTypes.SELECT }
+        { replacements: { months, ...rangeReplacements, ...(branchId ? { branchId } : {}) }, type: QueryTypes.SELECT }
       ),
 
       // ── Expenses by month ──────────────────────────────────────────────────
@@ -131,17 +143,17 @@ export async function GET(request: NextRequest) {
           COALESCE(SUM(amount),0) AS amount,
           COALESCE(SUM(vat),0) AS vat
         FROM dm_expense
-        WHERE date >= DATE_SUB(NOW(), INTERVAL :months MONTH)
+        WHERE ${dateCond('date')}
         ${branchId ? 'AND branch = :branchId' : ''}
         GROUP BY month
         ORDER BY month ASC`,
-        { replacements: { months, ...(branchId ? { branchId } : {}) }, type: QueryTypes.SELECT }
+        { replacements: { months, ...rangeReplacements, ...(branchId ? { branchId } : {}) }, type: QueryTypes.SELECT }
       ),
 
       // ── Branch performance ─────────────────────────────────────────────────
       sequelize.query<{ id: number; name: string; revenue: number; collected: number; opps: number }>(
         `SELECT
-          b.id, b.name,
+          b.id, b.branch AS name,
           COALESCE(SUM(l.payTotal),0) AS revenue,
           COALESCE(SUM(l.paidYet),0) AS collected,
           COUNT(o.id) AS opps
@@ -149,7 +161,7 @@ export async function GET(request: NextRequest) {
         LEFT JOIN dmc_opportunities o ON o.branchId=b.id AND o.createdAt >= DATE_SUB(NOW(),INTERVAL :months MONTH)
         LEFT JOIN dmc_forum_leads l ON l.id=o.leadId
         WHERE b.status=1
-        GROUP BY b.id, b.name
+        GROUP BY b.id, b.branch
         ORDER BY collected DESC`,
         { replacements: { months }, type: QueryTypes.SELECT }
       ),
@@ -158,7 +170,7 @@ export async function GET(request: NextRequest) {
       sequelize.query<{ id: number; name: string; branch: string; opps: number; collected: number }>(
         `SELECT
           e.id, e.name,
-          COALESCE(b.name,'N/A') AS branch,
+          COALESCE(b.branch,'N/A') AS branch,
           COUNT(o.id) AS opps,
           COALESCE(SUM(l.paidYet),0) AS collected
         FROM dm_employee e
@@ -166,7 +178,7 @@ export async function GET(request: NextRequest) {
         LEFT JOIN dmc_opportunities o ON o.assignedTo=e.id AND o.createdAt >= DATE_SUB(NOW(),INTERVAL :months MONTH)
         LEFT JOIN dmc_forum_leads l ON l.id=o.leadId
         WHERE e.status=1
-        GROUP BY e.id, e.name, b.name
+        GROUP BY e.id, e.name, b.branch
         HAVING opps > 0 OR collected > 0
         ORDER BY collected DESC
         LIMIT 15`,

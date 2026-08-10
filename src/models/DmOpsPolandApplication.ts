@@ -19,19 +19,19 @@ interface DmOpsPolandApplicationAttributes {
 interface DmOpsPolandApplicationCreationAttributes extends Optional<DmOpsPolandApplicationAttributes, 'tab' | 'leadId' | 'docSubDate' | 'status' | 'visaStatus' | 'created' | 'created_by'> {}
 
 class DmOpsPolandApplication extends Model<DmOpsPolandApplicationAttributes, DmOpsPolandApplicationCreationAttributes> implements DmOpsPolandApplicationAttributes {
-  public id!: number;
-  public tab!: number | null;
-  public leadId!: number | null;
-  public docSubDate!: Date | null;
-  public status!: string | null;
-  public visaStatus!: string | null;
-  public agent!: string;
-  public amount_to_agent!: number;
-  public appointment_status!: string;
-  public appointment_date!: Date;
-  public place!: string;
-  public created!: Date | null;
-  public created_by!: number | null;
+  declare id: number;
+  declare tab: number | null;
+  declare leadId: number | null;
+  declare docSubDate: Date | null;
+  declare status: string | null;
+  declare visaStatus: string | null;
+  declare agent: string;
+  declare amount_to_agent: number;
+  declare appointment_status: string;
+  declare appointment_date: Date;
+  declare place: string;
+  declare created: Date | null;
+  declare created_by: number | null;
 
   public static associate(models: any) {
   }

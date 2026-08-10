@@ -10,10 +10,10 @@ interface DmOpsUpdatedByAttributes {
 interface DmOpsUpdatedByCreationAttributes extends Optional<DmOpsUpdatedByAttributes, 'id' | 'date_time'> {}
 
 class DmOpsUpdatedBy extends Model<DmOpsUpdatedByAttributes, DmOpsUpdatedByCreationAttributes> implements DmOpsUpdatedByAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public counselor_id!: number;
-  public date_time!: Date;
+  declare id: number;
+  declare lead_id: number;
+  declare counselor_id: number;
+  declare date_time: Date;
 
   public static associate(models: any) {
   }

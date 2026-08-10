@@ -17,17 +17,17 @@ interface DmOpsVisitVisaApplicationAttributes {
 interface DmOpsVisitVisaApplicationCreationAttributes extends Optional<DmOpsVisitVisaApplicationAttributes, 'tab' | 'leadId' | 'docReceDate' | 'appSubDate' | 'appSub' | 'appStatus' | 'country' | 'num_of_applicants' | 'created' | 'created_by'> {}
 
 class DmOpsVisitVisaApplication extends Model<DmOpsVisitVisaApplicationAttributes, DmOpsVisitVisaApplicationCreationAttributes> implements DmOpsVisitVisaApplicationAttributes {
-  public id!: number;
-  public tab!: number | null;
-  public leadId!: number | null;
-  public docReceDate!: Date | null;
-  public appSubDate!: Date | null;
-  public appSub!: string | null;
-  public appStatus!: string | null;
-  public country!: string | null;
-  public num_of_applicants!: string | null;
-  public created!: Date | null;
-  public created_by!: number | null;
+  declare id: number;
+  declare tab: number | null;
+  declare leadId: number | null;
+  declare docReceDate: Date | null;
+  declare appSubDate: Date | null;
+  declare appSub: string | null;
+  declare appStatus: string | null;
+  declare country: string | null;
+  declare num_of_applicants: string | null;
+  declare created: Date | null;
+  declare created_by: number | null;
 
   public static associate(models: any) {
   }

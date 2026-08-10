@@ -1,13 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sequelize, connectDB } from '@/lib/sequelize';
 import { QueryTypes } from 'sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 let dbInitialized = false;
 const ensureDB = async () => {
   if (!dbInitialized) { await connectDB(); dbInitialized = true; }
 };
 
+// Callers sometimes pass a human-readable name instead of the numeric FK
+// (e.g. a lead's service_interest/country_interest was saved as free text
+// like "Resume Marketing Services" or "Canada" rather than the dm_service /
+// dm_country_proces id) — Number(name) is NaN, which used to reach the SQL
+// as a literal `NaN` and blow up with "Unknown column 'NaN'". Resolve by
+// name in that case instead of trusting the value is already an id.
+const resolveId = async (value: string, table: 'dm_service' | 'dm_country_proces'): Promise<number | null> => {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+
+  const rows = await sequelize.query<{ id: number }>(
+    `SELECT id FROM ${table} WHERE LOWER(name) = LOWER(:name) LIMIT 1`,
+    { replacements: { name: value }, type: QueryTypes.SELECT }
+  );
+  return rows[0]?.id ?? null;
+};
+
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['sales.view', 'finance.view']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureDB();
     const { searchParams } = new URL(request.url);
@@ -19,16 +39,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'service param is required' }, { status: 400 });
     }
 
-    const conditions: string[] = ['f.status = 1'];
-    const replacements: Record<string, any> = {};
+    const serviceId = await resolveId(service, 'dm_service');
+    if (!serviceId) {
+      return NextResponse.json({ data: null, message: 'No fee found for the selected criteria' });
+    }
 
-    if (service) { conditions.push('f.service = :service'); replacements.service = Number(service); }
-    if (country) { conditions.push('f.country = :country'); replacements.country = Number(country); }
-    if (branch)  { conditions.push('f.branch = :branch');   replacements.branch  = Number(branch); }
+    const baseConditions: string[] = ['f.status = 1'];
+    const baseReplacements: Record<string, any> = { service: serviceId };
+    baseConditions.push('f.service = :service');
+    if (branch) { baseConditions.push('f.branch = :branch'); baseReplacements.branch = Number(branch); }
 
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    const rows = await sequelize.query<any>(`
+    const selectSql = (conditions: string[]) => `
       SELECT
         f.id, f.service, f.country, f.branch, f.currency,
         f.upfront, f.prof_fee,
@@ -37,16 +58,36 @@ export async function GET(request: NextRequest) {
         c.currency_code AS currencyCode,
         s.name          AS serviceName,
         co.name         AS countryName,
-        b.name          AS branchName
+        b.branch        AS branchName
       FROM dm_fee f
       LEFT JOIN dm_currency   c ON f.currency = c.id
       LEFT JOIN dm_service    s ON f.service  = s.id
       LEFT JOIN dm_country_proces co ON f.country = co.id
       LEFT JOIN dm_branch     b ON f.branch   = b.id
-      ${where}
+      WHERE ${conditions.join(' AND ')}
       ORDER BY f.id DESC
       LIMIT 1
-    `, { replacements, type: QueryTypes.SELECT });
+    `;
+
+    let rows: any[] = [];
+
+    const countryId = country ? await resolveId(country, 'dm_country_proces') : null;
+    if (countryId) {
+      // Try the exact country match first (e.g. Nomad Visa priced per destination country).
+      rows = await sequelize.query<any>(
+        selectSql([...baseConditions, 'f.country = :country']),
+        { replacements: { ...baseReplacements, country: countryId }, type: QueryTypes.SELECT }
+      );
+    }
+
+    if (!rows.length) {
+      // Fall back to services priced the same across all countries (dm_fee.country IS NULL),
+      // e.g. Resume Marketing Services, which has no per-country fee rows.
+      rows = await sequelize.query<any>(
+        selectSql([...baseConditions, 'f.country IS NULL']),
+        { replacements: baseReplacements, type: QueryTypes.SELECT }
+      );
+    }
 
     if (!rows.length) {
       return NextResponse.json({ data: null, message: 'No fee found for the selected criteria' });

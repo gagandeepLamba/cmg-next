@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
 import { verifyToken } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
 
-function roleCat(type: string, roleId: number) {
-  if (roleId === 1) return 'admin';
-  const t = type.toLowerCase().replace(/[\s-]+/g, '_');
+function roleCat(cu: { type?: string | null; role?: number | null; roleName?: string | null }) {
+  if (Number(cu.role) === 1) return 'admin';
+  // CEO shares dm_role.type='director' with Director/Founder/Super Admin, so it's
+  // already covered by the type check below — but roleName is checked explicitly
+  // too in case that ever changes.
+  if (isCeo(cu)) return 'admin';
+  const t = String(cu.type || '').toLowerCase().replace(/[\s-]+/g, '_');
   if (['super_admin', 'admin', 'administrator', 'director', 'dos', 'director_of_sales', 'founder'].includes(t)) return 'admin';
-  if (['branch_manager', 'bm'].includes(t)) return 'branch_manager';
+  // FOE gets the same branch-scoped access as Branch Manager here — both are
+  // meant to assign unassigned leads within their own branch.
+  if (['branch_manager', 'bm', 'foe'].includes(t)) return 'branch_manager';
   return 'other';
 }
 
@@ -20,7 +27,7 @@ export async function GET(request: NextRequest) {
     const cu = token ? verifyToken(token) : null;
     if (!cu) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-    const cat = roleCat(String(cu.type || ''), Number(cu.role || 0));
+    const cat = roleCat(cu);
     if (cat === 'other') return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
     const userBranch = Number(cu.branch || 0);
@@ -85,7 +92,7 @@ export async function GET(request: NextRequest) {
         COALESCE(l.service_interest,'') AS serviceInterest,
         COALESCE(l.market_source,'') AS marketSource,
         l.branch,
-        COALESCE(b.name,'Unassigned') AS branchName,
+        COALESCE(b.branch,'Unassigned') AS branchName,
         l.assignTo,
         COALESCE(ae.name,'') AS assigneeName,
         l.Counsilor,
@@ -109,7 +116,7 @@ export async function GET(request: NextRequest) {
       cRep.branchId = userBranch;
     }
     const counsellors = await sequelize.query(
-      `SELECT e.id, e.name, e.branch, COALESCE(b.name,'') AS branchName
+      `SELECT e.id, e.name, e.branch, COALESCE(b.branch,'') AS branchName
       FROM dm_employee e
       LEFT JOIN dm_branch b ON e.branch = b.id
       WHERE ${cConds.join(' AND ')}
@@ -118,7 +125,7 @@ export async function GET(request: NextRequest) {
     );
 
     const branches = cat !== 'branch_manager'
-      ? await sequelize.query(`SELECT id, name FROM dm_branch WHERE status=1 ORDER BY name ASC LIMIT 50`, { type: QueryTypes.SELECT })
+      ? await sequelize.query(`SELECT id, branch AS name FROM dm_branch WHERE status=1 ORDER BY branch ASC LIMIT 50`, { type: QueryTypes.SELECT })
       : [];
 
     return NextResponse.json({
@@ -145,7 +152,7 @@ export async function POST(request: NextRequest) {
     const cu = token ? verifyToken(token) : null;
     if (!cu) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-    const cat = roleCat(String(cu.type || ''), Number(cu.role || 0));
+    const cat = roleCat(cu);
     if (cat === 'other') return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
     const userBranch = Number(cu.branch || 0);

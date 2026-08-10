@@ -1,7 +1,11 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import type { DmFeeAttributes } from '@/models/DmFee';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 interface LookupItem { id: number; name: string; }
 interface LookupData {
@@ -12,6 +16,8 @@ interface LookupData {
 }
 
 export default function FeesManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [fees, setFees] = useState<DmFeeAttributes[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -107,11 +113,11 @@ export default function FeesManagement() {
         fetchFees();
       } else {
         const error = await response.json();
-        alert('Error deleting fee: ' + error.error);
+        window.toast.error('Error deleting fee: ' + error.error);
       }
     } catch (error) {
       console.error('Error deleting fee:', error);
-      alert('Error deleting fee');
+      window.toast.error('Error deleting fee');
     }
   };
 
@@ -127,11 +133,11 @@ export default function FeesManagement() {
         fetchFees();
       } else {
         const error = await response.json();
-        alert('Error adding fee: ' + error.error);
+        window.toast.error('Error adding fee: ' + error.error);
       }
     } catch (error) {
       console.error('Error adding fee:', error);
-      alert('Error adding fee');
+      window.toast.error('Error adding fee');
     }
   };
 
@@ -149,11 +155,11 @@ export default function FeesManagement() {
         fetchFees();
       } else {
         const error = await response.json();
-        alert('Error updating fee: ' + error.error);
+        window.toast.error('Error updating fee: ' + error.error);
       }
     } catch (error) {
       console.error('Error updating fee:', error);
-      alert('Error updating fee');
+      window.toast.error('Error updating fee');
     }
   };
 
@@ -166,6 +172,20 @@ export default function FeesManagement() {
     lookup.countries.find(c => c.id === id)?.name || (id ? `#${id}` : 'N/A');
   const branchName = (id: number | null | undefined) =>
     lookup.branches.find(b => b.id === id)?.name || (id ? `#${id}` : 'N/A');
+
+  const { sorted: sortedFees, sortKey: feeSortKey, sortDirection: feeSortDirection, toggleSort: toggleFeeSort } = useSortableData(
+    fees,
+    {
+      id: (f) => f.id,
+      program: (f) => programName(f.service),
+      country: (f) => countryName(f.country),
+      branch: (f) => branchName(f.branch),
+      currency: (f) => f.currency,
+      upfront: (f) => f.upfront,
+      profFee: (f) => f.prof_fee,
+      status: (f) => f.status,
+    },
+  );
 
   if (loading) {
     return (
@@ -203,7 +223,7 @@ export default function FeesManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select
+          <SearchableSelect
             value={filters.status}
             onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -211,8 +231,8 @@ export default function FeesManagement() {
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
-          <select
+          </SearchableSelect>
+          <SearchableSelect
             value={filters.service}
             onChange={(e) => setFilters(prev => ({ ...prev, service: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -221,8 +241,8 @@ export default function FeesManagement() {
             {lookup.programs.map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
-          </select>
-          <select
+          </SearchableSelect>
+          <SearchableSelect
             value={filters.country}
             onChange={(e) => setFilters(prev => ({ ...prev, country: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -231,8 +251,8 @@ export default function FeesManagement() {
             {lookup.countries.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
-          </select>
-          <select
+          </SearchableSelect>
+          <SearchableSelect
             value={filters.branch}
             onChange={(e) => setFilters(prev => ({ ...prev, branch: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -241,25 +261,31 @@ export default function FeesManagement() {
             {lookup.branches.map(b => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Fees Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {['ID', 'Program', 'Country', 'Branch', 'Currency', 'Upfront', 'Prof Fee', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
-                ))}
+                <SortableTh label="ID" sortKey="id" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                <SortableTh label="Program" sortKey="program" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                <SortableTh label="Country" sortKey="country" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                <SortableTh label="Branch" sortKey="branch" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                <SortableTh label="Currency" sortKey="currency" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                <SortableTh label="Upfront" sortKey="upfront" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                <SortableTh label="Prof Fee" sortKey="profFee" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {fees.length === 0 ? (
+              {sortedFees.length === 0 ? (
                 <tr><td colSpan={9} className="px-6 py-10 text-center text-gray-400">No fees found</td></tr>
-              ) : fees.map((fee: DmFeeAttributes) => (
+              ) : sortedFees.map((fee: DmFeeAttributes) => (
                 <tr key={fee.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{fee.id}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{programName(fee.service)}</td>
@@ -276,7 +302,9 @@ export default function FeesManagement() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
                     <button onClick={() => handleViewFee(fee)} className="text-blue-600 hover:text-blue-900">View</button>
                     <button onClick={() => handleEditFee(fee)} className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                    <button onClick={() => handleDeleteFee(fee.id)} className="text-red-600 hover:text-red-900">Delete</button>
+                    {canDelete && (
+                      <button onClick={() => handleDeleteFee(fee.id)} className="text-red-600 hover:text-red-900">Delete</button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -446,7 +474,7 @@ function FeeFormModal({ title, initialData, lookup, onSubmit, onClose }: FeeForm
             {/* Program (service) dropdown */}
             <div>
               <label className={lbl}>Program</label>
-              <select
+              <SearchableSelect
                 value={formData.service ?? ''}
                 onChange={e => setFormData(prev => ({ ...prev, service: e.target.value ? Number(e.target.value) : null }))}
                 className={inp}
@@ -455,12 +483,12 @@ function FeeFormModal({ title, initialData, lookup, onSubmit, onClose }: FeeForm
                 {lookup.programs.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
             {/* Country dropdown */}
             <div>
               <label className={lbl}>Country</label>
-              <select
+              <SearchableSelect
                 value={formData.country ?? ''}
                 onChange={e => setFormData(prev => ({ ...prev, country: e.target.value ? Number(e.target.value) : null }))}
                 className={inp}
@@ -469,12 +497,12 @@ function FeeFormModal({ title, initialData, lookup, onSubmit, onClose }: FeeForm
                 {lookup.countries.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
             {/* Branch dropdown */}
             <div>
               <label className={lbl}>Branch</label>
-              <select
+              <SearchableSelect
                 value={formData.branch ?? ''}
                 onChange={e => setFormData(prev => ({ ...prev, branch: e.target.value ? Number(e.target.value) : null }))}
                 className={inp}
@@ -483,7 +511,7 @@ function FeeFormModal({ title, initialData, lookup, onSubmit, onClose }: FeeForm
                 {lookup.branches.map(b => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
             {/* Currency — kept as number ID (FK to dm_currency) */}
             <div>
@@ -570,12 +598,12 @@ function FeeFormModal({ title, initialData, lookup, onSubmit, onClose }: FeeForm
             </div>
             <div>
               <label className={lbl}>Status *</label>
-              <select required value={formData.status}
+              <SearchableSelect required value={formData.status}
                 onChange={e => setFormData(prev => ({ ...prev, status: parseInt(e.target.value) }))}
                 className={inp}>
                 <option value="1">Active</option>
                 <option value="0">Inactive</option>
-              </select>
+              </SearchableSelect>
             </div>
           </div>
           <div className="mt-6 flex justify-end space-x-3">

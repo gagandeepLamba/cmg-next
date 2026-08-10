@@ -12,12 +12,12 @@ interface DmLogsAttributes {
 interface DmLogsCreationAttributes extends Optional<DmLogsAttributes, 'date_time' | 'action' | 'message' | 'source'> {}
 
 class DmLogs extends Model<DmLogsAttributes, DmLogsCreationAttributes> implements DmLogsAttributes {
-  public id!: number;
-  public date_time!: Date;
-  public action!: string | null;
-  public message!: string | null;
-  public source!: string | null;
-  public done_by!: number;
+  declare id: number;
+  declare date_time: Date;
+  declare action: string | null;
+  declare message: string | null;
+  declare source: string | null;
+  declare done_by: number;
 
   public static associate(models: any) {
   }

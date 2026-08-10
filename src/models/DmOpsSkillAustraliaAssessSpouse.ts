@@ -15,15 +15,15 @@ interface DmOpsSkillAustraliaAssessSpouseAttributes {
 interface DmOpsSkillAustraliaAssessSpouseCreationAttributes extends Optional<DmOpsSkillAustraliaAssessSpouseAttributes, never> {}
 
 class DmOpsSkillAustraliaAssessSpouse extends Model<DmOpsSkillAustraliaAssessSpouseAttributes, DmOpsSkillAustraliaAssessSpouseCreationAttributes> implements DmOpsSkillAustraliaAssessSpouseAttributes {
-  public id!: number;
-  public leadId!: number;
-  public anzCode!: string;
-  public chklistDate!: string;
-  public resultDate!: string;
-  public assmAuthority!: string;
-  public assmSubDate!: string;
-  public assmStatus!: string;
-  public spSkillAssm!: string;
+  declare id: number;
+  declare leadId: number;
+  declare anzCode: string;
+  declare chklistDate: string;
+  declare resultDate: string;
+  declare assmAuthority: string;
+  declare assmSubDate: string;
+  declare assmStatus: string;
+  declare spSkillAssm: string;
 
   public static associate(models: any) {
   }

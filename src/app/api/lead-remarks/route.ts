@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
+import { logLeadRemark } from '@/lib/leadRemarks';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 let dbInitialized = false;
 
@@ -12,6 +14,8 @@ const ensureDBConnection = async () => {
 };
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['leads.update']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureDBConnection();
 
@@ -38,6 +42,17 @@ export async function POST(request: NextRequest) {
         { error: 'remark is required' },
         { status: 400 }
       );
+    }
+
+    const [recentDuplicate] = await sequelize.query<{ id: number }>(
+      `SELECT id FROM dmc_forum_leads_remarks
+       WHERE \`lead\` = ? AND remark = ? AND emp = ?
+         AND TIMESTAMP(\`date\`, created) >= (NOW() - INTERVAL 60 SECOND)
+       LIMIT 1`,
+      { replacements: [leadId, remark, employeeId], type: QueryTypes.SELECT }
+    );
+    if (recentDuplicate) {
+      return NextResponse.json({ error: 'This remark was already added a moment ago.' }, { status: 409 });
     }
 
     const columns = await getTableColumns('dmc_forum_leads_remarks');
@@ -76,6 +91,13 @@ export async function POST(request: NextRequest) {
       'SELECT id FROM dmc_forum_leads_remarks WHERE `lead` = ? AND remark = ? AND emp = ? ORDER BY id DESC LIMIT 1',
       { replacements: [leadId, remark, employeeId], type: QueryTypes.SELECT }
     );
+
+    await logLeadRemark({
+      leadId,
+      action: 'remark_added',
+      remark: `Remark added: ${remark}`,
+      actorId: employeeId,
+    });
 
     return NextResponse.json({
       success: true,

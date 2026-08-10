@@ -1,690 +1,412 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import MainLayout from '@/components/layout/MainLayout';
+import React, { useState, useEffect, useCallback, Fragment } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select-simple';
-import { mapOperationsRowToListItem, searchOperationCases } from '@/lib/operationsClient';
-import { 
-  Search, 
-  Filter, 
-  User, 
-  FileText, 
-  Calendar, 
-  Clock, 
-  CheckCircle, 
-  AlertCircle, 
-  XCircle,
-  Award,
-  MapPin,
-  Phone,
-  Mail,
-  Globe,
-  CreditCard,
-  TrendingUp,
-  Eye,
-  Edit,
-  Download,
-  Upload,
-  FileCheck,
-  FileX,
-  FileQuestion,
-  Archive,
-  RefreshCw,
-  DollarSign,
-  Plus,
-  Briefcase,
+import {
+  Search,
   Users,
-  Target,
-  BookOpen,
-  GraduationCap,
-  BriefcaseIcon,
-  Plane,
-  Hotel,
-  ShoppingCart,
-  Factory,
-  Store,
-  Building2,
-  Home,
-  Car,
-  Truck,
-  Star,
-  Shield,
-  Flag,
-  Crown,
-  Banknote,
-  Heart,
-  Zap,
-  Rocket,
-  Building,
-  MapPinIcon,
-  Lightbulb,
-  Brain,
-  Cpu,
-  Microscope,
-  Dna,
-  Linkedin,
-  Send,
-  MessageSquare,
-  UserCheck,
-  UserX,
-  FileText as FileIcon,
-  File,
-  PenTool,
-  CheckSquare,
-  Euro,
-  Languages,
-  Scale,
-  TrendingDown,
-  Activity,
-  BarChart3,
-  PieChart,
-  LineChart,
-  MessageCircle,
-  PhoneCall,
-  Video,
-  Mail as MailIcon,
-  Calendar as CalendarIcon,
-  Clock as ClockIcon,
-  User as UserIcon,
-  Headphones,
-  Volume2,
-  Mic,
-  Video as VideoIcon,
-  Settings,
-  Cog,
-  Wrench,
-  HardHat,
-  Construction,
-  Factory as FactoryIcon,
-  CalendarDays,
-  CalendarRange,
-  UserMinus,
-  LogOut,
-  Pause,
-  Play,
-  Square,
-  CheckSquare2,
-  Database,
-  Server,
-  Cloud,
-  Wifi,
-  Smartphone,
-  Tablet,
-  Monitor,
-  Keyboard,
-  Mouse,
-  Printer,
-  Scan,
-  QrCode,
-  Barcode,
-  Fingerprint,
-  Lock,
-  Unlock,
-  Key,
-  Shield as ShieldIcon,
-  UserPlus,
-  UserMinus as UserMinusIcon,
-  Users as UsersIcon,
-  Building as BuildingIcon,
-  Home as HomeIcon,
-  MapPin as MapPinIcon2,
-  Phone as PhoneIcon,
-  Mail as MailIcon2,
-  Globe as GlobeIcon,
-  Calendar as CalendarIcon2,
-  DollarSign as DollarSignIcon,
-  CreditCard as CreditCardIcon,
-  FileText as FileTextIcon,
-  CheckCircle as CheckCircleIcon,
-  AlertCircle as AlertCircleIcon,
-  Clock as ClockIcon2,
-  TrendingUp as TrendingUpIcon,
-  Filter as FilterIcon,
-  Search as SearchIcon,
-  Plus as PlusIcon,
-  Edit as EditIcon,
-  Eye as EyeIcon,
-  Download as DownloadIcon,
-  Upload as UploadIcon,
-  RefreshCw as RefreshCwIcon,
-  Archive as ArchiveIcon,
-  XCircle as XCircleIcon
+  RefreshCw,
+  Plus,
+  X,
+  FileText,
+  ClipboardList,
+  StickyNote,
+  CheckCircle,
 } from 'lucide-react';
 
-interface CRMEntryOps {
-  id: string;
-  leadId: string;
-  leadName: string;
-  email: string;
-  phone: string;
-  entryType: string;
-  source: string;
+interface CrmEntryRow {
+  id: number;
+  leadId: number;
+  opportunityId: number | null;
+  entry_type: string;
+  source: string | null;
+  category: string | null;
+  sub_category: string | null;
+  service: string | null;
+  budget: string | null;
+  timeline: string | null;
+  expectations: string | null;
+  urgency: 'low' | 'medium' | 'high';
   status: string;
-  priority: 'high' | 'medium' | 'low';
-  assignedTo: string;
-  createdDate: string;
-  lastUpdated: string;
-  nextFollowUp: string;
-  personalInfo: {
-    dateOfBirth: string;
-    passportNumber: string;
-    nationality: string;
-    currentLocation: string;
-    maritalStatus: string;
-    education: string;
-    profession: string;
-  };
-  crmDetails: {
-    category: string;
-    subCategory: string;
-    service: string;
-    budget: string;
-    timeline: string;
-    requirements: string[];
-    expectations: string;
-    urgency: string;
-  };
-  applicationStatus: {
-    initialContact: string;
-    qualification: string;
-    consultation: string;
-    proposal: string;
-    agreement: string;
-    onboarding: string;
-    completion: string;
-  };
-  documents: {
-    idProof: string;
-    addressProof: string;
-    educationalCertificates: string;
-    professionalCertificates: string;
-    financialDocuments: string;
-    agreement: string;
-    paymentReceipt: string;
-  };
-  milestones: {
-    phase: string;
-    status: string;
-    completedDate?: string;
-    dueDate: string;
-    notes: string;
-  }[];
-  financials: {
-    serviceFee: number;
-    consultationFee: number;
-    processingFees: number;
-    totalCost: number;
-    paidAmount: number;
-    balanceAmount: number;
-    paymentStatus: string;
-    nextPaymentDue: string;
-  };
-  notes: string[];
+  fname: string | null;
+  lname: string | null;
+  email: string | null;
+  mobile: string | null;
+  phone: string | null;
+  assignedToName: string | null;
+  created_at: string;
+  updated_at: string;
+  documentCount: number;
+  documentApprovedCount: number;
+  milestoneCount: number;
+  milestoneCompletedCount: number;
 }
 
+interface CrmEntryDetail extends CrmEntryRow {
+  requirements: { id: number; requirement: string }[];
+  documents: { id: number; document_type: string; status: string; file_url: string | null }[];
+  milestones: { id: number; phase: string; status: string; due_date: string | null; completed_date: string | null; notes: string | null }[];
+  notes: { id: number; note: string; created_at: string; createdByName: string | null }[];
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  initial_contact: 'Initial Contact',
+  qualification: 'Qualification',
+  consultation: 'Consultation',
+  proposal: 'Proposal',
+  agreement: 'Agreement',
+  onboarding: 'Onboarding',
+  completed: 'Completed',
+};
+const STATUS_ORDER = Object.keys(STATUS_LABELS);
+
+const URGENCY_COLORS: Record<string, string> = {
+  high: 'bg-red-100 text-red-800',
+  medium: 'bg-yellow-100 text-yellow-800',
+  low: 'bg-green-100 text-green-800',
+};
+
+const emptyNewEntry = { leadId: '', entry_type: 'Direct Inquiry', source: '', service: '', budget: '', timeline: '', urgency: 'medium', expectations: '' };
+
 const CRMEntryOps: React.FC = () => {
-  const [crmEntryOps, setCRMEntryOps] = useState<CRMEntryOps[]>([]);
+  const [rows, setRows] = useState<CrmEntryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [selectedEntryType, setSelectedEntryType] = useState('all');
-  const [selectedSource, setSelectedSource] = useState('all');
-  const [selectedPriority, setSelectedPriority] = useState('all');
-  const [showFilters, setShowFilters] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<CrmEntryDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newEntry, setNewEntry] = useState(emptyNewEntry);
+  const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    const fetchCRMEntryOps = async () => {
-      setLoading(true);
-      try {
-        const rows = await searchOperationCases({ module: 'crm-entry', search: searchTerm || null, limit: 100 });
-        setCRMEntryOps(rows.map((row) => mapOperationsRowToListItem(row)) as unknown as CRMEntryOps[]);
-      } catch (error) {
-        console.error('Error fetching operations cases:', error);
-        setCRMEntryOps([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchRows = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams({ limit: '200' });
+      if (searchTerm) params.set('search', searchTerm);
+      if (selectedStatus !== 'all') params.set('status', selectedStatus);
+      const res = await fetch(`/api/admin/crm-entries?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to load CRM entries');
+      setRows(json.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load CRM entries');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchTerm, selectedStatus]);
 
-    fetchCRMEntryOps();
-  }, [searchTerm]);
+  useEffect(() => { fetchRows(); }, [fetchRows]);
 
-  const getEntryTypeIcon = (entryType: string) => {
-    switch (entryType) {
-      case 'Direct Inquiry': return <PhoneIcon className="h-5 w-5 text-blue-500" />;
-      case 'Referral': return <UsersIcon className="h-5 w-5 text-green-500" />;
-      case 'Cold Call': return <PhoneCall className="h-5 w-5 text-orange-500" />;
-      case 'Email Campaign': return <MailIcon2 className="h-5 w-5 text-purple-500" />;
-      case 'Social Media': return <GlobeIcon className="h-5 w-5 text-pink-500" />;
-      case 'Event': return <CalendarIcon2 className="h-5 w-5 text-indigo-500" />;
-      default: return <UserPlus className="h-5 w-5 text-gray-400" />;
+  const loadDetail = async (id: number) => {
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`/api/admin/crm-entries/${id}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error);
+      setDetail(json.data);
+    } catch {
+      window.toast?.error('Failed to load entry detail');
+      setDetail(null);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'initial_contact': return <Badge className="bg-blue-100 text-blue-800">Initial Contact</Badge>;
-      case 'qualification': return <Badge className="bg-yellow-100 text-yellow-800">Qualification</Badge>;
-      case 'consultation': return <Badge className="bg-orange-100 text-orange-800">Consultation</Badge>;
-      case 'proposal': return <Badge className="bg-purple-100 text-purple-800">Proposal</Badge>;
-      case 'agreement': return <Badge className="bg-green-100 text-green-800">Agreement</Badge>;
-      case 'onboarding': return <Badge className="bg-indigo-100 text-indigo-800">Onboarding</Badge>;
-      case 'completion': return <Badge className="bg-teal-100 text-teal-800">Completion</Badge>;
-      case 'lost': return <Badge className="bg-red-100 text-red-800">Lost</Badge>;
-      default: return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
+  const toggleExpand = (id: number) => {
+    if (expandedId === id) { setExpandedId(null); setDetail(null); return; }
+    setExpandedId(id);
+    loadDetail(id);
+  };
+
+  const handleAddNote = async (entryId: number) => {
+    if (!noteDraft.trim()) return;
+    try {
+      const res = await fetch(`/api/admin/crm-entries/${entryId}/notes`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: noteDraft.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      setNoteDraft('');
+      loadDetail(entryId);
+    } catch {
+      window.toast?.error('Failed to add note');
     }
   };
 
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case 'high': return <Badge className="bg-red-100 text-red-800">High</Badge>;
-      case 'medium': return <Badge className="bg-yellow-100 text-yellow-800">Medium</Badge>;
-      case 'low': return <Badge className="bg-green-100 text-green-800">Low</Badge>;
-      default: return <Badge className="bg-gray-100 text-gray-800">{priority}</Badge>;
+  const handleCreate = async () => {
+    if (!newEntry.leadId) { window.toast?.warning('Lead ID is required'); return; }
+    setCreating(true);
+    try {
+      const res = await fetch('/api/admin/crm-entries', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newEntry, leadId: Number(newEntry.leadId) }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to create entry');
+      window.toast?.success('CRM entry created');
+      setShowCreateModal(false);
+      setNewEntry(emptyNewEntry);
+      fetchRows();
+    } catch (err) {
+      window.toast?.error(err instanceof Error ? err.message : 'Failed to create entry');
+    } finally {
+      setCreating(false);
     }
   };
-
-  const getDocumentStatusIcon = (status: string) => {
-    switch (status) {
-      case 'approved': return <FileCheck className="h-4 w-4 text-green-500" />;
-      case 'submitted': return <Clock className="h-4 w-4 text-yellow-500" />;
-      case 'in_progress': return <Clock className="h-4 w-4 text-orange-500" />;
-      case 'pending': return <FileQuestion className="h-4 w-4 text-gray-500" />;
-      case 'rejected': return <FileX className="h-4 w-4 text-red-500" />;
-      default: return <FileText className="h-4 w-4 text-gray-400" />;
-    }
-  };
-
-  const getApplicationStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed': return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
-      case 'in_progress': return <Badge className="bg-yellow-100 text-yellow-800">In Progress</Badge>;
-      case 'pending': return <Badge className="bg-gray-100 text-gray-800">Pending</Badge>;
-      default: return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
-    }
-  };
-
-  const filteredCRMEntryOps = crmEntryOps.filter(op => {
-    const matchesSearch = op.leadName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         op.entryType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         op.leadId.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = selectedStatus === 'all' || op.status === selectedStatus;
-    const matchesEntryType = selectedEntryType === 'all' || op.entryType === selectedEntryType;
-    const matchesSource = selectedSource === 'all' || op.source === selectedSource;
-    const matchesPriority = selectedPriority === 'all' || op.priority === selectedPriority;
-    
-    return matchesSearch && matchesStatus && matchesEntryType && matchesSource && matchesPriority;
-  });
 
   const stats = {
-    total: crmEntryOps.length,
-    active: crmEntryOps.filter(op => !['completion', 'lost'].includes(op.status)).length,
-    completed: crmEntryOps.filter(op => op.status === 'completion').length,
-    highPriority: crmEntryOps.filter(op => op.priority === 'high').length,
-    totalRevenue: crmEntryOps.reduce((sum, op) => sum + op.financials.totalCost, 0),
-    pendingPayments: crmEntryOps.filter(op => op.financials.paymentStatus === 'partial').length
+    total: rows.length,
+    inProgress: rows.filter((r) => !['completed'].includes(r.status)).length,
+    completed: rows.filter((r) => r.status === 'completed').length,
+    highUrgency: rows.filter((r) => r.urgency === 'high').length,
   };
 
   if (loading) {
     return (
-      <MainLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      </MainLayout>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
     );
   }
 
   return (
-    <MainLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">CRM Entry Operations</h1>
-            <p className="text-gray-600 mt-2">Manage client acquisition and CRM entries</p>
-          </div>
-          <div className="flex space-x-3">
-            <Button variant="outline" className="flex items-center">
-              <DownloadIcon className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 flex items-center">
-              <PlusIcon className="h-4 w-4 mr-2" />
-              New Entry
-            </Button>
-          </div>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">CRM Entry Operations</h1>
+          <p className="text-gray-600 mt-2">Client acquisition intake: requirements, documents, and milestones per case</p>
         </div>
-
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Entries</CardTitle>
-              <Database className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.active} active entries
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircleIcon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.completed}</div>
-              <p className="text-xs text-muted-foreground">
-                {((stats.completed / stats.total) * 100).toFixed(1)}% completion rate
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">High Priority</CardTitle>
-              <AlertCircleIcon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.highPriority}</div>
-              <p className="text-xs text-muted-foreground">
-                Require immediate attention
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <DollarSignIcon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${stats.totalRevenue.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.pendingPayments} pending payments
-              </p>
-            </CardContent>
-          </Card>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={fetchRows} className="flex items-center">
+            <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+          </Button>
+          <Button onClick={() => setShowCreateModal(true)} className="bg-blue-600 hover:bg-blue-700 flex items-center">
+            <Plus className="h-4 w-4 mr-2" /> New Entry
+          </Button>
         </div>
+      </div>
 
-        {/* Filters */}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                    placeholder="Search by name, entry type, or ID..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Entries</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-bold">{stats.total}</div></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-bold">{stats.inProgress}</div></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Completed</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-bold">{stats.completed}</div></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">High Urgency</CardTitle>
+            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-bold">{stats.highUrgency}</div></CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input placeholder="Search by name, email, mobile, or service..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+            </div>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                {STATUS_ORDER.map((s) => <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" />
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entry Type / Service</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Budget / Timeline</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documents</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Urgency</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {rows.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400">No CRM entries yet. Click "New Entry" to log a client's acquisition intake.</td></tr>
+            ) : rows.map((row) => {
+              const expanded = expandedId === row.id;
+              return (
+                <Fragment key={row.id}>
+                  <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => toggleExpand(row.id)}>
+                    <td className="px-4 py-3">
+                      <button type="button" className="h-8 w-8 rounded border border-gray-300 text-sm font-semibold text-gray-600 hover:bg-gray-100" aria-expanded={expanded}>
+                        {expanded ? '-' : '+'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-sm font-medium text-gray-900">{[row.fname, row.lname].filter(Boolean).join(' ') || `Lead ${row.leadId}`}</div>
+                      <div className="text-xs text-gray-500">{row.email}{row.email && (row.mobile || row.phone) ? ' · ' : ''}{row.mobile || row.phone}</div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{row.entry_type}{row.service ? ` · ${row.service}` : ''}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{row.budget || '—'}{row.timeline ? ` · ${row.timeline}` : ''}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      <div className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" />{row.documentApprovedCount}/{row.documentCount}</div>
+                    </td>
+                    <td className="px-4 py-3"><Badge className={URGENCY_COLORS[row.urgency]}>{row.urgency}</Badge></td>
+                    <td className="px-4 py-3"><Badge className="bg-blue-100 text-blue-800">{STATUS_LABELS[row.status] || row.status}</Badge></td>
+                  </tr>
+                  {expanded && (
+                    <tr className="bg-blue-50/40">
+                      <td colSpan={7} className="px-4 py-4">
+                        {detailLoading ? (
+                          <div className="text-sm text-gray-500">Loading...</div>
+                        ) : detail && detail.id === row.id ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-500 mb-2">Requirements</p>
+                              {detail.requirements.length === 0 && <p className="text-sm text-gray-400">None recorded</p>}
+                              <ul className="text-sm list-disc list-inside space-y-0.5">
+                                {detail.requirements.map((r) => <li key={r.id}>{r.requirement}</li>)}
+                              </ul>
+                              {detail.expectations && <p className="text-xs text-gray-500 mt-2">Expectations: {detail.expectations}</p>}
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-500 mb-2">Documents</p>
+                              {detail.documents.length === 0 && <p className="text-sm text-gray-400">No documents tracked</p>}
+                              <div className="space-y-1">
+                                {detail.documents.map((d) => (
+                                  <div key={d.id} className="flex items-center justify-between text-sm">
+                                    <span>{d.document_type}</span>
+                                    <Badge className={d.status === 'approved' ? 'bg-green-100 text-green-800' : d.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700'}>{d.status}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-500 mb-2">Milestones</p>
+                              {detail.milestones.length === 0 && <p className="text-sm text-gray-400">No milestones tracked</p>}
+                              <div className="space-y-1">
+                                {detail.milestones.map((m) => (
+                                  <div key={m.id} className="flex items-center justify-between text-sm">
+                                    <span>{m.phase}</span>
+                                    <Badge className={m.status === 'completed' ? 'bg-green-100 text-green-800' : m.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}>{m.status}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-500 mb-2 flex items-center gap-1"><StickyNote className="h-3.5 w-3.5" /> Notes</p>
+                              <div className="space-y-1 max-h-28 overflow-y-auto mb-2">
+                                {detail.notes.length === 0 && <p className="text-sm text-gray-400">No notes yet</p>}
+                                {detail.notes.map((n) => (
+                                  <div key={n.id} className="text-xs text-gray-600 border-b border-gray-100 pb-1">
+                                    <span className="font-medium">{n.createdByName || 'Someone'}:</span> {n.note}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex gap-1">
+                                <Input value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Add a note..." className="text-xs h-8" onClick={(e) => e.stopPropagation()} />
+                                <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAddNote(row.id); }} className="h-8">Add</Button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-red-500">Failed to load detail.</p>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">New CRM Entry</h3>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-500 hover:text-gray-700"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lead ID *</label>
+                <input type="number" value={newEntry.leadId} onChange={(e) => setNewEntry((f) => ({ ...f, leadId: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Entry Type</label>
+                  <select value={newEntry.entry_type} onChange={(e) => setNewEntry((f) => ({ ...f, entry_type: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {['Direct Inquiry', 'Referral', 'Walk-in', 'Website', 'Campaign'].map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Urgency</label>
+                  <select value={newEntry.urgency} onChange={(e) => setNewEntry((f) => ({ ...f, urgency: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {['low', 'medium', 'high'].map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="initial_contact">Initial Contact</SelectItem>
-                    <SelectItem value="qualification">Qualification</SelectItem>
-                    <SelectItem value="consultation">Consultation</SelectItem>
-                    <SelectItem value="proposal">Proposal</SelectItem>
-                    <SelectItem value="agreement">Agreement</SelectItem>
-                    <SelectItem value="onboarding">Onboarding</SelectItem>
-                    <SelectItem value="completion">Completion</SelectItem>
-                    <SelectItem value="lost">Lost</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={selectedEntryType} onValueChange={setSelectedEntryType}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Entry Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Entry Types</SelectItem>
-                    <SelectItem value="Direct Inquiry">Direct Inquiry</SelectItem>
-                    <SelectItem value="Referral">Referral</SelectItem>
-                    <SelectItem value="Cold Call">Cold Call</SelectItem>
-                    <SelectItem value="Email Campaign">Email Campaign</SelectItem>
-                    <SelectItem value="Social Media">Social Media</SelectItem>
-                    <SelectItem value="Event">Event</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={selectedSource} onValueChange={setSelectedSource}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Source" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Sources</SelectItem>
-                    <SelectItem value="Website">Website</SelectItem>
-                    <SelectItem value="Existing Client">Existing Client</SelectItem>
-                    <SelectItem value="Telemarketing">Telemarketing</SelectItem>
-                    <SelectItem value="Email Marketing">Email Marketing</SelectItem>
-                    <SelectItem value="Social Media">Social Media</SelectItem>
-                    <SelectItem value="Trade Show">Trade Show</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={selectedPriority} onValueChange={setSelectedPriority}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Priority</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="flex items-center"
-                >
-                  <FilterIcon className="h-4 w-4 mr-2" />
-                  Filters
-                </Button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
+                <input value={newEntry.service} onChange={(e) => setNewEntry((f) => ({ ...f, service: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Budget</label>
+                  <input value={newEntry.budget} onChange={(e) => setNewEntry((f) => ({ ...f, budget: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Timeline</label>
+                  <input value={newEntry.timeline} onChange={(e) => setNewEntry((f) => ({ ...f, timeline: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Expectations</label>
+                <textarea value={newEntry.expectations} onChange={(e) => setNewEntry((f) => ({ ...f, expectations: e.target.value }))} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* CRM Entries List */}
-        <div className="space-y-4">
-          {filteredCRMEntryOps.map(crmOp => (
-            <Card key={crmOp.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center space-x-3">
-                    {getEntryTypeIcon(crmOp.entryType)}
-                    <div>
-                      <h3 className="text-lg font-semibold">{crmOp.leadName}</h3>
-                      <p className="text-sm text-gray-600">{crmOp.entryType} • {crmOp.leadId}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {getPriorityBadge(crmOp.priority)}
-                    {getStatusBadge(crmOp.status)}
-                    <Badge className="bg-blue-100 text-blue-800">{crmOp.source}</Badge>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Service</p>
-                    <p className="font-medium">{crmOp.crmDetails.service}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Budget</p>
-                    <p className="font-medium">{crmOp.crmDetails.budget}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Timeline</p>
-                    <p className="font-medium">{crmOp.crmDetails.timeline}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Assigned To</p>
-                    <p className="font-medium">{crmOp.assignedTo}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                  <div>
-                    <p className="text-sm text-gray-500 mb-2">Application Status</p>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Initial Contact</span>
-                        {getApplicationStatusBadge(crmOp.applicationStatus.initialContact)}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Qualification</span>
-                        {getApplicationStatusBadge(crmOp.applicationStatus.qualification)}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Consultation</span>
-                        {getApplicationStatusBadge(crmOp.applicationStatus.consultation)}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Proposal</span>
-                        {getApplicationStatusBadge(crmOp.applicationStatus.proposal)}
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-2">Documents</p>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">ID Proof</span>
-                        <div className="flex items-center space-x-1">
-                          {getDocumentStatusIcon(crmOp.documents.idProof)}
-                          <span className="text-xs capitalize">{crmOp.documents.idProof}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Educational Certificates</span>
-                        <div className="flex items-center space-x-1">
-                          {getDocumentStatusIcon(crmOp.documents.educationalCertificates)}
-                          <span className="text-xs capitalize">{crmOp.documents.educationalCertificates}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Financial Documents</span>
-                        <div className="flex items-center space-x-1">
-                          {getDocumentStatusIcon(crmOp.documents.financialDocuments)}
-                          <span className="text-xs capitalize">{crmOp.documents.financialDocuments}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Agreement</span>
-                        <div className="flex items-center space-x-1">
-                          {getDocumentStatusIcon(crmOp.documents.agreement)}
-                          <span className="text-xs capitalize">{crmOp.documents.agreement}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-2">CRM Details</p>
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-sm">Category</span>
-                        <span className="text-sm font-medium">{crmOp.crmDetails.category}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm">Sub-Category</span>
-                        <span className="text-sm font-medium">{crmOp.crmDetails.subCategory}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm">Urgency</span>
-                        <span className="text-sm font-medium">{crmOp.crmDetails.urgency}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm">Requirements</span>
-                        <div className="flex flex-wrap gap-1">
-                          {crmOp.crmDetails.requirements.slice(0, 2).map(req => (
-                            <Badge key={req} variant="outline" className="text-xs">
-                              {req}
-                            </Badge>
-                          ))}
-                          {crmOp.crmDetails.requirements.length > 2 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{crmOp.crmDetails.requirements.length - 2}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-2">Current Milestone</p>
-                    <div className="space-y-2">
-                      {crmOp.milestones
-                        .filter(m => m.status === 'in_progress')
-                        .map(milestone => (
-                          <div key={milestone.phase} className="bg-yellow-50 p-2 rounded">
-                            <p className="text-sm font-medium">{milestone.phase}</p>
-                            <p className="text-xs text-gray-600">Due: {milestone.dueDate}</p>
-                          </div>
-                        ))}
-                      {crmOp.milestones.every(m => m.status !== 'in_progress') && (
-                        <p className="text-sm text-gray-500">No active milestones</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-t">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-1 text-sm text-gray-500">
-                      <Calendar className="h-4 w-4" />
-                      <span>Created: {crmOp.createdDate}</span>
-                    </div>
-                    <div className="flex items-center space-x-1 text-sm text-gray-500">
-                      <Clock className="h-4 w-4" />
-                      <span>Updated: {crmOp.lastUpdated}</span>
-                    </div>
-                  </div>
-                  <div className="flex space-x-2">
-                    <Button size="sm" variant="outline" className="flex items-center">
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Details
-                    </Button>
-                    <Button size="sm" variant="outline" className="flex items-center">
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </Button>
-                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700 flex items-center">
-                      <FileText className="h-4 w-4 mr-2" />
-                      Documents
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
+              <Button onClick={handleCreate} disabled={creating} className="bg-blue-600 hover:bg-blue-700">{creating ? 'Creating...' : 'Create Entry'}</Button>
+            </div>
+          </div>
         </div>
-
-        {filteredCRMEntryOps.length === 0 && (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No CRM entries found</h3>
-              <p className="text-gray-500">Try adjusting your search or filters to find what you're looking for.</p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </MainLayout>
+      )}
+    </div>
   );
 };
 
 export default CRMEntryOps;
-
-

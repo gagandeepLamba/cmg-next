@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
 import { HRService } from '@/services/hr-service';
+import { verifyToken } from '@/lib/auth';
+import { isCeo } from '@/lib/roleChecks';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 let dbReady = false;
 const ensureDB = async () => { if (!dbReady) { await connectDB(); dbReady = true; } };
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request, ['employees.manage', 'hr.view', 'hr.self']);
+  if (isAuthError(auth)) return auth;
   try {
     await ensureDB();
     const { searchParams } = new URL(request.url);
@@ -38,21 +43,30 @@ export async function GET(request: NextRequest) {
       { replacements, type: QueryTypes.SELECT }
     );
 
-    const [summary] = await sequelize.query<{ total: number; active: number; inactive: number }>(
+    const [summary] = await sequelize.query<{ total: number; active: number; inactive: number; missingVisaDates: number; departments: number }>(
       `SELECT COUNT(*) AS total,
         SUM(CASE WHEN e.status=1 THEN 1 ELSE 0 END) AS active,
-        SUM(CASE WHEN e.status!=1 THEN 1 ELSE 0 END) AS inactive
+        SUM(CASE WHEN e.status!=1 THEN 1 ELSE 0 END) AS inactive,
+        SUM(CASE WHEN e.visaExp IS NULL THEN 1 ELSE 0 END) AS missingVisaDates,
+        COUNT(DISTINCT e.department) AS departments
        FROM dm_employee e LEFT JOIN dm_department d ON d.id = e.department ${where}`,
       { replacements, type: QueryTypes.SELECT }
     );
 
     const data = await sequelize.query(
       `SELECT e.id, e.name, COALESCE(e.email,'') AS email,
-        COALESCE(e.mobile,'') AS mobile, e.department, d.name AS departmentName,
-        e.role, r.name AS roleName, e.branch, b.name AS branchName, e.region, e.status, e.EID,
+        COALESCE(e.cemail,'') AS cemail,
+        COALESCE(e.mobile,'') AS mobile, COALESCE(e.cmobile,'') AS cmobile,
+        e.department, d.name AS departmentName,
+        e.role, r.name AS roleName, e.branch, b.branch AS branchName, e.region, rg.name AS regionName, e.status, e.EID,
+        COALESCE(e.username,'') AS username,
         COALESCE(e.work_location,'Onshore') AS work_location,
+        COALESCE(e.work_country,'') AS work_country,
+        COALESCE(e.work_city,'') AS work_city,
+        COALESCE(e.work_site,'') AS work_site,
         COALESCE(e.employment_type,'Full-time') AS employment_type,
         COALESCE(e.wfh,0) AS wfh,
+        CAST(e.dob AS CHAR) AS dob,
         CAST(e.doj AS CHAR) AS doj,
         CAST(e.dol AS CHAR) AS dol,
         CAST(e.visaExp AS CHAR) AS visaExp,
@@ -61,6 +75,7 @@ export async function GET(request: NextRequest) {
        LEFT JOIN dm_department d ON d.id = e.department
        LEFT JOIN dm_role r ON r.id = e.role
        LEFT JOIN dm_branch b ON b.id = e.branch
+       LEFT JOIN dm_region rg ON rg.id = e.region
        ${where}
        ORDER BY e.id DESC
        LIMIT :limit OFFSET :offset`,
@@ -74,8 +89,8 @@ export async function GET(request: NextRequest) {
         total: Number(summary?.total || 0),
         active: Number(summary?.active || 0),
         inactive: Number(summary?.inactive || 0),
-        missingVisaDates: 0,
-        departments: 0,
+        missingVisaDates: Number(summary?.missingVisaDates || 0),
+        departments: Number(summary?.departments || 0),
       },
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
@@ -87,6 +102,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request, ['employees.manage', 'hr.create']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
     const employee = await HRService.createEmployee(body);
@@ -99,6 +116,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request, ['employees.manage', 'hr.update']);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
     const id = Number.parseInt(String(body.id || ''), 10);
@@ -117,6 +136,13 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const token = request.cookies.get('auth-token')?.value
+      || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    const currentUser = token ? verifyToken(token) : null;
+    if (!currentUser || !isCeo(currentUser)) {
+      return NextResponse.json({ error: 'Only the CEO can delete records' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = Number.parseInt(searchParams.get('id') || '', 10);
     if (!Number.isFinite(id)) {

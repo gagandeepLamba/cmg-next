@@ -11,11 +11,11 @@ interface DmVendorsAttributes {
 interface DmVendorsCreationAttributes extends Optional<DmVendorsAttributes, 'status'> {}
 
 class DmVendors extends Model<DmVendorsAttributes, DmVendorsCreationAttributes> implements DmVendorsAttributes {
-  public id!: number;
-  public name!: string;
-  public status!: number;
-  public created_by!: number;
-  public created!: Date;
+  declare id: number;
+  declare name: string;
+  declare status: number;
+  declare created_by: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Palette, Type, Square, Layers, RotateCcw, Save } from 'lucide-react';
@@ -116,7 +117,7 @@ export default function ThemeCustomizer() {
             {/* Preset Themes */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Preset Themes</label>
-              <select
+              <SearchableSelect
                 value={selectedTheme}
                 onChange={(e) => selectPresetTheme(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -124,7 +125,7 @@ export default function ThemeCustomizer() {
                 {availableThemes.map(t => (
                   <option key={t.name} value={t.name}>{t.name}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
 
             {/* Color Pickers */}
@@ -149,7 +150,7 @@ export default function ThemeCustomizer() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Font Family</label>
-              <select
+              <SearchableSelect
                 value={theme.typography.fontFamily}
                 onChange={(e) => setTheme({
                   ...theme,
@@ -162,7 +163,7 @@ export default function ThemeCustomizer() {
                 <option value="'Helvetica Neue', Arial, sans-serif">Helvetica</option>
                 <option value="Georgia, serif">Georgia</option>
                 <option value="'Courier New', monospace">Courier New</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             <div>

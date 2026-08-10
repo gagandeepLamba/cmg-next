@@ -12,12 +12,12 @@ interface DmWelcomeEmailDocsAttributes {
 interface DmWelcomeEmailDocsCreationAttributes extends Optional<DmWelcomeEmailDocsAttributes, never> {}
 
 class DmWelcomeEmailDocs extends Model<DmWelcomeEmailDocsAttributes, DmWelcomeEmailDocsCreationAttributes> implements DmWelcomeEmailDocsAttributes {
-  public id!: number;
-  public lead_id!: number;
-  public docs!: string;
-  public docs_for!: string;
-  public created_by!: number;
-  public created!: Date;
+  declare id: number;
+  declare lead_id: number;
+  declare docs: string;
+  declare docs_for: string;
+  declare created_by: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

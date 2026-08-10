@@ -9,7 +9,7 @@ const { seedCurrency } = require('./seed-currency');
 const { seedCountries } = require('./seed-countries');
 const { seedFees } = require('./seed-fees');
 const { seedEmployees } = require('./seed-employees');
-const { seedProgramTypes } = require('./seed-program-types');
+const { seedProgramValidity } = require('./seed-program-validity');
 
 dotenv.config();
 
@@ -578,6 +578,15 @@ const columnMigrations = [
   ['dmc_forum_leads', 'opportunity_id', 'INT NULL'],
   ['dmc_forum_leads', 'opportunity_status', 'VARCHAR(50) NULL'],
   ['dmc_forum_leads', 'conversion_date', 'DATETIME NULL'],
+  ['dmc_forum_leads', 'conversion_reason', 'TEXT NULL'],
+  ['dmc_forum_leads', 'lost_reason', 'TEXT NULL'],
+  ['dmc_forum_leads', 'competitor', 'VARCHAR(255) NULL'],
+  ['dmc_forum_leads', 'qualification_score', 'INT NULL'],
+  ['appointments', 'meeting_status', "VARCHAR(20) NULL"],
+  ['appointments', 'meeting_verified', 'TINYINT NULL DEFAULT NULL'],
+  ['appointments', 'verified_by', 'INT NULL'],
+  ['appointments', 'verified_at', 'DATETIME NULL'],
+  ['appointments', 'foe_remark', 'VARCHAR(500) NULL'],
   ['dmc_forum_leads', 'lead_quality', "VARCHAR(50) NOT NULL DEFAULT 'Warm'"],
   ['dmc_opportunities', 'opportunityNumber', 'VARCHAR(50) NULL'],
   ['dmc_opportunities', 'description', 'TEXT NULL'],
@@ -668,6 +677,7 @@ const columnMigrations = [
   ['dm_employee', 'work_city', 'VARCHAR(255) NULL'],
   ['dm_employee', 'work_site', 'VARCHAR(255) NULL'],
   ['dm_employee', 'employment_type', "ENUM('Full-time', 'Contract', 'Freelance', 'Part-time') NOT NULL DEFAULT 'Full-time'"],
+  ['dm_service', 'validity', 'VARCHAR(50) NULL'],
   ['dm_opportunity_payments', 'accountantStatus', "VARCHAR(20) NOT NULL DEFAULT 'pending'"],
   ['dm_opportunity_payments', 'accountantRemarks', 'TEXT NULL'],
   ['dm_opportunity_payments', 'accountantId', 'INT NULL'],
@@ -748,7 +758,7 @@ async function runSqlMigrations(connection) {
       } catch (error) {
         // Older migrations pre-date IF NOT EXISTS for indexes/columns. Treat
         // their duplicate-object errors as the intended idempotent outcome.
-        if (!['ER_DUP_KEYNAME', 'ER_DUP_FIELDNAME', 'ER_TABLE_EXISTS_ERROR', 'ER_FK_DUP_NAME'].includes(error.code)) throw error;
+        if (!['ER_DUP_KEYNAME', 'ER_DUP_FIELDNAME', 'ER_TABLE_EXISTS_ERROR', 'ER_FK_DUP_NAME', 'ER_CANT_DROP_FIELD_OR_KEY'].includes(error.code)) throw error;
       }
     }
   }
@@ -812,13 +822,13 @@ async function run() {
   const branchSeed = await seedBranches(db);
   const currencySeed = await seedCurrency(db);
   const countrySeed = await seedCountries(db);
-  const programTypeSeed = await seedProgramTypes(db);
   const feeSeed = await seedFees(db);
+  const programValiditySeed = await seedProgramValidity(db);
   const employeeSeed = await seedEmployees(db);
 
   await db.end();
 
-  console.log(`Database ${database} is ready. Applied ${migrations.length} built-in and ${sqlMigrationCount} SQL migration files, checked ${columnMigrations.length} columns, and seeded ${rolePermissionSeed.roles} roles / ${rolePermissionSeed.permissions} permissions, ${sourceSeed.sources} lead sources, ${branchSeed.branches} branches, ${currencySeed.currencies} currencies, ${countrySeed.countries} countries, ${programTypeSeed.programTypes} program types, ${feeSeed.fees} fee rows / ${feeSeed.services} services, and employees (created ${employeeSeed.created}, updated ${employeeSeed.updated}, skipped ${employeeSeed.skipped}).`);
+  console.log(`Database ${database} is ready. Applied ${migrations.length} built-in and ${sqlMigrationCount} SQL migration files, checked ${columnMigrations.length} columns, and seeded ${rolePermissionSeed.roles} roles / ${rolePermissionSeed.permissions} permissions, ${sourceSeed.sources} lead sources, ${branchSeed.branches} branches, ${currencySeed.currencies} currencies, ${countrySeed.countries} countries, ${feeSeed.fees} fee rows / ${feeSeed.services} services, ${programValiditySeed.programValidity} program validity rows, and employees (created ${employeeSeed.created}, updated ${employeeSeed.updated}, skipped ${employeeSeed.skipped}).`);
 }
 
 run().catch((error) => {

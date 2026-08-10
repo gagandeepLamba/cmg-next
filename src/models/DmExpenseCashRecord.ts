@@ -15,15 +15,15 @@ interface DmExpenseCashRecordAttributes {
 interface DmExpenseCashRecordCreationAttributes extends Optional<DmExpenseCashRecordAttributes, never> {}
 
 class DmExpenseCashRecord extends Model<DmExpenseCashRecordAttributes, DmExpenseCashRecordCreationAttributes> implements DmExpenseCashRecordAttributes {
-  public id!: number;
-  public expense_id!: number;
-  public amount!: number;
-  public amount_spend!: number;
-  public balance!: number;
-  public emp_id!: number;
-  public branch!: number;
-  public type!: string;
-  public created!: Date;
+  declare id: number;
+  declare expense_id: number;
+  declare amount: number;
+  declare amount_spend: number;
+  declare balance: number;
+  declare emp_id: number;
+  declare branch: number;
+  declare type: string;
+  declare created: Date;
 
   public static associate(models: any) {
   }

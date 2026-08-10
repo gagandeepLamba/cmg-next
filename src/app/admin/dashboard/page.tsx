@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -127,7 +126,7 @@ export default function Dashboard() {
   };
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="mb-8">
@@ -404,6 +403,6 @@ export default function Dashboard() {
         </>
         )}
       </div>
-    </MainLayout>
+    </>
   );
 }

@@ -12,12 +12,12 @@ interface DmClientLogsAttributes {
 interface DmClientLogsCreationAttributes extends Optional<DmClientLogsAttributes, never> {}
 
 class DmClientLogs extends Model<DmClientLogsAttributes, DmClientLogsCreationAttributes> implements DmClientLogsAttributes {
-  public id!: number;
-  public client_id!: number;
-  public lead_id!: number;
-  public title!: string;
-  public log!: string;
-  public created!: Date;
+  declare id: number;
+  declare client_id: number;
+  declare lead_id: number;
+  declare title: string;
+  declare log: string;
+  declare created: Date;
 
   public static associate(models: any) {
   }

@@ -13,13 +13,13 @@ interface DmAdditionalDocumentsAttributes {
 interface DmAdditionalDocumentsCreationAttributes extends Optional<DmAdditionalDocumentsAttributes, never> {}
 
 class DmAdditionalDocuments extends Model<DmAdditionalDocumentsAttributes, DmAdditionalDocumentsCreationAttributes> implements DmAdditionalDocumentsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public document!: string;
-  public purpose!: string;
-  public created!: Date;
-  public created_by!: number;
-  public remarks!: string;
+  declare id: number;
+  declare leadId: number;
+  declare document: string;
+  declare purpose: string;
+  declare created: Date;
+  declare created_by: number;
+  declare remarks: string;
 
   public static associate(models: any) {
   }

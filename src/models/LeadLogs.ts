@@ -10,10 +10,10 @@ interface LeadLogsAttributes {
 interface LeadLogsCreationAttributes extends Optional<LeadLogsAttributes, 'date_time' | 'leadid' | 'ACTION'> {}
 
 class LeadLogs extends Model<LeadLogsAttributes, LeadLogsCreationAttributes> implements LeadLogsAttributes {
-  public id!: number;
-  public date_time!: Date | null;
-  public leadid!: number | null;
-  public ACTION!: string | null;
+  declare id: number;
+  declare date_time: Date | null;
+  declare leadid: number | null;
+  declare ACTION: string | null;
 
   public static associate(models: any) {
   }

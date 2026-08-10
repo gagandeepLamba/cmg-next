@@ -18,18 +18,18 @@ interface DmVvBiometricsAttributes {
 interface DmVvBiometricsCreationAttributes extends Optional<DmVvBiometricsAttributes, never> {}
 
 class DmVvBiometrics extends Model<DmVvBiometricsAttributes, DmVvBiometricsCreationAttributes> implements DmVvBiometricsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public bio_name!: string;
-  public bio_age!: string;
-  public biometrics_submission!: string;
-  public country!: number;
-  public no_of_applicant!: number;
-  public bio_status!: string;
-  public biometrics_appointment_date!: Date;
-  public status!: number;
-  public created_by!: number;
-  public created!: Date;
+  declare id: number;
+  declare leadId: number;
+  declare bio_name: string;
+  declare bio_age: string;
+  declare biometrics_submission: string;
+  declare country: number;
+  declare no_of_applicant: number;
+  declare bio_status: string;
+  declare biometrics_appointment_date: Date;
+  declare status: number;
+  declare created_by: number;
+  declare created: Date;
 
   public static associate(models: any) {
   }

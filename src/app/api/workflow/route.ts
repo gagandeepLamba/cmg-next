@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 async function loadWorkflowData() {
   const [leads, opportunities, caseOfficers, overdueStages] = await Promise.all([
@@ -64,6 +65,9 @@ async function loadWorkflowData() {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['leads.view', 'reports.view']);
+    if (isAuthError(auth)) return auth;
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'dashboard-stats';
 
@@ -139,6 +143,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireAuth(request, ['leads.view', 'leads.update']);
+    if (isAuthError(auth)) return auth;
+
     const body = await request.json();
     if (body.action === 'assign-case-officer') {
       const { opportunityId, caseOfficerId } = body;

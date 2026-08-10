@@ -1,7 +1,7 @@
 'use client'
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useCallback } from 'react'
-import MainLayout from '@/components/layout/MainLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -231,17 +231,14 @@ export default function OpsReportPage() {
 
   if (loading) {
     return (
-      <MainLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      </MainLayout>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
     )
   }
 
   return (
-    <MainLayout>
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -298,7 +295,7 @@ export default function OpsReportPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Region</label>
-                  <select
+                  <SearchableSelect
                     value={filters.region}
                     onChange={(e) => handleFilterChange('region', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -309,12 +306,12 @@ export default function OpsReportPage() {
                     <option value="3">Asia</option>
                     <option value="4">Middle East</option>
                     <option value="5">Africa</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">ECA Status</label>
-                  <select
+                  <SearchableSelect
                     value={filters.ecaStatus}
                     onChange={(e) => handleFilterChange('ecaStatus', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -324,12 +321,12 @@ export default function OpsReportPage() {
                     <option value="completed">Completed</option>
                     <option value="insufficient">Insufficient</option>
                     <option value="registered">Registered</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
-                  <select
+                  <SearchableSelect
                     value={filters.reportType}
                     onChange={(e) => handleFilterChange('reportType', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -339,7 +336,7 @@ export default function OpsReportPage() {
                     <option value="uk">UK Application</option>
                     <option value="usa">USA Application</option>
                     <option value="all">All Operations</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
             )}
@@ -513,6 +510,5 @@ export default function OpsReportPage() {
           </Card>
         )}
       </div>
-    </MainLayout>
   )
 }

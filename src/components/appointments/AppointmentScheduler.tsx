@@ -1,11 +1,17 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { useState, useEffect } from 'react';
 import {
   Calendar, Clock, Users, Plus, Search, Filter,
   Edit, Trash2, Eye, CheckCircle, XCircle,
-  MapPin, Phone, Mail, User, Bell, Download
+  MapPin, Phone, Mail, User, Bell, Download,
+  UserX, RotateCcw, Upload, FileCheck, ShieldCheck, ShieldAlert, Building2
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo, isFoeOrBranchManagerOrCeo } from '@/lib/roleChecks';
+import { uploadFileToBlob } from '@/lib/uploadToBlob';
 
 interface Appointment {
   id: number;
@@ -27,6 +33,16 @@ interface Appointment {
   reminderSent: boolean;
   createdAt: string;
   updatedAt: string;
+  screenshotUrl: string;
+  // FOE verification of the "meeting done" proof document — null means no
+  // one has reviewed it yet, 1 = confirmed genuine, 0 = rejected.
+  meetingVerified: number | null;
+  verifiedByName: string;
+  foeRemark: string;
+  crossBranch: boolean;
+  assignedBranchName: string;
+  assignedByName: string;
+  acknowledged: boolean;
 }
 
 interface AppointmentSchedulerProps {
@@ -46,6 +62,11 @@ interface ApiAppointment {
   region: number | null;
   branch: number | null;
   screenshot?: string | null;
+  meeting_status?: string | null;
+  meeting_verified?: number | null;
+  verified_by?: number | null;
+  verified_at?: string | null;
+  foe_remark?: string | null;
   fname?: string | null;
   lname?: string | null;
   leadEmail?: string | null;
@@ -54,6 +75,14 @@ interface ApiAppointment {
   counselorName?: string | null;
   branchName?: string | null;
   regionName?: string | null;
+  verifiedByName?: string | null;
+  cross_branch?: number | null;
+  assigned_branch?: number | null;
+  assigned_by?: number | null;
+  acknowledged?: number | null;
+  acknowledged_at?: string | null;
+  assignedBranchName?: string | null;
+  assignedByName?: string | null;
 }
 
 interface AppointmentForm {
@@ -97,14 +126,30 @@ function mapAppointment(appointment: ApiAppointment): Appointment {
     branch: appointment.branchName || (appointment.branch ? `Branch #${appointment.branch}` : 'No branch'),
     region: appointment.regionName || (appointment.region ? `Region #${appointment.region}` : 'No region'),
     location: appointment.branchName || 'Office',
-    notes: appointment.screenshot ? `Screenshot: ${appointment.screenshot}` : '',
+    notes: '',
     reminderSent: Number(appointment.booked || 0) === 1,
     createdAt: '',
-    updatedAt: ''
+    updatedAt: '',
+    screenshotUrl: appointment.screenshot || '',
+    meetingVerified: appointment.meeting_verified === null || appointment.meeting_verified === undefined
+      ? null
+      : Number(appointment.meeting_verified),
+    verifiedByName: appointment.verifiedByName || '',
+    foeRemark: appointment.foe_remark || '',
+    crossBranch: Number(appointment.cross_branch || 0) === 1,
+    assignedBranchName: appointment.assignedBranchName || '',
+    assignedByName: appointment.assignedByName || '',
+    acknowledged: Number(appointment.acknowledged || 0) === 1,
   };
 }
 
 function getAppointmentStatus(appointment: ApiAppointment): Appointment['status'] {
+  // meeting_status is the source of truth once set (it's the only thing that
+  // distinguishes No-show/Rescheduled from a plain Cancelled/Scheduled row,
+  // since those share the same booked/done/not_done flag combination).
+  if (appointment.meeting_status === 'no_show') return 'No-show';
+  if (appointment.meeting_status === 'rescheduled') return 'Rescheduled';
+  if (appointment.meeting_status === 'meeting_done') return 'Completed';
   if (Number(appointment.done || 0) === 1) return 'Completed';
   if (Number(appointment.not_done || 0) === 1) return 'Cancelled';
   if (Number(appointment.booked || 0) === 1) return 'Confirmed';
@@ -112,6 +157,8 @@ function getAppointmentStatus(appointment: ApiAppointment): Appointment['status'
 }
 
 export default function AppointmentScheduler({ onAppointmentSelect, showActions = true }: AppointmentSchedulerProps) {
+  const { user } = useAuth();
+  const canVerifyMeetings = isFoeOrBranchManagerOrCeo(user as any);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -134,6 +181,25 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [acknowledgingId, setAcknowledgingId] = useState<number | null>(null);
+  const [reschedulingAppt, setReschedulingAppt] = useState<Appointment | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+
+  // Meeting-done proof upload — "Mark Done" opens this instead of firing
+  // immediately, since a document is required so a FOE can later verify the
+  // meeting actually happened.
+  const [markingDoneAppt, setMarkingDoneAppt] = useState<Appointment | null>(null);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const [verifyRemark, setVerifyRemark] = useState('');
+
+  // Lets a FOE/Branch Manager/CEO jump straight to meetings a counselor
+  // marked done that still need a verify/reject decision, instead of
+  // scanning every row.
+  const [pendingVerificationOnly, setPendingVerificationOnly] = useState(false);
+  const [crossBranchOnly, setCrossBranchOnly] = useState(false);
+  const [counselorOptions, setCounselorOptions] = useState<Array<{ id: number; name: string }>>([]);
 
   const fetchAppointments = async () => {
     try {
@@ -164,6 +230,25 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
     fetchAppointments();
   }, [filters.date, filters.status, filters.counsilor]);
 
+  // Counselor filter dropdown - previously hardcoded to 3 fake names
+  // (Sarah Wilson/Mike Johnson/Lisa Chen) that never matched real data.
+  // Branch Manager sees their own branch's counselors; CEO sees everyone.
+  useEffect(() => {
+    (async () => {
+      try {
+        const params = new URLSearchParams({ status: '1', limit: '200' });
+        if (!isCeo(user as any) && (user as any)?.branch) params.set('branch', String((user as any).branch));
+        const res = await fetch(`/api/employees?${params.toString()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const employees: Array<{ id: number; name: string }> = data.employees || [];
+        setCounselorOptions(employees.map((e) => ({ id: e.id, name: e.name })));
+      } catch (error) {
+        console.error('Error loading counselor filter options:', error);
+      }
+    })();
+  }, [user]);
+
   const openEdit = (appt: Appointment) => {
     setEditingAppt(appt);
     setEditForm({
@@ -179,11 +264,12 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
   };
 
   const statusToFlags = (status: string) => {
-    if (status === 'Completed') return { done: 1, not_done: 0, booked: 1 };
-    if (status === 'Cancelled') return { done: 0, not_done: 1, booked: 0 };
-    if (status === 'Confirmed') return { done: 0, not_done: 0, booked: 1 };
-    if (status === 'No-show')   return { done: 0, not_done: 1, booked: 0 };
-    return { done: 0, not_done: 0, booked: 0 }; // Scheduled
+    if (status === 'Completed') return { done: 1, not_done: 0, booked: 1, meeting_status: 'meeting_done' };
+    if (status === 'Cancelled') return { done: 0, not_done: 1, booked: 0, meeting_status: null };
+    if (status === 'Confirmed') return { done: 0, not_done: 0, booked: 1, meeting_status: null };
+    if (status === 'No-show')   return { done: 0, not_done: 1, booked: 0, meeting_status: 'no_show' };
+    if (status === 'Rescheduled') return { done: 0, not_done: 0, booked: 0, meeting_status: 'rescheduled' };
+    return { done: 0, not_done: 0, booked: 0, meeting_status: null }; // Scheduled
   };
 
   const handleSave = async () => {
@@ -214,6 +300,21 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
     }
   };
 
+  const handleAcknowledge = async (appt: Appointment) => {
+    if (acknowledgingId) return;
+    setAcknowledgingId(appt.id);
+    try {
+      const res = await fetch(`/api/appointments/${appt.id}/acknowledge`, { method: 'POST' });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Failed to acknowledge'); }
+      window.toast.success('Appointment acknowledged');
+      await fetchAppointments();
+    } catch (e) {
+      window.toast.error(e instanceof Error ? e.message : 'Failed to acknowledge appointment');
+    } finally {
+      setAcknowledgingId(null);
+    }
+  };
+
   const handleStatusChange = async (appt: Appointment, newStatus: string) => {
     setActionBusy(true);
     setActionError('');
@@ -229,6 +330,106 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
       await fetchAppointments();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Failed to update');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  // "Reschedule" needs a new date/time, not just the status flag flip that
+  // handleStatusChange does for every other status — otherwise the appointment
+  // gets relabeled "Rescheduled" while its actual date/time silently stays the same.
+  const openReschedule = (appt: Appointment) => {
+    setReschedulingAppt(appt);
+    setRescheduleDate(appt.date);
+    setRescheduleTime(appt.time);
+    setActionError('');
+  };
+
+  const handleRescheduleSave = async () => {
+    if (!reschedulingAppt) return;
+    if (!rescheduleDate || !rescheduleTime) {
+      setActionError('Please select a new date and time');
+      return;
+    }
+    setActionBusy(true);
+    setActionError('');
+    try {
+      const res = await fetch(`/api/appointments/${reschedulingAppt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...statusToFlags('Rescheduled'),
+          date: rescheduleDate,
+          appointtime: rescheduleTime,
+        }),
+      });
+      if (!res.ok) { const j = await res.json(); throw new Error(j.error || 'Reschedule failed'); }
+      setReschedulingAppt(null);
+      setViewingAppt(null);
+      await fetchAppointments();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to reschedule');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  // Meeting Done requires a proof document (so a FOE can verify the meeting
+  // actually happened) — this uploads it and marks the appointment done in
+  // one step, resetting any prior verification since the proof changed.
+  const handleConfirmMarkDone = async () => {
+    if (!markingDoneAppt || !proofFile) return;
+    setUploadingProof(true);
+    setActionError('');
+    try {
+      const blob = await uploadFileToBlob(proofFile, `appointments/${markingDoneAppt.id}-${proofFile.name}`);
+      const flags = statusToFlags('Completed');
+      const res = await fetch(`/api/appointments/${markingDoneAppt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...flags,
+          screenshot: blob.url,
+          meeting_verified: null,
+          verified_by: null,
+          verified_at: null,
+          foe_remark: null,
+        }),
+      });
+      if (!res.ok) { const j = await res.json(); throw new Error(j.error || 'Update failed'); }
+      setMarkingDoneAppt(null);
+      setProofFile(null);
+      setViewingAppt(null);
+      await fetchAppointments();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to upload document and mark meeting done');
+    } finally {
+      setUploadingProof(false);
+    }
+  };
+
+  // FOE (or Branch Manager/CEO) confirms or rejects that the uploaded proof
+  // actually shows the meeting happened.
+  const handleVerifyMeeting = async (appt: Appointment, verified: boolean) => {
+    setActionBusy(true);
+    setActionError('');
+    try {
+      const res = await fetch(`/api/appointments/${appt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          meeting_verified: verified ? 1 : 0,
+          verified_by: user?.id || null,
+          verified_at: new Date().toISOString(),
+          foe_remark: verifyRemark || null,
+        }),
+      });
+      if (!res.ok) { const j = await res.json(); throw new Error(j.error || 'Update failed'); }
+      setVerifyRemark('');
+      setViewingAppt(null);
+      await fetchAppointments();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to record verification');
     } finally {
       setActionBusy(false);
     }
@@ -283,6 +484,10 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
     }
   };
 
+  const needsVerification = (appointment: Appointment) => appointment.status === 'Completed' && appointment.meetingVerified === null;
+  const pendingVerificationCount = appointments.filter(needsVerification).length;
+  const crossBranchCount = appointments.filter(a => a.crossBranch).length;
+
   const filteredAppointments = appointments.filter(appointment => {
     const matchesSearch =
       appointment.leadName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -294,9 +499,22 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
     const matchesType = !filters.type || appointment.type === filters.type;
     const matchesCounsilor = !filters.counsilor || appointment.counsilorId.toString() === filters.counsilor;
     const matchesBranch = !filters.branch || appointment.branch.includes(filters.branch);
+    const matchesVerification = !pendingVerificationOnly || needsVerification(appointment);
+    const matchesCrossBranch = !crossBranchOnly || appointment.crossBranch;
 
-    return matchesSearch && matchesDate && matchesStatus && matchesType && matchesCounsilor && matchesBranch;
+    return matchesSearch && matchesDate && matchesStatus && matchesType && matchesCounsilor && matchesBranch && matchesVerification && matchesCrossBranch;
   });
+
+  const { sorted: sortedAppointments, sortKey: appointmentSortKey, sortDirection: appointmentSortDirection, toggleSort: toggleAppointmentSort } = useSortableData(
+    filteredAppointments,
+    {
+      details: (a) => `${a.date} ${a.time}`,
+      client: (a) => a.leadName,
+      counselor: (a) => a.counsilorName,
+      status: (a) => a.status,
+      location: (a) => `${a.branch || ''} ${a.region || ''}`,
+    },
+  );
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -391,7 +609,7 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
 
-          <select
+          <SearchableSelect
             value={filters.status}
             onChange={(e) => setFilters({...filters, status: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -403,9 +621,9 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
             <option value="Cancelled">Cancelled</option>
             <option value="Rescheduled">Rescheduled</option>
             <option value="No-show">No-show</option>
-          </select>
+          </SearchableSelect>
 
-          <select
+          <SearchableSelect
             value={filters.type}
             onChange={(e) => setFilters({...filters, type: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -416,18 +634,18 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
             <option value="Interview Prep">Interview Prep</option>
             <option value="Visa Processing">Visa Processing</option>
             <option value="Follow-up">Follow-up</option>
-          </select>
+          </SearchableSelect>
 
-          <select
+          <SearchableSelect
             value={filters.counsilor}
             onChange={(e) => setFilters({...filters, counsilor: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Counselors</option>
-            <option value="1">Sarah Wilson</option>
-            <option value="2">Mike Johnson</option>
-            <option value="3">Lisa Chen</option>
-          </select>
+            {counselorOptions.map((option) => (
+              <option key={option.id} value={String(option.id)}>{option.name}</option>
+            ))}
+          </SearchableSelect>
 
           <div className="flex items-center space-x-2">
             <button className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
@@ -443,7 +661,7 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
       </div>
 
       {/* Upcoming Appointments Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className={`grid grid-cols-1 md:grid-cols-4 ${canVerifyMeetings ? 'lg:grid-cols-5' : ''} gap-6`}>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center">
             <div className="p-3 bg-blue-100 rounded-lg">
@@ -504,36 +722,60 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
             </div>
           </div>
         </div>
+
+        {canVerifyMeetings && (
+          <button
+            type="button"
+            onClick={() => setPendingVerificationOnly(prev => !prev)}
+            className={`text-left bg-white rounded-lg shadow p-6 border-2 transition-colors ${pendingVerificationOnly ? 'border-amber-400' : 'border-transparent hover:border-amber-200'}`}
+          >
+            <div className="flex items-center">
+              <div className="p-3 bg-amber-100 rounded-lg">
+                <ShieldAlert className="w-6 h-6 text-amber-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Pending Verification</p>
+                <p className="text-2xl font-bold text-gray-900">{pendingVerificationCount}</p>
+              </div>
+            </div>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setCrossBranchOnly(prev => !prev)}
+          className={`text-left bg-white rounded-lg shadow p-6 border-2 transition-colors ${crossBranchOnly ? 'border-teal-400' : 'border-transparent hover:border-teal-200'}`}
+        >
+          <div className="flex items-center">
+            <div className="p-3 bg-teal-100 rounded-lg">
+              <Building2 className="w-6 h-6 text-teal-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Cross-Branch</p>
+              <p className="text-2xl font-bold text-gray-900">{crossBranchCount}</p>
+            </div>
+          </div>
+        </button>
       </div>
 
       {/* Appointments List */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Appointment Details
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Counselor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status & Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Location
-                </th>
+                <SortableTh label="Appointment Details" sortKey="details" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
+                <SortableTh label="Client" sortKey="client" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
+                <SortableTh label="Counselor" sortKey="counselor" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
+                <SortableTh label="Status & Type" sortKey="status" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
+                <SortableTh label="Location" sortKey="location" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAppointments.map((appointment) => (
+              {sortedAppointments.map((appointment) => (
                 <tr key={appointment.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
@@ -561,6 +803,11 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
                     <div className="text-sm font-medium text-gray-900">{appointment.counsilorName}</div>
                     <div className="text-sm text-gray-500">{appointment.branch}</div>
                     <div className="text-sm text-gray-500">{appointment.region}</div>
+                    {appointment.crossBranch && (
+                      <span className={`inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${appointment.acknowledged ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                        Cross-Branch{appointment.acknowledged ? ' ✓' : ' · Pending ack.'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-col space-y-1">
@@ -570,6 +817,21 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(appointment.type)}`}>
                         {appointment.type}
                       </span>
+                      {appointment.status === 'Completed' && (
+                        appointment.meetingVerified === 1 ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700">
+                            <ShieldCheck className="w-3 h-3" /> Verified
+                          </span>
+                        ) : appointment.meetingVerified === 0 ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700">
+                            <ShieldAlert className="w-3 h-3" /> Rejected
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
+                            <ShieldAlert className="w-3 h-3" /> Awaiting Verification
+                          </span>
+                        )
+                      )}
                       <div className="flex items-center text-xs text-gray-500 mt-1">
                         {appointment.reminderSent ? (
                           <CheckCircle className="w-3 h-3 mr-1 text-green-500" />
@@ -595,7 +857,7 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
                     <div className="flex items-center space-x-2">
                       <button
                         title="View"
-                        onClick={() => { setViewingAppt(appointment); setActionError(''); }}
+                        onClick={() => { setViewingAppt(appointment); setActionError(''); setReschedulingAppt(null); }}
                         className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded"
                       >
                         <Eye className="w-4 h-4" />
@@ -607,13 +869,15 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
                       >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button
-                        title="Delete"
-                        onClick={() => { setDeleteId(appointment.id); setActionError(''); }}
-                        className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {isCeo(user as any) && (
+                        <button
+                          title="Delete"
+                          onClick={() => { setDeleteId(appointment.id); setActionError(''); }}
+                          className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -750,14 +1014,14 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
 
       {/* ── View Appointment Modal ───────────────────────────────────── */}
       {viewingAppt && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setViewingAppt(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setViewingAppt(null); setReschedulingAppt(null); }}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Appointment #{viewingAppt.id}</h2>
                 <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(viewingAppt.status)}`}>{viewingAppt.status}</span>
               </div>
-              <button onClick={() => setViewingAppt(null)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-6 h-6" /></button>
+              <button onClick={() => { setViewingAppt(null); setReschedulingAppt(null); }} className="text-gray-400 hover:text-gray-600"><XCircle className="w-6 h-6" /></button>
             </div>
             <div className="px-6 py-4 space-y-4">
               <div className="flex items-center gap-3 text-gray-700">
@@ -780,18 +1044,77 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
                   <p className="text-sm text-gray-500">{viewingAppt.region}</p>
                 </div>
               </div>
+              {viewingAppt.crossBranch && (
+                <div className={`rounded-lg p-3 text-sm border ${viewingAppt.acknowledged ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                  <span className={`font-medium text-xs uppercase block mb-1 ${viewingAppt.acknowledged ? 'text-green-700' : 'text-amber-700'}`}>Cross-Branch Assignment</span>
+                  <p className="text-gray-700">
+                    Assigned to <span className="font-medium">{viewingAppt.counsilorName}</span> in {viewingAppt.assignedBranchName || 'another branch'}
+                    {viewingAppt.assignedByName ? ` by ${viewingAppt.assignedByName}` : ''}.
+                  </p>
+                  {viewingAppt.acknowledged ? (
+                    <p className="text-green-700 flex items-center gap-1 mt-1"><ShieldCheck className="w-3.5 h-3.5" /> Acknowledged</p>
+                  ) : (
+                    <p className="text-amber-700 flex items-center gap-1 mt-1"><ShieldAlert className="w-3.5 h-3.5" /> Awaiting acknowledgement</p>
+                  )}
+                </div>
+              )}
               {viewingAppt.notes && (
                 <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
                   <span className="font-medium text-gray-500 text-xs uppercase block mb-1">Notes</span>
                   {viewingAppt.notes}
                 </div>
               )}
+              {viewingAppt.status === 'Completed' && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm">
+                  <span className="font-medium text-purple-700 text-xs uppercase block mb-1">Meeting Proof</span>
+                  {viewingAppt.screenshotUrl ? (
+                    <a href={viewingAppt.screenshotUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-purple-700 underline flex items-center gap-1 mb-2">
+                      <FileCheck className="w-3.5 h-3.5" /> View uploaded document
+                    </a>
+                  ) : (
+                    <p className="text-gray-500 mb-2">No document was uploaded.</p>
+                  )}
+                  {viewingAppt.meetingVerified === 1 && (
+                    <p className="text-green-700 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Verified by {viewingAppt.verifiedByName || 'FOE'}</p>
+                  )}
+                  {viewingAppt.meetingVerified === 0 && (
+                    <p className="text-red-700 flex items-center gap-1"><ShieldAlert className="w-3.5 h-3.5" /> Rejected by {viewingAppt.verifiedByName || 'FOE'}{viewingAppt.foeRemark ? ` — ${viewingAppt.foeRemark}` : ''}</p>
+                  )}
+                  {viewingAppt.meetingVerified === null && (
+                    <p className="text-amber-700 text-xs">Pending FOE verification</p>
+                  )}
+                  {canVerifyMeetings && viewingAppt.meetingVerified === null && (
+                    <div className="mt-2 space-y-2">
+                      <input type="text" placeholder="Remark (optional)" value={verifyRemark}
+                        onChange={(e) => setVerifyRemark(e.target.value)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                      <div className="flex gap-2">
+                        <button onClick={() => handleVerifyMeeting(viewingAppt, true)} disabled={actionBusy}
+                          className="flex items-center gap-1 px-2.5 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-60">
+                          <ShieldCheck className="w-3.5 h-3.5" /> Verify Meeting
+                        </button>
+                        <button onClick={() => handleVerifyMeeting(viewingAppt, false)} disabled={actionBusy}
+                          className="flex items-center gap-1 px-2.5 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 disabled:opacity-60">
+                          <ShieldAlert className="w-3.5 h-3.5" /> Reject
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {actionError && <p className="text-sm text-red-600">{actionError}</p>}
             </div>
             <div className="px-6 py-4 border-t border-gray-200 flex flex-wrap gap-2 justify-between">
               <div className="flex gap-2 flex-wrap">
+                {viewingAppt.crossBranch && !viewingAppt.acknowledged && user && Number(viewingAppt.counsilorId) === Number(user.id) && (
+                  <button onClick={() => handleAcknowledge(viewingAppt)} disabled={acknowledgingId === viewingAppt.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-60">
+                    <ShieldCheck className="w-3.5 h-3.5" /> {acknowledgingId === viewingAppt.id ? 'Acknowledging…' : 'Acknowledge'}
+                  </button>
+                )}
                 {viewingAppt.status !== 'Completed' && (
-                  <button onClick={() => handleStatusChange(viewingAppt, 'Completed')} disabled={actionBusy}
+                  <button onClick={() => { setProofFile(null); setMarkingDoneAppt(viewingAppt); }} disabled={actionBusy}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-60">
                     <CheckCircle className="w-3.5 h-3.5" /> Mark Done
                   </button>
@@ -802,6 +1125,33 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
                     <CheckCircle className="w-3.5 h-3.5" /> Confirm
                   </button>
                 )}
+                {viewingAppt.status !== 'Completed' && reschedulingAppt?.id === viewingAppt.id ? (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <input type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)}
+                      className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
+                    <input type="time" value={rescheduleTime} onChange={(e) => setRescheduleTime(e.target.value)}
+                      className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
+                    <button onClick={handleRescheduleSave} disabled={actionBusy}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-600 text-white rounded-lg text-sm hover:bg-yellow-700 disabled:opacity-60">
+                      <CheckCircle className="w-3.5 h-3.5" /> Save
+                    </button>
+                    <button onClick={() => setReschedulingAppt(null)} disabled={actionBusy}
+                      className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+                      Cancel
+                    </button>
+                  </div>
+                ) : viewingAppt.status !== 'Rescheduled' && viewingAppt.status !== 'Completed' && (
+                  <button onClick={() => openReschedule(viewingAppt)} disabled={actionBusy}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-100 text-yellow-800 rounded-lg text-sm hover:bg-yellow-200 disabled:opacity-60">
+                    <RotateCcw className="w-3.5 h-3.5" /> Reschedule
+                  </button>
+                )}
+                {viewingAppt.status !== 'No-show' && viewingAppt.status !== 'Completed' && (
+                  <button onClick={() => handleStatusChange(viewingAppt, 'No-show')} disabled={actionBusy}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300 disabled:opacity-60">
+                    <UserX className="w-3.5 h-3.5" /> No Show
+                  </button>
+                )}
                 {viewingAppt.status !== 'Cancelled' && viewingAppt.status !== 'Completed' && (
                   <button onClick={() => handleStatusChange(viewingAppt, 'Cancelled')} disabled={actionBusy}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm hover:bg-red-200 disabled:opacity-60">
@@ -810,14 +1160,46 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
                 )}
               </div>
               <div className="flex gap-2">
-                <button onClick={() => { setViewingAppt(null); openEdit(viewingAppt); }}
+                <button onClick={() => { setViewingAppt(null); setReschedulingAppt(null); openEdit(viewingAppt); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">
                   <Edit className="w-3.5 h-3.5" /> Edit
                 </button>
-                <button onClick={() => setViewingAppt(null)} className="px-3 py-1.5 text-gray-500 rounded-lg text-sm hover:bg-gray-50">
+                <button onClick={() => { setViewingAppt(null); setReschedulingAppt(null); }} className="px-3 py-1.5 text-gray-500 rounded-lg text-sm hover:bg-gray-50">
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mark Meeting Done (proof upload) Modal ──────────────────── */}
+      {markingDoneAppt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !uploadingProof && setMarkingDoneAppt(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900">Mark Meeting Done</h2>
+              <button onClick={() => !uploadingProof && setMarkingDoneAppt(null)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-6 h-6" /></button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <p className="text-sm text-gray-600">Upload the counselling sheet (or other proof, e.g. a screenshot or signed note) confirming this meeting took place, so a FOE can verify it.</p>
+              <label className="flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-lg p-6 cursor-pointer hover:border-blue-400 text-gray-500 text-sm">
+                <Upload className="w-4 h-4" />
+                {proofFile ? proofFile.name : 'Choose counselling sheet'}
+                <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  onChange={(e) => setProofFile(e.target.files?.[0] || null)} />
+              </label>
+              {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button onClick={() => setMarkingDoneAppt(null)} disabled={uploadingProof}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-60">
+                Cancel
+              </button>
+              <button onClick={handleConfirmMarkDone} disabled={!proofFile || uploadingProof}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60">
+                {uploadingProof ? 'Uploading…' : 'Upload & Mark Done'}
+              </button>
             </div>
           </div>
         </div>

@@ -1,13 +1,17 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useEffect, useState } from 'react';
 import { loadOperationStages, uploadOperationFiles } from '@/lib/operationsData';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, FileText, ClipboardList, Video, MessageSquare,
   TrendingUp, MessageCircle, Key, FileEdit, ChevronRight,
-  ChevronLeft, Save, CheckCircle, XCircle
+  ChevronLeft, Save, CheckCircle, XCircle, FolderCheck
 } from 'lucide-react';
+import ClientDocumentsPanel from '@/components/operations/ClientDocumentsPanel';
+
+const CLIENT_DOCUMENTS_STAGE_ID = 'client-documents';
 
 interface VisitVisaOperationsWizardProps {
   opportunityId: number;
@@ -20,6 +24,591 @@ interface OperationsStage {
   name: string;
   icon: any;
   status: 'pending' | 'current' | 'completed' | 'rejected';
+}
+
+function PersonalDetailsStage({ data, setData, saveStageData, moveToNextStage }: any) {
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-gray-900">Personal Details</h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+          <input
+            type="email"
+            value={data.email}
+            onChange={(e) => setData({ ...data, email: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Number of Applicants</label>
+          <input
+            type="number"
+            value={data.noOfApplicants}
+            onChange={(e) => setData({ ...data, noOfApplicants: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Mobile</label>
+          <input
+            type="tel"
+            value={data.mobile}
+            onChange={(e) => setData({ ...data, mobile: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Nationality</label>
+          <input
+            type="text"
+            value={data.nationality}
+            onChange={(e) => setData({ ...data, nationality: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Destination Country</label>
+          <input
+            type="text"
+            value={data.descCountry}
+            onChange={(e) => setData({ ...data, descCountry: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">University/College Name</label>
+          <input
+            type="text"
+            value={data.university}
+            onChange={(e) => setData({ ...data, university: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Date of Retention</label>
+          <input
+            type="date"
+            value={data.retnDate}
+            onChange={(e) => setData({ ...data, retnDate: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Expiry of Contract</label>
+          <input
+            type="date"
+            value={data.contractExpiry}
+            onChange={(e) => setData({ ...data, contractExpiry: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-6">
+        <button
+          onClick={async () => {
+            await saveStageData();
+            moveToNextStage();
+          }}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
+        >
+          Continue to Documentation
+          <ChevronRight className="ml-2" size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DocumentationStage({ data, setData, saveStageData, moveToNextStage, moveToPreviousStage }: any) {
+  const [localSaving, setLocalSaving] = useState(false);
+
+  const handleSave = async () => {
+    setLocalSaving(true);
+    try {
+      await saveStageData();
+      window.toast.success('Documentation data saved successfully!');
+    } catch (error) {
+      window.toast.error('Failed to save data');
+    } finally {
+      setLocalSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-gray-900">Documentation</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Document Checklist Sent Date</label>
+          <input
+            type="date"
+            value={data.docSubDate}
+            onChange={(e) => setData({ ...data, docSubDate: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Destination Country</label>
+          <input
+            type="text"
+            value={data.descCountry}
+            onChange={(e) => setData({ ...data, descCountry: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">University/College Name</label>
+          <input
+            type="text"
+            value={data.university}
+            onChange={(e) => setData({ ...data, university: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Document Type</label>
+          <SearchableSelect
+            value={data.docType}
+            onChange={(e) => setData({ ...data, docType: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select Option</option>
+            <option value="Passport">Passport</option>
+            <option value="National Identity Document">National Identity Document</option>
+            <option value="Birth Certificate">Birth Certificate</option>
+            <option value="Marriage Certificate">Marriage Certificate</option>
+            <option value="Education Documents">Education Documents</option>
+            <option value="Employment Documents">Employment Documents</option>
+            <option value="Financial Documents">Financial Documents</option>
+          </SearchableSelect>
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Remark</label>
+          <textarea
+            value={data.remark}
+            onChange={(e) => setData({ ...data, remark: e.target.value })}
+            rows={4}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-between pt-6">
+        <button
+          onClick={moveToPreviousStage}
+          className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
+        >
+          <ChevronLeft className="mr-2" size={20} />
+          Back
+        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleSave}
+            disabled={localSaving}
+            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center font-medium"
+          >
+            <Save className="mr-2" size={20} />
+            {localSaving ? 'Saving...' : 'Save Draft'}
+          </button>
+          <button
+            onClick={async () => {
+              await saveStageData();
+              moveToNextStage();
+            }}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
+          >
+            Continue to Application
+            <ChevronRight className="ml-2" size={20} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ApplicationSubmissionStage({ data, setData, saveStageData, moveToNextStage, moveToPreviousStage }: any) {
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-gray-900">Application Submission</h3>
+      <p className="text-gray-600">Track application submissions and statuses</p>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm text-blue-800">
+          Application submission details will be tracked here. Multiple applications can be added.
+        </p>
+      </div>
+
+      <div className="flex justify-between pt-6">
+        <button
+          onClick={moveToPreviousStage}
+          className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
+        >
+          <ChevronLeft className="mr-2" size={20} />
+          Back
+        </button>
+        <button
+          onClick={async () => {
+            await saveStageData();
+            moveToNextStage();
+          }}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
+        >
+          Continue to Biometrics
+          <ChevronRight className="ml-2" size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BiometricsStage({ data, setData, saveStageData, moveToNextStage, moveToPreviousStage }: any) {
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-gray-900">Biometrics/Passport Submission</h3>
+      <p className="text-gray-600">Manage biometric appointments and passport submissions</p>
+
+      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+        <p className="text-sm text-purple-800">
+          Biometric appointment details and passport submission tracking.
+        </p>
+      </div>
+
+      <div className="flex justify-between pt-6">
+        <button
+          onClick={moveToPreviousStage}
+          className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
+        >
+          <ChevronLeft className="mr-2" size={20} />
+          Back
+        </button>
+        <button
+          onClick={async () => {
+            await saveStageData();
+            moveToNextStage();
+          }}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
+        >
+          Continue to Conversation
+          <ChevronRight className="ml-2" size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ConversationStage({ data, setData, saveStageData, moveToNextStage, moveToPreviousStage }: any) {
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-gray-900">Conversation Management</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Type of Conversation</label>
+          <SearchableSelect
+            value={data.conversationType}
+            onChange={(e) => setData({ ...data, conversationType: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select</option>
+            <option value="Walk-in">Walk-in</option>
+            <option value="Inbound">Inbound</option>
+            <option value="Outbound">Outbound</option>
+            <option value="Inbound_email">Inbound Email</option>
+            <option value="Outbound_email">Outbound Email</option>
+          </SearchableSelect>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Conversation Status</label>
+          <SearchableSelect
+            value={data.conversationStatus}
+            onChange={(e) => setData({ ...data, conversationStatus: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select</option>
+            <option value="Pending">Pending</option>
+            <option value="Completed">Completed</option>
+          </SearchableSelect>
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Conversation</label>
+          <textarea
+            value={data.conversation}
+            onChange={(e) => setData({ ...data, conversation: e.target.value })}
+            rows={4}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-between pt-6">
+        <button
+          onClick={moveToPreviousStage}
+          className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
+        >
+          <ChevronLeft className="mr-2" size={20} />
+          Back
+        </button>
+        <button
+          onClick={async () => {
+            await saveStageData();
+            moveToNextStage();
+          }}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
+        >
+          Continue to Status Update
+          <ChevronRight className="ml-2" size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StatusUpdateStage({ data, setData, saveStageData, moveToNextStage, moveToPreviousStage }: any) {
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-gray-900">Status Update</h3>
+      <div className="grid grid-cols-1 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Status Type</label>
+          <SearchableSelect
+            value={data.statusType}
+            onChange={(e) => setData({ ...data, statusType: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select</option>
+            <option value="Submitted">Submitted</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Correspondence Received">Correspondence Received</option>
+            <option value="Approved">Approved</option>
+            <option value="Refused">Refused</option>
+          </SearchableSelect>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Status Description</label>
+          <textarea
+            value={data.statusDescription}
+            onChange={(e) => setData({ ...data, statusDescription: e.target.value })}
+            rows={5}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-between pt-6">
+        <button
+          onClick={moveToPreviousStage}
+          className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
+        >
+          <ChevronLeft className="mr-2" size={20} />
+          Back
+        </button>
+        <button
+          onClick={async () => {
+            await saveStageData();
+            moveToNextStage();
+          }}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
+        >
+          Continue to Credentials
+          <ChevronRight className="ml-2" size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CredentialsStage({ data, setData, saveStageData, moveToPreviousStage }: any) {
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-gray-900">Login Credentials</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Email ID</label>
+          <input
+            type="text"
+            value={data.eeuid}
+            onChange={(e) => setData({ ...data, eeuid: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Email Password</label>
+          <input
+            type="password"
+            value={data.eeusrpsswrd}
+            onChange={(e) => setData({ ...data, eeusrpsswrd: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">User ID</label>
+          <input
+            type="text"
+            value={data.eeregemail}
+            onChange={(e) => setData({ ...data, eeregemail: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">User Password</label>
+          <input
+            type="password"
+            value={data.eeregpsswrd}
+            onChange={(e) => setData({ ...data, eeregpsswrd: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-between pt-6">
+        <button
+          onClick={moveToPreviousStage}
+          className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
+        >
+          <ChevronLeft className="mr-2" size={20} />
+          Back
+        </button>
+        <button
+          onClick={async () => {
+            await saveStageData();
+            window.toast.success('Visit Visa Operations Completed Successfully!');
+          }}
+          className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center font-medium"
+        >
+          <CheckCircle className="mr-2" size={20} />
+          Complete Operations
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RemarkStage({ data, setData, saveStageData, moveToPreviousStage, moveToNextStage }: any) {
+  const [saving, setSaving] = useState(false);
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-gray-900">Remark</h3>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Remark</label>
+        <textarea
+          value={data.remark}
+          onChange={(e) => setData({ ...data, remark: e.target.value })}
+          rows={6}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div className="flex justify-between pt-6">
+        <button
+          onClick={moveToPreviousStage}
+          className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
+        >
+          <ChevronLeft className="mr-2" size={20} />
+          Back
+        </button>
+        <button
+          onClick={async () => {
+            setSaving(true);
+            try {
+              await saveStageData();
+              window.toast.success('Remark saved successfully!');
+              moveToNextStage();
+            } catch {
+              window.toast.error('Failed to save remark');
+            } finally {
+              setSaving(false);
+            }
+          }}
+          disabled={saving}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 flex items-center font-medium"
+        >
+          {saving ? 'Saving...' : 'Continue to Client Documents'}
+          <ChevronRight className="ml-2" size={20} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChatStage({ leadId, opportunityId }: { leadId: number; opportunityId: number }) {
+  const [messages, setMessages] = useState<Array<{ id: number; text: string; file: string | null; fromClient: boolean; created: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ leadId: String(leadId) });
+      if (opportunityId) params.set('opportunityId', String(opportunityId));
+      const res = await fetch(`/api/admin/operations/client-chat?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error);
+      setMessages(json.messages || []);
+    } catch {
+      window.toast.error('Failed to load client chat');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [leadId, opportunityId]);
+
+  const send = async () => {
+    if (!draft.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch('/api/admin/operations/client-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, opportunityId, text: draft.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      setDraft('');
+      await load();
+    } catch {
+      window.toast.error('Failed to send message');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold text-gray-900">Client Chat</h3>
+      <div className="border border-gray-200 rounded-lg h-96 overflow-y-auto p-4 space-y-3 bg-gray-50">
+        {loading ? (
+          <p className="text-sm text-gray-400">Loading...</p>
+        ) : messages.length === 0 ? (
+          <p className="text-sm text-gray-400">No messages yet. Send the first message below.</p>
+        ) : messages.map((m) => (
+          <div key={m.id} className={`flex ${m.fromClient ? 'justify-start' : 'justify-end'}`}>
+            <div className={`max-w-[70%] rounded-lg px-3 py-2 text-sm ${m.fromClient ? 'bg-white border border-gray-200 text-gray-800' : 'bg-blue-600 text-white'}`}>
+              <p className="whitespace-pre-wrap">{m.text}</p>
+              <p className={`text-[10px] mt-1 ${m.fromClient ? 'text-gray-400' : 'text-blue-100'}`}>{new Date(m.created).toLocaleString()}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          placeholder="Type a message to the client..."
+          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+        />
+        <button
+          onClick={send}
+          disabled={sending || !draft.trim()}
+          className="px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 font-medium"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function VisitVisaOperationsWizard({
@@ -40,6 +629,7 @@ export default function VisitVisaOperationsWizard({
     { id: 'chat', name: 'Client Chat', icon: MessageSquare, status: 'pending' },
     { id: 'credentials', name: 'Login Credentials', icon: Key, status: 'pending' },
     { id: 'remark', name: 'Remark', icon: FileEdit, status: 'pending' },
+    { id: CLIENT_DOCUMENTS_STAGE_ID, name: 'Client Documents', icon: FolderCheck, status: 'pending' },
   ]);
 
   // Data states
@@ -49,7 +639,9 @@ export default function VisitVisaOperationsWizard({
     mobile: '',
     nationality: '',
     descCountry: '',
-    university: ''
+    university: '',
+    retnDate: '',
+    contractExpiry: ''
   });
 
   const [documentationData, setDocumentationData] = useState({
@@ -175,465 +767,30 @@ export default function VisitVisaOperationsWizard({
     }
   };
 
-  function PersonalDetailsStage({ data, setData }: any) {
-    return (
-      <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-gray-900">Personal Details</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-            <input
-              type="email"
-              value={data.email}
-              onChange={(e) => setData({ ...data, email: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Number of Applicants</label>
-            <input
-              type="number"
-              value={data.noOfApplicants}
-              onChange={(e) => setData({ ...data, noOfApplicants: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Mobile</label>
-            <input
-              type="tel"
-              value={data.mobile}
-              onChange={(e) => setData({ ...data, mobile: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nationality</label>
-            <input
-              type="text"
-              value={data.nationality}
-              onChange={(e) => setData({ ...data, nationality: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Destination Country</label>
-            <input
-              type="text"
-              value={data.descCountry}
-              onChange={(e) => setData({ ...data, descCountry: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">University/College Name</label>
-            <input
-              type="text"
-              value={data.university}
-              onChange={(e) => setData({ ...data, university: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-3 pt-6">
-          <button
-            onClick={async () => {
-              await saveStageData();
-              moveToNextStage();
-            }}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
-          >
-            Continue to Documentation
-            <ChevronRight className="ml-2" size={20} />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function DocumentationStage({ data, setData }: any) {
-    const [localSaving, setLocalSaving] = useState(false);
-
-    const handleSave = async () => {
-      setLocalSaving(true);
-      try {
-        await saveStageData();
-        alert('Documentation data saved successfully!');
-      } catch (error) {
-        alert('Failed to save data');
-      } finally {
-        setLocalSaving(false);
-      }
-    };
-
-    return (
-      <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-gray-900">Documentation</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Document Checklist Sent Date</label>
-            <input
-              type="date"
-              value={data.docSubDate}
-              onChange={(e) => setData({ ...data, docSubDate: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Destination Country</label>
-            <input
-              type="text"
-              value={data.descCountry}
-              onChange={(e) => setData({ ...data, descCountry: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">University/College Name</label>
-            <input
-              type="text"
-              value={data.university}
-              onChange={(e) => setData({ ...data, university: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Document Type</label>
-            <select
-              value={data.docType}
-              onChange={(e) => setData({ ...data, docType: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select Option</option>
-              <option value="Passport">Passport</option>
-              <option value="National Identity Document">National Identity Document</option>
-              <option value="Birth Certificate">Birth Certificate</option>
-              <option value="Marriage Certificate">Marriage Certificate</option>
-              <option value="Education Documents">Education Documents</option>
-              <option value="Employment Documents">Employment Documents</option>
-              <option value="Financial Documents">Financial Documents</option>
-            </select>
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Remark</label>
-            <textarea
-              value={data.remark}
-              onChange={(e) => setData({ ...data, remark: e.target.value })}
-              rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-between pt-6">
-          <button
-            onClick={moveToPreviousStage}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
-          >
-            <ChevronLeft className="mr-2" size={20} />
-            Back
-          </button>
-          <div className="flex gap-3">
-            <button
-              onClick={handleSave}
-              disabled={localSaving}
-              className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 flex items-center font-medium"
-            >
-              <Save className="mr-2" size={20} />
-              {localSaving ? 'Saving...' : 'Save Draft'}
-            </button>
-            <button
-              onClick={async () => {
-                await saveStageData();
-                moveToNextStage();
-              }}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
-            >
-              Continue to Application
-              <ChevronRight className="ml-2" size={20} />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function ApplicationSubmissionStage({ data, setData }: any) {
-    return (
-      <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-gray-900">Application Submission</h3>
-        <p className="text-gray-600">Track application submissions and statuses</p>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-800">
-            Application submission details will be tracked here. Multiple applications can be added.
-          </p>
-        </div>
-
-        <div className="flex justify-between pt-6">
-          <button
-            onClick={moveToPreviousStage}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
-          >
-            <ChevronLeft className="mr-2" size={20} />
-            Back
-          </button>
-          <button
-            onClick={async () => {
-              await saveStageData();
-              moveToNextStage();
-            }}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
-          >
-            Continue to Biometrics
-            <ChevronRight className="ml-2" size={20} />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function BiometricsStage({ data, setData }: any) {
-    return (
-      <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-gray-900">Biometrics/Passport Submission</h3>
-        <p className="text-gray-600">Manage biometric appointments and passport submissions</p>
-
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-          <p className="text-sm text-purple-800">
-            Biometric appointment details and passport submission tracking.
-          </p>
-        </div>
-
-        <div className="flex justify-between pt-6">
-          <button
-            onClick={moveToPreviousStage}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
-          >
-            <ChevronLeft className="mr-2" size={20} />
-            Back
-          </button>
-          <button
-            onClick={async () => {
-              await saveStageData();
-              moveToNextStage();
-            }}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
-          >
-            Continue to Conversation
-            <ChevronRight className="ml-2" size={20} />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function ConversationStage({ data, setData }: any) {
-    return (
-      <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-gray-900">Conversation Management</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Type of Conversation</label>
-            <select
-              value={data.conversationType}
-              onChange={(e) => setData({ ...data, conversationType: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select</option>
-              <option value="Walk-in">Walk-in</option>
-              <option value="Inbound">Inbound</option>
-              <option value="Outbound">Outbound</option>
-              <option value="Inbound_email">Inbound Email</option>
-              <option value="Outbound_email">Outbound Email</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Conversation Status</label>
-            <select
-              value={data.conversationStatus}
-              onChange={(e) => setData({ ...data, conversationStatus: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select</option>
-              <option value="Pending">Pending</option>
-              <option value="Completed">Completed</option>
-            </select>
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Conversation</label>
-            <textarea
-              value={data.conversation}
-              onChange={(e) => setData({ ...data, conversation: e.target.value })}
-              rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-between pt-6">
-          <button
-            onClick={moveToPreviousStage}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
-          >
-            <ChevronLeft className="mr-2" size={20} />
-            Back
-          </button>
-          <button
-            onClick={async () => {
-              await saveStageData();
-              moveToNextStage();
-            }}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
-          >
-            Continue to Status Update
-            <ChevronRight className="ml-2" size={20} />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function StatusUpdateStage({ data, setData }: any) {
-    return (
-      <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-gray-900">Status Update</h3>
-        <div className="grid grid-cols-1 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status Type</label>
-            <select
-              value={data.statusType}
-              onChange={(e) => setData({ ...data, statusType: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select</option>
-              <option value="Submitted">Submitted</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Correspondence Received">Correspondence Received</option>
-              <option value="Approved">Approved</option>
-              <option value="Refused">Refused</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status Description</label>
-            <textarea
-              value={data.statusDescription}
-              onChange={(e) => setData({ ...data, statusDescription: e.target.value })}
-              rows={5}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-between pt-6">
-          <button
-            onClick={moveToPreviousStage}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
-          >
-            <ChevronLeft className="mr-2" size={20} />
-            Back
-          </button>
-          <button
-            onClick={async () => {
-              await saveStageData();
-              moveToNextStage();
-            }}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center font-medium"
-          >
-            Continue to Credentials
-            <ChevronRight className="ml-2" size={20} />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function CredentialsStage({ data, setData }: any) {
-    return (
-      <div className="space-y-6">
-        <h3 className="text-xl font-semibold text-gray-900">Login Credentials</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email ID</label>
-            <input
-              type="text"
-              value={data.eeuid}
-              onChange={(e) => setData({ ...data, eeuid: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email Password</label>
-            <input
-              type="password"
-              value={data.eeusrpsswrd}
-              onChange={(e) => setData({ ...data, eeusrpsswrd: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">User ID</label>
-            <input
-              type="text"
-              value={data.eeregemail}
-              onChange={(e) => setData({ ...data, eeregemail: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">User Password</label>
-            <input
-              type="password"
-              value={data.eeregpsswrd}
-              onChange={(e) => setData({ ...data, eeregpsswrd: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-between pt-6">
-          <button
-            onClick={moveToPreviousStage}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center font-medium"
-          >
-            <ChevronLeft className="mr-2" size={20} />
-            Back
-          </button>
-          <button
-            onClick={async () => {
-              await saveStageData();
-              alert('Visit Visa Operations Completed Successfully!');
-              window.location.href = '/admin/leads';
-            }}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center font-medium"
-          >
-            <CheckCircle className="mr-2" size={20} />
-            Complete Operations
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const renderStageContent = () => {
     switch (activeStage) {
+      case CLIENT_DOCUMENTS_STAGE_ID:
+        return <ClientDocumentsPanel leadId={leadId} opportunityId={opportunityId} />;
       case 'personal':
-        return <PersonalDetailsStage data={personalData} setData={setPersonalData} />;
+        return <PersonalDetailsStage data={personalData} setData={setPersonalData} saveStageData={saveStageData} moveToNextStage={moveToNextStage} />;
       case 'documentation':
-        return <DocumentationStage data={documentationData} setData={setDocumentationData} />;
+        return <DocumentationStage data={documentationData} setData={setDocumentationData} saveStageData={saveStageData} moveToNextStage={moveToNextStage} moveToPreviousStage={moveToPreviousStage} />;
       case 'application':
-        return <ApplicationSubmissionStage data={applicationData} setData={setApplicationData} />;
+        return <ApplicationSubmissionStage data={applicationData} setData={setApplicationData} saveStageData={saveStageData} moveToNextStage={moveToNextStage} moveToPreviousStage={moveToPreviousStage} />;
       case 'biometrics':
-        return <BiometricsStage data={biometricsData} setData={setBiometricsData} />;
+        return <BiometricsStage data={biometricsData} setData={setBiometricsData} saveStageData={saveStageData} moveToNextStage={moveToNextStage} moveToPreviousStage={moveToPreviousStage} />;
       case 'conversation':
-        return <ConversationStage data={conversationData} setData={setConversationData} />;
+        return <ConversationStage data={conversationData} setData={setConversationData} saveStageData={saveStageData} moveToNextStage={moveToNextStage} moveToPreviousStage={moveToPreviousStage} />;
       case 'status':
-        return <StatusUpdateStage data={statusData} setData={setStatusData} />;
+        return <StatusUpdateStage data={statusData} setData={setStatusData} saveStageData={saveStageData} moveToNextStage={moveToNextStage} moveToPreviousStage={moveToPreviousStage} />;
       case 'credentials':
-        return <CredentialsStage data={credentialsData} setData={setCredentialsData} />;
+        return <CredentialsStage data={credentialsData} setData={setCredentialsData} saveStageData={saveStageData} moveToPreviousStage={moveToPreviousStage} />;
+      case 'chat':
+        return <ChatStage leadId={leadId} opportunityId={opportunityId} />;
+      case 'remark':
+        return <RemarkStage data={remarkData} setData={setRemarkData} saveStageData={saveStageData} moveToPreviousStage={moveToPreviousStage} moveToNextStage={moveToNextStage} />;
       default:
-        return <PersonalDetailsStage data={personalData} setData={setPersonalData} />;
+        return <PersonalDetailsStage data={personalData} setData={setPersonalData} saveStageData={saveStageData} moveToNextStage={moveToNextStage} />;
     }
   };
 
@@ -663,7 +820,7 @@ export default function VisitVisaOperationsWizard({
       {/* Progress Tracker */}
       <div className="bg-white border-b border-gray-200 py-4">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between overflow-x-auto">
+          <div className="flex flex-wrap items-center gap-2">
             {stages.map((stage, index) => {
               const Icon = stage.icon;
               const isActive = stage.id === activeStage;
@@ -692,7 +849,7 @@ export default function VisitVisaOperationsWizard({
                   {index < stages.length - 1 && (
                     <ChevronRight
                       size={16}
-                      className={`mx-1 ${
+                      className={`mx-1 hidden sm:block ${
                         stage.status === 'completed' ? 'text-green-600' : 'text-gray-300'
                       }`}
                     />

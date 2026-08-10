@@ -11,11 +11,11 @@ interface DmEmployeeLogsOldAttributes {
 interface DmEmployeeLogsOldCreationAttributes extends Optional<DmEmployeeLogsOldAttributes, never> {}
 
 class DmEmployeeLogsOld extends Model<DmEmployeeLogsOldAttributes, DmEmployeeLogsOldCreationAttributes> implements DmEmployeeLogsOldAttributes {
-  public id!: number;
-  public agreeNo!: number;
-  public employee_id!: number;
-  public log!: string;
-  public created!: Date;
+  declare id: number;
+  declare agreeNo: number;
+  declare employee_id: number;
+  declare log: string;
+  declare created: Date;
 
   public static associate(models: any) {
   }

@@ -15,15 +15,15 @@ interface DmCf7db4088Attributes {
 interface DmCf7db4088CreationAttributes extends Optional<DmCf7db4088Attributes, 'form_date'> {}
 
 class DmCf7db4088 extends Model<DmCf7db4088Attributes, DmCf7db4088CreationAttributes> implements DmCf7db4088Attributes {
-  public id!: number;
-  public cf7dbp_status!: string;
-  public your_name_car!: string;
-  public your_email_car!: string;
-  public tel_861_car!: string;
-  public your_message_car!: string;
-  public file_898_cf7dbp_file!: string;
-  public hidden_field_1!: string;
-  public form_date!: Date;
+  declare id: number;
+  declare cf7dbp_status: string;
+  declare your_name_car: string;
+  declare your_email_car: string;
+  declare tel_861_car: string;
+  declare your_message_car: string;
+  declare file_898_cf7dbp_file: string;
+  declare hidden_field_1: string;
+  declare form_date: Date;
 
   public static associate(models: any) {
   }

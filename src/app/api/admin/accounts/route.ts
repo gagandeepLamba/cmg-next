@@ -1,11 +1,22 @@
 import { DmAccounts } from '@/models';
 import { createCrudHandlers } from '@/lib/apiCrud';
+import { connectDB } from '@/lib/sequelize';
+
+let dbReady = false;
+const ensureDB = async () => {
+  if (!dbReady) {
+    await connectDB();
+    dbReady = true;
+  }
+};
 
 const handlers = createCrudHandlers({
   model: DmAccounts,
   entityName: 'account',
   searchFields: ['account_no', 'bank_name', 'bank_beneficiary', 'iban'],
   filters: { bank: 'bank_name' },
+  requiredPermissions: ['finance.view', 'finance.manage'],
+  before: ensureDB,
 });
 
 export const GET = handlers.GET;

@@ -1,10 +1,31 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import { DmBranch, DmBranchAttributes } from '@/models';
+import type { DmRegionAttributes } from '@/models/DmRegion';
+import { useBulkSelection } from '@/hooks/useBulkSelection';
+import BulkActionBar from '@/components/admin/BulkActionBar';
+import { useAuth } from '@/contexts/AuthContext';
+import { isCeo } from '@/lib/roleChecks';
 
 export default function BranchesManagement() {
+  const { user } = useAuth();
+  const canDelete = isCeo(user as any);
   const [branches, setBranches] = useState<DmBranchAttributes[]>([]);
+  const { sorted: sortedBranches, sortKey: branchSortKey, sortDirection: branchSortDirection, toggleSort: toggleBranchSort } = useSortableData(
+    branches,
+    {
+      name: (b) => b.name,
+      code: (b) => b.branch,
+      email: (b) => b.email,
+      mobile: (b) => b.mobile,
+      website: (b) => b.website,
+      status: (b) => b.status,
+    },
+  );
+  const [regions, setRegions] = useState<DmRegionAttributes[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranch, setSelectedBranch] = useState<DmBranchAttributes | null>(null);
@@ -21,10 +42,30 @@ export default function BranchesManagement() {
     region: '',
     status: ''
   });
+  const { selectedIds, toggleOne, toggleAll, clear, isSelected, allSelected } = useBulkSelection(branches);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     fetchBranches();
   }, [pagination.page, pagination.limit, filters.region, filters.status]);
+
+  useEffect(() => {
+    fetchRegions();
+  }, []);
+
+  const fetchRegions = async () => {
+    try {
+      const response = await fetch('/api/admin/regions?limit=1000');
+      const data = await response.json();
+      if (response.ok) {
+        setRegions(data.data);
+      } else {
+        console.error('Error fetching regions:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching regions:', error);
+    }
+  };
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -89,11 +130,11 @@ export default function BranchesManagement() {
         fetchBranches();
       } else {
         const error = await response.json();
-        alert('Error deleting branch: ' + error.error);
+        window.toast.error('Error deleting branch: ' + error.error);
       }
     } catch (error) {
       console.error('Error deleting branch:', error);
-      alert('Error deleting branch');
+      window.toast.error('Error deleting branch');
     }
   };
 
@@ -112,11 +153,11 @@ export default function BranchesManagement() {
         fetchBranches();
       } else {
         const error = await response.json();
-        alert('Error adding branch: ' + error.error);
+        window.toast.error('Error adding branch: ' + error.error);
       }
     } catch (error) {
       console.error('Error adding branch:', error);
-      alert('Error adding branch');
+      window.toast.error('Error adding branch');
     }
   };
 
@@ -138,16 +179,46 @@ export default function BranchesManagement() {
         fetchBranches();
       } else {
         const error = await response.json();
-        alert('Error updating branch: ' + error.error);
+        window.toast.error('Error updating branch: ' + error.error);
       }
     } catch (error) {
       console.error('Error updating branch:', error);
-      alert('Error updating branch');
+      window.toast.error('Error updating branch');
     }
   };
 
   const getStatusColor = (status: number) => {
     return status === 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+  };
+
+  const setBulkStatus = async (status: 0 | 1) => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch('/api/admin/branches', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status }),
+        })
+      ));
+      clear();
+      fetchBranches();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch(`/api/admin/branches?id=${id}`, { method: 'DELETE' })
+      ));
+      clear();
+      fetchBranches();
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   if (loading) {
@@ -186,19 +257,17 @@ export default function BranchesManagement() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select 
+          <SearchableSelect 
             value={filters.region}
             onChange={(e) => setFilters(prev => ({ ...prev, region: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Regions</option>
-            <option value="1">UAE</option>
-            <option value="2">Canada</option>
-            <option value="3">Australia</option>
-            <option value="4">UK</option>
-            <option value="5">USA</option>
-          </select>
-          <select 
+            {regions.map((region) => (
+              <option key={region.id} value={region.id}>{region.name}</option>
+            ))}
+          </SearchableSelect>
+          <SearchableSelect 
             value={filters.status}
             onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -206,42 +275,46 @@ export default function BranchesManagement() {
             <option value="">All Status</option>
             <option value="1">Active</option>
             <option value="0">Inactive</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
       {/* Branches Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Branch
+                <th className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Code
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Mobile
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Website
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <SortableTh label="Branch" sortKey="name" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
+                <SortableTh label="Code" sortKey="code" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
+                <SortableTh label="Email" sortKey="email" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
+                <SortableTh label="Mobile" sortKey="mobile" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
+                <SortableTh label="Website" sortKey="website" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={branchSortKey} direction={branchSortDirection} onSort={toggleBranchSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {branches.map((branch: DmBranchAttributes) => (
+              {sortedBranches.map((branch: DmBranchAttributes) => (
                 <tr key={branch.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected(branch.id)}
+                      onChange={(e) => toggleOne(branch.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
@@ -290,12 +363,14 @@ export default function BranchesManagement() {
                     >
                       Edit
                     </button>
-                    <button 
-                      onClick={() => handleDeleteBranch(branch.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteBranch(branch.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -303,6 +378,17 @@ export default function BranchesManagement() {
           </table>
         </div>
       </div>
+
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        busy={bulkBusy}
+        onActivate={() => setBulkStatus(1)}
+        onDeactivate={() => setBulkStatus(0)}
+        onDelete={handleBulkDelete}
+        onClear={clear}
+        entityLabel="branch"
+        deleteConfirmMessage={`Delete ${selectedIds.size} branch(es)? This cannot be undone.`}
+      />
 
       {/* Pagination */}
       <div className="bg-white rounded-lg shadow p-4">
@@ -358,7 +444,9 @@ export default function BranchesManagement() {
                     <p><span className="font-medium">Arabic Name:</span> {selectedBranch.ar_name}</p>
                     <p><span className="font-medium">Branch Code:</span> {selectedBranch.branch}</p>
                     <p><span className="font-medium">Abbreviation:</span> {selectedBranch.abbrv}</p>
-                    <p><span className="font-medium">Region ID:</span> {selectedBranch.region}</p>
+                    <p><span className="font-medium">Region:</span> {regions.find((r) => r.id === selectedBranch.region)?.name || selectedBranch.region}</p>
+                    <p><span className="font-medium">License Number:</span> {selectedBranch.license_number || 'Not set'}</p>
+                    <p><span className="font-medium">VAT/GST %:</span> {selectedBranch.vat_gst_percent ?? 'Not set'}</p>
                     <p><span className="font-medium">Status:</span> {selectedBranch.status === 1 ? 'Active' : 'Inactive'}</p>
                   </div>
                 </div>
@@ -421,6 +509,7 @@ export default function BranchesManagement() {
       {showAddModal && (
         <BranchFormModal
           title="Add New Branch"
+          regions={regions}
           onSubmit={handleAddBranch}
           onClose={() => setShowAddModal(false)}
         />
@@ -431,6 +520,7 @@ export default function BranchesManagement() {
         <BranchFormModal
           title="Edit Branch"
           initialData={selectedBranch}
+          regions={regions}
           onSubmit={handleUpdateBranch}
           onClose={() => {
             setShowEditModal(false);
@@ -446,16 +536,17 @@ export default function BranchesManagement() {
 interface BranchFormModalProps {
   title: string;
   initialData?: DmBranchAttributes | null;
+  regions: DmRegionAttributes[];
   onSubmit: (data: Partial<DmBranchAttributes>) => void;
   onClose: () => void;
 }
 
-function BranchFormModal({ title, initialData, onSubmit, onClose }: BranchFormModalProps) {
+function BranchFormModal({ title, initialData, regions, onSubmit, onClose }: BranchFormModalProps) {
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     ar_name: initialData?.ar_name || '',
     branch: initialData?.branch || '',
-    region: initialData?.region || 1,
+    region: initialData?.region || 0,
     abbrv: initialData?.abbrv || '',
     address: initialData?.address || '',
     ar_address: initialData?.ar_address || '',
@@ -463,11 +554,16 @@ function BranchFormModal({ title, initialData, onSubmit, onClose }: BranchFormMo
     mobile: initialData?.mobile || '',
     website: initialData?.website || '',
     status: initialData?.status ?? 1,
+    license_number: initialData?.license_number || '',
+    vat_gst_percent: initialData?.vat_gst_percent ?? '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    onSubmit({
+      ...formData,
+      vat_gst_percent: formData.vat_gst_percent === '' ? null : Number(formData.vat_gst_percent),
+    });
   };
 
   return (
@@ -528,22 +624,21 @@ function BranchFormModal({ title, initialData, onSubmit, onClose }: BranchFormMo
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Region *</label>
-              <select
+              <SearchableSelect
                 required
-                value={formData.region}
+                value={formData.region || ''}
                 onChange={(e) => setFormData(prev => ({ ...prev, region: parseInt(e.target.value) }))}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="1">UAE</option>
-                <option value="2">Canada</option>
-                <option value="3">Australia</option>
-                <option value="4">UK</option>
-                <option value="5">USA</option>
-              </select>
+                <option value="" disabled>-- Select Region --</option>
+                {regions.map((region) => (
+                  <option key={region.id} value={region.id}>{region.name}</option>
+                ))}
+              </SearchableSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Status *</label>
-              <select
+              <SearchableSelect
                 required
                 value={formData.status}
                 onChange={(e) => setFormData(prev => ({ ...prev, status: parseInt(e.target.value) }))}
@@ -551,7 +646,7 @@ function BranchFormModal({ title, initialData, onSubmit, onClose }: BranchFormMo
               >
                 <option value="1">Active</option>
                 <option value="0">Inactive</option>
-              </select>
+              </SearchableSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Email *</label>
@@ -570,6 +665,28 @@ function BranchFormModal({ title, initialData, onSubmit, onClose }: BranchFormMo
                 required
                 value={formData.mobile}
                 onChange={(e) => setFormData(prev => ({ ...prev, mobile: e.target.value }))}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">License Number</label>
+              <input
+                type="text"
+                value={formData.license_number}
+                onChange={(e) => setFormData(prev => ({ ...prev, license_number: e.target.value }))}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">VAT/GST %</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                placeholder="e.g. 5 for UAE VAT, 18 for India GST"
+                value={formData.vat_gst_percent}
+                onChange={(e) => setFormData(prev => ({ ...prev, vat_gst_percent: e.target.value }))}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>

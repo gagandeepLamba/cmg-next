@@ -30,7 +30,11 @@ export async function GET(request: NextRequest) {
   const offset     = (page - 1) * limit;
 
   try {
-    const conds: string[] = ['l.payBalance > 0'];
+    // Only surface balances that are actually due for recovery - a balance
+    // whose next-payment dueDate is still in the future (e.g. a scheduled
+    // installment a year out) isn't overdue yet and shouldn't appear in this
+    // "needs collecting now" report just because payBalance is nonzero.
+    const conds: string[] = ['l.payBalance > 0', '(l.dueDate IS NULL OR l.dueDate <= CURDATE())'];
     const rep: Record<string, unknown> = {};
 
     if (search) {
@@ -74,21 +78,22 @@ export async function GET(request: NextRequest) {
          COALESCE(l.payTotal,0)   AS totalFee,
          COALESCE(l.paidYet,0)    AS amountPaid,
          COALESCE(l.payBalance,0) AS balanceDue,
+         l.dueDate,
          l.status,
          COALESCE(a.agreementNumber,'—')   AS agreementNumber,
          COALESCE(a.createdAt,'')          AS agreementDate,
          COALESCE(a.totalAmount,l.payTotal,0) AS agreedFee,
-         COALESCE(a.discountAmount,0)      AS discount,
+         COALESCE(l.discount,0)      AS discount,
          COALESCE(s.name, pt.type, l.service_interest,'') AS serviceInterest,
          COALESCE(cp.name, l.country_interest,'')         AS countryInterest,
          COALESCE(e1.name,'')  AS counselorName,
          COALESCE(e2.name,'')  AS assignedToName,
-         COALESCE(b.name,'')   AS branchName,
+         COALESCE(b.branch,'') AS branchName,
          (SELECT MAX(ph.date) FROM dm_pay_history ph WHERE ph.leadId = l.id) AS lastPaymentDate,
          (SELECT COUNT(*) FROM dm_pay_history ph WHERE ph.leadId = l.id)     AS paymentCount
        ${joinClause}
        ${where}
-       GROUP BY l.id, a.id, e1.name, e2.name, b.name, cp.name, s.name, pt.type
+       GROUP BY l.id, a.id, e1.name, e2.name, b.branch, cp.name, s.name, pt.type
        ORDER BY l.payBalance DESC
        LIMIT :limit OFFSET :offset`,
       { replacements: { ...rep, limit, offset }, type: QueryTypes.SELECT }
@@ -106,7 +111,7 @@ export async function GET(request: NextRequest) {
     );
 
     const branches = await sequelize.query(
-      `SELECT id, name FROM dm_branch WHERE status=1 ORDER BY name ASC LIMIT 50`,
+      `SELECT id, branch AS name FROM dm_branch WHERE status=1 ORDER BY branch ASC LIMIT 50`,
       { type: QueryTypes.SELECT }
     );
     const counselors = await sequelize.query(

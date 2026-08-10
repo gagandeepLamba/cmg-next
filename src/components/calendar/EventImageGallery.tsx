@@ -36,7 +36,7 @@ export default function EventImageGallery({
     
     // Check max images limit
     if (images.length + files.length > maxImages) {
-      alert(`Maximum ${maxImages} images allowed`);
+      window.toast.warning(`Maximum ${maxImages} images allowed`);
       return;
     }
 
@@ -48,7 +48,7 @@ export default function EventImageGallery({
     });
 
     if (validFiles.length === 0) {
-      alert('Please select valid image files (JPEG, PNG, GIF, WebP) under 10MB');
+      window.toast.warning('Please select valid image files (JPEG, PNG, GIF, WebP) under 10MB');
       return;
     }
 

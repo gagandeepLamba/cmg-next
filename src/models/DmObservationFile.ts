@@ -11,11 +11,11 @@ interface DmObservationFileAttributes {
 interface DmObservationFileCreationAttributes extends Optional<DmObservationFileAttributes, 'status'> {}
 
 class DmObservationFile extends Model<DmObservationFileAttributes, DmObservationFileCreationAttributes> implements DmObservationFileAttributes {
-  public id!: number;
-  public country!: number;
-  public service!: number;
-  public file!: string;
-  public status!: number;
+  declare id: number;
+  declare country: number;
+  declare service: number;
+  declare file: string;
+  declare status: number;
 
   public static associate(models: any) {
   }

@@ -1,5 +1,6 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import {
   BarChart3, Download, Filter, Search, Calendar,
@@ -129,7 +130,7 @@ export default function ReportsPage() {
               />
             </div>
 
-            <select
+            <SearchableSelect
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -138,7 +139,7 @@ export default function ReportsPage() {
               <option value="month">Last Month</option>
               <option value="quarter">Last Quarter</option>
               <option value="year">Last Year</option>
-            </select>
+            </SearchableSelect>
           </div>
 
           <div className="flex items-center space-x-2">

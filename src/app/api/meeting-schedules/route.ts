@@ -3,8 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DmcMeetingSchedules, DmcNotifications } from '@/models';
 import { Op, QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
+import { requireAuth, isAuthError } from '@/lib/apiAuth';
 
 export async function GET(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get('employeeId');
@@ -93,9 +96,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
-    const { 
+    const {
       leadId, 
       opportunityId, 
       employeeId, 
@@ -177,6 +182,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const auth = requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const body = await request.json();
     const { meetingId, action, outcome, nextAction, notes, rescheduledAt } = body;

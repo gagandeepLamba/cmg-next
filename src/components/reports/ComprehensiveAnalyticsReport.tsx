@@ -1,9 +1,11 @@
 'use client';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Line, Pie } from 'react-chartjs-2';
 import { TrendingUp, Users, DollarSign, Target, Clock, Calendar, Filter, Download } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
@@ -33,6 +35,7 @@ interface KPIData {
 }
 
 export default function ComprehensiveAnalyticsReport() {
+  const { currencyCode } = useAuth();
   const [timeRange, setTimeRange] = useState('6months');
   const [selectedMetrics, setSelectedMetrics] = useState(['all']);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData[]>([]);
@@ -154,7 +157,7 @@ export default function ComprehensiveAnalyticsReport() {
             <p className="text-gray-600 mt-1">Deep insights into business performance and trends</p>
           </div>
           <div className="flex items-center space-x-4">
-            <select
+            <SearchableSelect
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -162,7 +165,7 @@ export default function ComprehensiveAnalyticsReport() {
               <option value="3months">Last 3 Months</option>
               <option value="6months">Last 6 Months</option>
               <option value="1year">Last Year</option>
-            </select>
+            </SearchableSelect>
             <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
               <Download className="w-4 h-4 mr-2" />
               Export Report
@@ -185,7 +188,7 @@ export default function ComprehensiveAnalyticsReport() {
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {kpi.name.includes('$') ? `$${kpi.value.toLocaleString()}` : 
+                  {kpi.name.includes('$') ? `${currencyCode} ${kpi.value.toLocaleString()}` :
                    kpi.name.includes('%') ? `${kpi.value}%` : 
                    kpi.value.toLocaleString()}
                 </p>
@@ -257,7 +260,7 @@ export default function ComprehensiveAnalyticsReport() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{stage.count.toLocaleString()}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{stage.conversion}%</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {stage.value > 0 ? `$${stage.value.toLocaleString()}` : '-'}
+                      {stage.value > 0 ? `${currencyCode} ${stage.value.toLocaleString()}` : '-'}
                     </td>
                   </tr>
                 ))}
@@ -274,7 +277,7 @@ export default function ComprehensiveAnalyticsReport() {
             <DollarSign className="w-8 h-8 mr-3" />
             <div>
               <p className="text-sm opacity-90">Total Revenue</p>
-              <p className="text-2xl font-bold">${(totalRevenue / 1000000).toFixed(2)}M</p>
+              <p className="text-2xl font-bold">{currencyCode} {(totalRevenue / 1000000).toFixed(2)}M</p>
             </div>
           </div>
         </div>

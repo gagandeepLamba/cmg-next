@@ -21,20 +21,20 @@ interface DmcQuotationItemsAttributes {
 interface DmcQuotationItemsCreationAttributes extends Optional<DmcQuotationItemsAttributes, 'id'> {}
 
 class DmcQuotationItems extends Model<DmcQuotationItemsAttributes, DmcQuotationItemsCreationAttributes> implements DmcQuotationItemsAttributes {
-  public id!: number;
-  public quotationId!: number;
-  public itemType!: string;
-  public description!: string;
-  public quantity!: number;
-  public unitPrice!: number;
-  public totalPrice!: number;
-  public currency!: string;
-  public category!: string;
-  public serviceType!: string;
-  public duration!: string;
-  public notes!: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare quotationId: number;
+  declare itemType: string;
+  declare description: string;
+  declare quantity: number;
+  declare unitPrice: number;
+  declare totalPrice: number;
+  declare currency: string;
+  declare category: string;
+  declare serviceType: string;
+  declare duration: string;
+  declare notes: string;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmcQuotationItems.belongsTo(models.DmcOpportunityQuotations, { foreignKey: 'quotationId', targetKey: 'id', as: 'dmcOpportunityQuotation' });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 import {
   Activity, AlertCircle, CheckCircle, Clock, Users, Target,
   RefreshCw, Bell, Calendar, TrendingUp, AlertTriangle, UserCheck,
@@ -77,7 +78,7 @@ function KpiTile({ label, value, sub, icon: Icon, color = 'green' }: {
   icon: React.ElementType; color?: string;
 }) {
   const colorMap: Record<string, string> = {
-    green: 'text-[#003399] bg-[#E8EEFB]',
+    green: 'text-[#35AE22] bg-[#EAF7E4]',
     red: 'text-red-600 bg-red-50',
     blue: 'text-blue-600 bg-blue-50',
     orange: 'text-orange-600 bg-orange-50',
@@ -107,6 +108,54 @@ export default function ActivityMonitor() {
   const [activeTab, setActiveTab] = useState<'activity' | 'counselors' | 'appointments' | 'followups'>('activity');
   const [autoRefresh, setAutoRefresh] = useState(true);
 
+  const { sorted: sortedRecentActivity, sortKey: activitySortKey, sortDirection: activitySortDirection, toggleSort: toggleActivitySort } = useSortableData(
+    data?.recentActivity || [],
+    {
+      lead: (a) => a.name,
+      status: (a) => a.status,
+      priority: (a) => a.priority,
+      assignedTo: (a) => a.assignedTo,
+      branch: (a) => a.branch,
+      time: (a) => a.timestamp,
+    },
+  );
+
+  const { sorted: sortedCounselorActivity, sortKey: counselorSortKey, sortDirection: counselorSortDirection, toggleSort: toggleCounselorSort } = useSortableData(
+    data?.counselorActivity || [],
+    {
+      counselor: (c) => c.name,
+      branch: (c) => c.branch,
+      today: (c) => c.todayLeads,
+      weekLeads: (c) => c.weekLeads,
+      weekConverted: (c) => c.weekConverted,
+      rate: (c) => c.conversionRate,
+      apptsToday: (c) => c.todayAppointments,
+    },
+  );
+
+  const { sorted: sortedTodayAppointments, sortKey: apptSortKey, sortDirection: apptSortDirection, toggleSort: toggleApptSort } = useSortableData(
+    data?.todayAppointments || [],
+    {
+      client: (a) => a.client,
+      phone: (a) => a.phone,
+      time: (a) => a.time,
+      status: (a) => a.status,
+      counselor: (a) => a.counselor,
+      branch: (a) => a.branch,
+    },
+  );
+
+  const { sorted: sortedOverdueFollowups, sortKey: followupSortKey, sortDirection: followupSortDirection, toggleSort: toggleFollowupSort } = useSortableData(
+    data?.overdueFollowups || [],
+    {
+      client: (f) => f.client,
+      dueDate: (f) => f.dueDate,
+      message: (f) => f.message,
+      assignedTo: (f) => f.assignedTo,
+      priority: (f) => f.priority,
+    },
+  );
+
   const load = useCallback(async () => {
     try {
       setError('');
@@ -133,7 +182,7 @@ export default function ActivityMonitor() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 gap-3 text-gray-500">
-        <RefreshCw className="w-6 h-6 animate-spin text-[#003399]" />
+        <RefreshCw className="w-6 h-6 animate-spin text-[#35AE22]" />
         Loading live monitoring data…
       </div>
     );
@@ -144,7 +193,7 @@ export default function ActivityMonitor() {
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-red-500">
         <AlertCircle className="w-8 h-8" />
         <span>{error || 'No data'}</span>
-        <button onClick={load} className="px-4 py-2 bg-[#003399] text-white rounded-lg text-sm hover:bg-[#002266]">Retry</button>
+        <button onClick={load} className="px-4 py-2 bg-[#35AE22] text-white rounded-lg text-sm hover:bg-[#1C6B10]">Retry</button>
       </div>
     );
   }
@@ -170,7 +219,7 @@ export default function ActivityMonitor() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setAutoRefresh(v => !v)}
-            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${autoRefresh ? 'bg-[#E8EEFB] border-[#003399] text-[#002266]' : 'bg-white border-gray-200 text-gray-500'}`}
+            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${autoRefresh ? 'bg-[#EAF7E4] border-[#35AE22] text-[#1C6B10]' : 'bg-white border-gray-200 text-gray-500'}`}
           >
             {autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
           </button>
@@ -223,7 +272,7 @@ export default function ActivityMonitor() {
               onClick={() => setActiveTab(tab.key)}
               className={`flex items-center gap-1.5 px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.key
-                  ? 'text-[#002266] border-b-2 border-[#003399] bg-[#F3F6FC]'
+                  ? 'text-[#1C6B10] border-b-2 border-[#35AE22] bg-[#F3FAF0]'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -246,16 +295,16 @@ export default function ActivityMonitor() {
               <table className="min-w-full">
                 <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <tr>
-                    <th className="px-5 py-3 text-left">Lead</th>
-                    <th className="px-5 py-3 text-left">Status</th>
-                    <th className="px-5 py-3 text-left">Priority</th>
-                    <th className="px-5 py-3 text-left">Assigned To</th>
-                    <th className="px-5 py-3 text-left">Branch</th>
-                    <th className="px-5 py-3 text-left">Time</th>
+                    <SortableTh label="Lead" sortKey="lead" activeKey={activitySortKey} direction={activitySortDirection} onSort={toggleActivitySort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Status" sortKey="status" activeKey={activitySortKey} direction={activitySortDirection} onSort={toggleActivitySort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Priority" sortKey="priority" activeKey={activitySortKey} direction={activitySortDirection} onSort={toggleActivitySort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Assigned To" sortKey="assignedTo" activeKey={activitySortKey} direction={activitySortDirection} onSort={toggleActivitySort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Branch" sortKey="branch" activeKey={activitySortKey} direction={activitySortDirection} onSort={toggleActivitySort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Time" sortKey="time" activeKey={activitySortKey} direction={activitySortDirection} onSort={toggleActivitySort} className="px-5 py-3 text-left" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {recentActivity.map(a => (
+                  {sortedRecentActivity.map(a => (
                     <tr key={a.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3">
                         <div className="text-sm font-medium text-gray-900">{a.name || 'Unknown'}</div>
@@ -292,21 +341,21 @@ export default function ActivityMonitor() {
               <table className="min-w-full">
                 <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <tr>
-                    <th className="px-5 py-3 text-left">Counselor</th>
-                    <th className="px-5 py-3 text-left">Branch</th>
-                    <th className="px-5 py-3 text-right">Today</th>
-                    <th className="px-5 py-3 text-right">Week Leads</th>
-                    <th className="px-5 py-3 text-right">Week Conv.</th>
-                    <th className="px-5 py-3 text-right">Rate</th>
-                    <th className="px-5 py-3 text-right">Appts Today</th>
+                    <SortableTh label="Counselor" sortKey="counselor" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Branch" sortKey="branch" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Today" sortKey="today" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-right" />
+                    <SortableTh label="Week Leads" sortKey="weekLeads" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-right" />
+                    <SortableTh label="Week Conv." sortKey="weekConverted" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-right" />
+                    <SortableTh label="Rate" sortKey="rate" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-right" />
+                    <SortableTh label="Appts Today" sortKey="apptsToday" activeKey={counselorSortKey} direction={counselorSortDirection} onSort={toggleCounselorSort} className="px-5 py-3 text-right" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {counselorActivity.map((c, i) => (
+                  {sortedCounselorActivity.map((c, i) => (
                     <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-[#E8EEFB] flex items-center justify-center text-[#002266] text-xs font-bold shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-[#EAF7E4] flex items-center justify-center text-[#1C6B10] text-xs font-bold shrink-0">
                             {c.name.charAt(0)}
                           </div>
                           <span className="text-sm font-medium text-gray-900">{c.name}</span>
@@ -337,16 +386,16 @@ export default function ActivityMonitor() {
               <table className="min-w-full">
                 <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <tr>
-                    <th className="px-5 py-3 text-left">Client</th>
-                    <th className="px-5 py-3 text-left">Phone</th>
-                    <th className="px-5 py-3 text-left">Time</th>
-                    <th className="px-5 py-3 text-left">Status</th>
-                    <th className="px-5 py-3 text-left">Counselor</th>
-                    <th className="px-5 py-3 text-left">Branch</th>
+                    <SortableTh label="Client" sortKey="client" activeKey={apptSortKey} direction={apptSortDirection} onSort={toggleApptSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Phone" sortKey="phone" activeKey={apptSortKey} direction={apptSortDirection} onSort={toggleApptSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Time" sortKey="time" activeKey={apptSortKey} direction={apptSortDirection} onSort={toggleApptSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Status" sortKey="status" activeKey={apptSortKey} direction={apptSortDirection} onSort={toggleApptSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Counselor" sortKey="counselor" activeKey={apptSortKey} direction={apptSortDirection} onSort={toggleApptSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Branch" sortKey="branch" activeKey={apptSortKey} direction={apptSortDirection} onSort={toggleApptSort} className="px-5 py-3 text-left" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {todayAppointments.map(a => (
+                  {sortedTodayAppointments.map(a => (
                     <tr key={a.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3">
                         <div className="text-sm font-medium text-gray-900">{a.client}</div>
@@ -381,15 +430,15 @@ export default function ActivityMonitor() {
               <table className="min-w-full">
                 <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <tr>
-                    <th className="px-5 py-3 text-left">Client</th>
-                    <th className="px-5 py-3 text-left">Due Date</th>
-                    <th className="px-5 py-3 text-left">Message</th>
-                    <th className="px-5 py-3 text-left">Assigned To</th>
-                    <th className="px-5 py-3 text-left">Priority</th>
+                    <SortableTh label="Client" sortKey="client" activeKey={followupSortKey} direction={followupSortDirection} onSort={toggleFollowupSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Due Date" sortKey="dueDate" activeKey={followupSortKey} direction={followupSortDirection} onSort={toggleFollowupSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Message" sortKey="message" activeKey={followupSortKey} direction={followupSortDirection} onSort={toggleFollowupSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Assigned To" sortKey="assignedTo" activeKey={followupSortKey} direction={followupSortDirection} onSort={toggleFollowupSort} className="px-5 py-3 text-left" />
+                    <SortableTh label="Priority" sortKey="priority" activeKey={followupSortKey} direction={followupSortDirection} onSort={toggleFollowupSort} className="px-5 py-3 text-left" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {overdueFollowups.map(f => {
+                  {sortedOverdueFollowups.map(f => {
                     const daysOverdue = Math.floor((Date.now() - new Date(f.dueDate).getTime()) / 86400000);
                     return (
                       <tr key={f.id} className="hover:bg-gray-50 transition-colors">
@@ -427,7 +476,7 @@ export default function ActivityMonitor() {
       {statusBreakdown.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-5 h-5 text-[#003399]" />
+            <TrendingUp className="w-5 h-5 text-[#35AE22]" />
             <h3 className="text-sm font-semibold text-gray-700">Today's New Leads by Status</h3>
           </div>
           <div className="flex flex-wrap gap-3">

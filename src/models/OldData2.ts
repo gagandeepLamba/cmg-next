@@ -23,23 +23,23 @@ interface OldData2Attributes {
 interface OldData2CreationAttributes extends Optional<OldData2Attributes, 'id' | 'agreeNo' | 'sign_up_date' | 'client_name' | 'mobile' | 'email' | 'country' | 'branch' | 'total_package' | 'paid_amount' | 'pending_amount' | 'counselor' | 'status'> {}
 
 class OldData2 extends Model<OldData2Attributes, OldData2CreationAttributes> implements OldData2Attributes {
-  public temp_id!: number;
-  public id!: number | null;
-  public agreeNo!: string | null;
-  public sign_up_date!: string | null;
-  public renDate!: Date;
-  public renExpiryDate!: Date;
-  public renew_type!: string;
-  public client_name!: string | null;
-  public mobile!: string | null;
-  public email!: string | null;
-  public country!: string | null;
-  public branch!: string | null;
-  public total_package!: number | null;
-  public paid_amount!: number | null;
-  public pending_amount!: string | null;
-  public counselor!: string | null;
-  public status!: string | null;
+  declare temp_id: number;
+  declare id: number | null;
+  declare agreeNo: string | null;
+  declare sign_up_date: string | null;
+  declare renDate: Date;
+  declare renExpiryDate: Date;
+  declare renew_type: string;
+  declare client_name: string | null;
+  declare mobile: string | null;
+  declare email: string | null;
+  declare country: string | null;
+  declare branch: string | null;
+  declare total_package: number | null;
+  declare paid_amount: number | null;
+  declare pending_amount: string | null;
+  declare counselor: string | null;
+  declare status: string | null;
 
   public static associate(models: any) {
   }

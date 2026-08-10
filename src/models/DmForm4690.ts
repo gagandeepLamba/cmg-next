@@ -14,14 +14,14 @@ interface DmForm4690Attributes {
 interface DmForm4690CreationAttributes extends Optional<DmForm4690Attributes, 'name' | 'email' | 'phone' | 'subject' | 'your_message' | 'form_date'> {}
 
 class DmForm4690 extends Model<DmForm4690Attributes, DmForm4690CreationAttributes> implements DmForm4690Attributes {
-  public id!: number;
-  public db4_status!: string;
-  public name!: string | null;
-  public email!: string | null;
-  public phone!: string | null;
-  public subject!: string | null;
-  public your_message!: string | null;
-  public form_date!: Date;
+  declare id: number;
+  declare db4_status: string;
+  declare name: string | null;
+  declare email: string | null;
+  declare phone: string | null;
+  declare subject: string | null;
+  declare your_message: string | null;
+  declare form_date: Date;
 
   public static associate(models: any) {
   }

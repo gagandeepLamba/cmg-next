@@ -13,13 +13,13 @@ interface DmAccountsAttributes {
 interface DmAccountsCreationAttributes extends Optional<DmAccountsAttributes, 'account_no' | 'bank_address' | 'bank_beneficiary' | 'bank_name' | 'iban' | 'branch_id'> {}
 
 class DmAccounts extends Model<DmAccountsAttributes, DmAccountsCreationAttributes> implements DmAccountsAttributes {
-  public id!: number;
-  public account_no!: string | null;
-  public bank_address!: string | null;
-  public bank_beneficiary!: string | null;
-  public bank_name!: string | null;
-  public iban!: string | null;
-  public branch_id!: string | null;
+  declare id: number;
+  declare account_no: string | null;
+  declare bank_address: string | null;
+  declare bank_beneficiary: string | null;
+  declare bank_name: string | null;
+  declare iban: string | null;
+  declare branch_id: string | null;
 
   public static associate(models: any) {
   }

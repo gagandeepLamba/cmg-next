@@ -22,21 +22,21 @@ interface DmOpportunityComplianceApprovalsAttributes {
 interface DmOpportunityComplianceApprovalsCreationAttributes extends Optional<DmOpportunityComplianceApprovalsAttributes, 'id' | 'opportunityId' | 'clientSignature' | 'signatureDate' | 'status' | 'submittedBy' | 'reviewedBy' | 'reviewerRole' | 'reviewNotes' | 'reviewedAt'> {}
 
 class DmOpportunityComplianceApprovals extends Model<DmOpportunityComplianceApprovalsAttributes, DmOpportunityComplianceApprovalsCreationAttributes> implements DmOpportunityComplianceApprovalsAttributes {
-  public id!: number;
-  public leadId!: number;
-  public opportunityId!: number | null;
-  public signedAgreementUrl!: string;
-  public clientSignature!: string | null;
-  public signatureDate!: Date | null;
-  public status!: string;
-  public submittedBy!: number | null;
-  public reviewedBy!: string | null;
-  public reviewerRole!: string | null;
-  public reviewNotes!: string | null;
-  public submittedAt!: Date;
-  public reviewedAt!: Date | null;
-  public createdAt!: Date;
-  public updatedAt!: Date;
+  declare id: number;
+  declare leadId: number;
+  declare opportunityId: number | null;
+  declare signedAgreementUrl: string;
+  declare clientSignature: string | null;
+  declare signatureDate: Date | null;
+  declare status: string;
+  declare submittedBy: number | null;
+  declare reviewedBy: string | null;
+  declare reviewerRole: string | null;
+  declare reviewNotes: string | null;
+  declare submittedAt: Date;
+  declare reviewedAt: Date | null;
+  declare createdAt: Date;
+  declare updatedAt: Date;
 
   public static associate(models: any) {
     DmOpportunityComplianceApprovals.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'lead' });
