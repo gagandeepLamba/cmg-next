@@ -149,7 +149,7 @@ export default function AgreementGenerator() {
 
   const isReady = lookupState === 'found';
   const profile = getBranchAgreementProfile(data.branchAbbrv);
-  const idLabel = profile.idLabelEn || 'ID No.';
+  const idLabel = 'ID No.';
 
   return (
     <div className="space-y-4">

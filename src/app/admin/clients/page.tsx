@@ -20,6 +20,11 @@ type ClientWithBranch = DmClientsAttributes & {
   branchMobile?: string;
   branchLicenseNumber?: string | null;
   branchVatGstPercent?: number | string | null;
+  branchBankName?: string | null;
+  branchBankAccountName?: string | null;
+  branchBankAccountNumber?: string | null;
+  branchBankIban?: string | null;
+  branchBankBranch?: string | null;
 };
 
 interface BalanceRow {
@@ -224,6 +229,11 @@ export default function ClientsManagement() {
         mobile: client.branchMobile,
         licenseNumber: client.branchLicenseNumber,
         vatGstPercent: client.branchVatGstPercent,
+        bankName: client.branchBankName,
+        bankAccountName: client.branchBankAccountName,
+        bankAccountNumber: client.branchBankAccountNumber,
+        bankIban: client.branchBankIban,
+        bankBranch: client.branchBankBranch,
       },
     });
     printReceiptDocument({
@@ -239,6 +249,11 @@ export default function ClientsManagement() {
       branchPhone: branchDetails.branchPhone,
       licenseNumber: branchDetails.licenseNumber,
       vatGstPercent: branchDetails.vatGstPercent,
+      bankName: branchDetails.bankName,
+      bankAccountName: branchDetails.bankAccountName,
+      bankAccountNumber: branchDetails.bankAccountNumber,
+      bankIban: branchDetails.bankIban,
+      bankBranch: branchDetails.bankBranch,
       paymentMethod: qp.method,
       transactionId: qp.txnId,
       currency: currencyCode,

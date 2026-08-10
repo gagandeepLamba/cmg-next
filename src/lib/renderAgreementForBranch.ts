@@ -1,17 +1,12 @@
-// Single entry point for "render the Agreement for Advisory Services HTML
-// for this branch" — every screen that generates/previews an agreement
-// (agreement-generation route, sample-agreement route, the standalone
-// opportunity agreement page, the Opportunity Flow wizard, and the
-// Agreements page) should call this instead of importing the Gulf/India
-// renderers directly, so branch → template-variant selection lives in
-// exactly one place.
-import { getBranchAgreementProfile } from './branchAgreementProfiles';
-import { renderAbuDhabiAgreement } from './AbuDhabiBilingualAgreementTemplate';
-import { renderGulfAgreement } from './bilingualAgreementTemplate';
+// Single entry point for "render the Client Service Agreement HTML" — every
+// screen that generates/previews an agreement (agreement-generation route,
+// sample-agreement route, the standalone opportunity agreement page, the
+// Opportunity Flow wizard, and the Agreements page) should call this instead
+// of importing the renderer directly. The app operates a single branch/
+// entity (Dubai, trading as Commonwealth Migration Group), so this no
+// longer branches on `branchAbbrv` — the parameter is kept only so callers
+// don't need to change their call sites.
 import { renderDubaiAgreement } from './DubaiBilingualAgreementTemplate';
-import { renderIndiaAgreement } from './indiaAgreementTemplate';
-import { renderKuwaitAgreement } from './KuwaitBilingualAgreementTemplate';
-import { renderQatarAgreement } from './QatarBilingualAgreementTemplate';
 
 export interface AgreementLeadData {
   agreementNumber: string;
@@ -20,53 +15,32 @@ export interface AgreementLeadData {
   clientName: string;
   clientEmail: string;
   clientPhone: string;
-  clientAddress: string;
+  clientAddress?: string;
   nationality?: string;
   passportNumber?: string;
   idNumber?: string;
-  // Hyderabad only — the India renderer's GSTIN line on Agreement Details.
-  gstin?: string;
+  occupation?: string;
   serviceProgram: string;
   programCode?: string;
+  // Accepted for compatibility with existing callers — not used by the
+  // current (single-branch) agreement template.
   programTermSchedule?: string;
   destinationCountry: string;
+  visaSubclass?: string;
   // Plain formatted numbers (no currency prefix) — the renderer adds the
-  // correct currency code/label for the resolved branch.
+  // currency code.
   totalAmount: string;
   initialPayment: string;
   secondPayment: string;
+  secondPaymentDue?: string;
   clientId?: string;
   includedDeliverables?: string;
   expressExclusions?: string;
   specialTerms?: string;
-  agreementRenewalFee?: string;
 }
 
-export function renderAgreementForBranch(branchAbbrv: string | null | undefined, data: AgreementLeadData): string {
-  const profile = getBranchAgreementProfile(branchAbbrv);
-  const key = String(branchAbbrv || '').trim().toLowerCase();
-
-  if (profile.templateVariant === 'india') {
-    return renderIndiaAgreement({
-      agreementNumber: data.agreementNumber,
-      agreementDate: data.agreementDate,
-      agreementExpiry: data.agreementExpiry,
-      gstin: data.gstin,
-      clientName: data.clientName,
-      clientEmail: data.clientEmail,
-      clientPhone: data.clientPhone,
-      clientAddress: data.clientAddress,
-      serviceProgram: data.serviceProgram,
-      programCode: data.programCode,
-      destinationCountry: data.destinationCountry,
-      totalAmount: data.totalAmount,
-      initialPayment: data.initialPayment,
-      secondPayment: data.secondPayment,
-      specialTerms: data.specialTerms,
-    });
-  }
-
-  const gulfData = {
+export function renderAgreementForBranch(_branchAbbrv: string | null | undefined, data: AgreementLeadData): string {
+  return renderDubaiAgreement({
     agreementNumber: data.agreementNumber,
     agreementDate: data.agreementDate,
     agreementExpiry: data.agreementExpiry,
@@ -76,53 +50,19 @@ export function renderAgreementForBranch(branchAbbrv: string | null | undefined,
     nationality: data.nationality || '',
     passportNumber: data.passportNumber || '',
     idNumber: data.idNumber || '',
+    occupation: data.occupation,
     serviceProgram: data.serviceProgram,
     programCode: data.programCode,
-    programTermSchedule: data.programTermSchedule,
     destinationCountry: data.destinationCountry,
+    visaSubclass: data.visaSubclass,
     totalAmount: data.totalAmount,
     initialPayment: data.initialPayment,
     secondPayment: data.secondPayment,
+    secondPaymentDue: data.secondPaymentDue,
     clientId: data.clientId || '',
     includedDeliverables: data.includedDeliverables,
     expressExclusions: data.expressExclusions,
     specialTerms: data.specialTerms,
-    agreementRenewalFee: data.agreementRenewalFee,
-    currencyCode: profile.currencyCode,
-  };
-
-  if (key === 'auh') {
-    return renderAbuDhabiAgreement(gulfData);
-  }
-
-  if (key === 'dxb szr') {
-    return renderDubaiAgreement(gulfData);
-  }
-
-  if (key === 'kwd') {
-    return renderKuwaitAgreement(gulfData);
-  }
-
-  if (key === 'doh old airport rd') {
-    return renderQatarAgreement(gulfData);
-  }
-
-  return renderGulfAgreement({
-    ...gulfData,
-    branchNameEn: profile.legalNameEn,
-    branchNameAr: profile.legalNameAr,
-    branchAddressEn: profile.addressEn,
-    branchAddressAr: profile.addressAr,
-    regulatoryLineEn: profile.regulatoryLineEn,
-    regulatoryLineAr: profile.regulatoryLineAr,
-    idLabelEn: profile.idLabelEn,
-    idLabelAr: profile.idLabelAr,
-    currencyCode: profile.currencyCode,
-    taxLineEn: profile.taxLineEn,
-    taxLineAr: profile.taxLineAr,
-    governingLawEn: profile.governingLawEn,
-    governingLawAr: profile.governingLawAr,
-    contactLineEn: profile.contactLineEn,
-    contactLineAr: profile.contactLineAr,
+    currencyCode: 'AED',
   });
 }

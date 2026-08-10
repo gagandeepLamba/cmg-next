@@ -241,6 +241,11 @@ const fetchLead = async (id: string) => {
       b.license_number as branch_license_number,
       b.vat_gst_percent as branch_vat_gst_percent,
       b.abbrv as branch_abbrv,
+      b.bank_name as branch_bank_name,
+      b.bank_account_name as branch_bank_account_name,
+      b.bank_account_number as branch_bank_account_number,
+      b.bank_iban as branch_bank_iban,
+      b.bank_branch as branch_bank_branch,
       COALESCE(s.name, pt.type, l.service_interest) as service_interest_label,
       s.validity as program_validity,
       COALESCE(cp.name, l.country_interest) as country_interest_label,
@@ -277,7 +282,12 @@ const fetchLead = async (id: string) => {
       mobile: lead.branch_mobile,
       licenseNumber: lead.branch_license_number,
       vatGstPercent: lead.branch_vat_gst_percent,
-      abbrv: lead.branch_abbrv
+      abbrv: lead.branch_abbrv,
+      bankName: lead.branch_bank_name,
+      bankAccountName: lead.branch_bank_account_name,
+      bankAccountNumber: lead.branch_bank_account_number,
+      bankIban: lead.branch_bank_iban,
+      bankBranch: lead.branch_bank_branch
     } : null
   };
 };

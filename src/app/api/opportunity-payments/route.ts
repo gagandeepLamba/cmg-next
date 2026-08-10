@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     const plainPayments = payments.map((p) => p.get({ plain: true }) as any);
     const opportunityIds = Array.from(new Set(plainPayments.map((p) => p.opportunityId).filter(Boolean)));
     let agreementByOpportunity: Record<number, string> = {};
-    let branchByOpportunity: Record<number, { branchName: string | null; branchAddress: string | null; branchEmail: string | null; branchPhone: string | null; branchLicenseNumber: string | null; branchVatGstPercent: number | string | null }> = {};
+    let branchByOpportunity: Record<number, { branchName: string | null; branchAddress: string | null; branchEmail: string | null; branchPhone: string | null; branchLicenseNumber: string | null; branchVatGstPercent: number | string | null; branchBankName: string | null; branchBankAccountName: string | null; branchBankAccountNumber: string | null; branchBankIban: string | null; branchBankBranch: string | null }> = {};
     if (opportunityIds.length) {
       const [agreementRows, branchRows] = await Promise.all([
         sequelize.query<{ opportunityId: number; agreementNumber: string }>(
@@ -90,14 +90,19 @@ export async function GET(request: NextRequest) {
         `,
         { replacements: { opportunityIds }, type: QueryTypes.SELECT },
         ),
-        sequelize.query<{ opportunityId: number; branchName: string | null; branchAddress: string | null; branchEmail: string | null; branchPhone: string | null; branchLicenseNumber: string | null; branchVatGstPercent: number | string | null }>(
+        sequelize.query<{ opportunityId: number; branchName: string | null; branchAddress: string | null; branchEmail: string | null; branchPhone: string | null; branchLicenseNumber: string | null; branchVatGstPercent: number | string | null; branchBankName: string | null; branchBankAccountName: string | null; branchBankAccountNumber: string | null; branchBankIban: string | null; branchBankBranch: string | null }>(
           `SELECT o.id AS opportunityId,
                   b.branch AS branchName,
                   b.address AS branchAddress,
                   b.email AS branchEmail,
                   b.mobile AS branchPhone,
                   b.license_number AS branchLicenseNumber,
-                  b.vat_gst_percent AS branchVatGstPercent
+                  b.vat_gst_percent AS branchVatGstPercent,
+                  b.bank_name AS branchBankName,
+                  b.bank_account_name AS branchBankAccountName,
+                  b.bank_account_number AS branchBankAccountNumber,
+                  b.bank_iban AS branchBankIban,
+                  b.bank_branch AS branchBankBranch
            FROM dmc_opportunities o
            LEFT JOIN dmc_forum_leads l ON l.id = o.leadId
            LEFT JOIN dm_branch b ON b.id = COALESCE(o.branchId, l.branch)
@@ -116,6 +121,11 @@ export async function GET(request: NextRequest) {
           branchPhone: row.branchPhone,
           branchLicenseNumber: row.branchLicenseNumber,
           branchVatGstPercent: row.branchVatGstPercent,
+          branchBankName: row.branchBankName,
+          branchBankAccountName: row.branchBankAccountName,
+          branchBankAccountNumber: row.branchBankAccountNumber,
+          branchBankIban: row.branchBankIban,
+          branchBankBranch: row.branchBankBranch,
         }]),
       );
     }
@@ -146,6 +156,11 @@ export async function GET(request: NextRequest) {
       branchPhone: p.branchPhone || branchByOpportunity[p.opportunityId]?.branchPhone || null,
       branchLicenseNumber: p.branchLicenseNumber || branchByOpportunity[p.opportunityId]?.branchLicenseNumber || null,
       branchVatGstPercent: p.branchVatGstPercent ?? branchByOpportunity[p.opportunityId]?.branchVatGstPercent ?? null,
+      branchBankName: branchByOpportunity[p.opportunityId]?.branchBankName || null,
+      branchBankAccountName: branchByOpportunity[p.opportunityId]?.branchBankAccountName || null,
+      branchBankAccountNumber: branchByOpportunity[p.opportunityId]?.branchBankAccountNumber || null,
+      branchBankIban: branchByOpportunity[p.opportunityId]?.branchBankIban || null,
+      branchBankBranch: branchByOpportunity[p.opportunityId]?.branchBankBranch || null,
       remark: remarkByReceiptNumber[p.receiptNumber || p.paymentNumber] || null,
     }));
 

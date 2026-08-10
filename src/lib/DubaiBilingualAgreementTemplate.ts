@@ -1,23 +1,12 @@
-// Bilingual (EN/AR) "Agreement for Advisory Services" — Dubai branch
-// (DM Immigration Consultants DMCC - Dubai Branch).
+// Bilingual (EN/AR) "Client Service Agreement" — Dubai branch, operating as
+// Commonwealth Migration Group (CMG) / Commonwealth Documents Clearing
+// Services, a MARA-registered UAE migration consultancy.
 //
-// Sibling file to abuDhabiAgreementTemplate.ts. Kept as a separate module
-// (rather than a branch-profile entry in bilingualAgreementTemplate.ts)
-// for the same reason: this branch's signed PDF is NOT byte-identical to
-// the shared Gulf template body —
-//   - Clause 7 carries an extra "7.5 DURATION AND RENEWAL" sub-clause (a
-//     flat, non-refundable USD 500 Agreement Renewal Fee per renewal term).
-//   - Fee Summary carries a matching "AGREEMENT RENEWAL FEE" line.
-//   - Clause 14 is "GOVERNING LAW AND DISPUTE RESOLUTION" — DIAC
-//     arbitration seated in Dubai, governed by the laws of the Emirate of
-//     Dubai — not the shared template's court-jurisdiction clause.
-//   - Annexure A carries an extra "Program Term Schedule reference (6/12/18
-//     months)" field, matched by "Program Code / Service Term" up top.
-// Only the branch identity (name/address/licence) and the "Emirate of
-// Dubai" opening of Clause 14 differ from abuDhabiAgreementTemplate.ts —
-// every other clause is byte-identical between the two signed PDFs.
-
-import { RENEWAL_FEE_USD_LABEL, RENEWAL_FEE_USD_LABEL_AR } from './agreementDefaults';
+// Transcribed verbatim (English) from the signed reference PDF
+// ("CMG_Agreement_..._Final_Client Service.pdf") with a professional Arabic
+// translation carrying the same legal meaning. Unlike the old Gulf/India
+// templates this single file is now the only agreement renderer in the app
+// — see renderAgreementForBranch.ts.
 
 const esc = (value: unknown) => String(value ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -31,109 +20,212 @@ export interface DubaiAgreementValues {
   clientPhone: string;
   nationality: string;
   passportNumber: string;
-  // Emirates ID No.
+  // Accepted for interface compatibility with the shared AgreementLeadData
+  // shape (renderAgreementForBranch.ts) — not rendered by this template.
   idNumber?: string;
-  serviceProgram: string;
-  // Program Code / Service Term (see Program Term Schedule)
   programCode?: string;
-  // Program Term Schedule reference shown in Annexure A (6 / 12 / 18 months)
   programTermSchedule?: string;
+  clientId?: string;
+  agreementRenewalFee?: string;
+  occupation?: string;
+  serviceProgram: string;
   destinationCountry: string;
-  // Plain formatted numbers (e.g. "12,500") — currency is shown via
+  visaSubclass?: string;
+  // Plain formatted numbers (e.g. "9,600") — currency is shown via
   // currencyCode below, not repeated inside the value.
   totalAmount: string;
   initialPayment: string;
   secondPayment: string;
-  // CRM/lead/opportunity identifier shown in Annexure A.
-  clientId?: string;
+  secondPaymentDue?: string;
   includedDeliverables?: string;
   expressExclusions?: string;
   specialTerms?: string;
   currencyCode?: string;
 }
 
-// Fixed branch identity — taken verbatim from the signed PDF header/footer.
+// Fixed branch identity — Commonwealth Migration Group, Dubai.
 const COMPANY = {
-  nameEn: 'DM Immigration Consultants DMCC - Dubai Branch',
-  nameAr: 'دي إم إميغريشن كونسلتنتس م.د.م.س - فرع دبي',
-  addressEn: 'Office 3703B, Latifa Tower, Sheikh Zayed Road, Trade Centre First, P.O. Box 29514, Dubai, UAE',
-  addressAr: 'مكتب B3703، برج لطيفة، شارع الشيخ زايد، المركز التجاري الأول، ص.ب. 29514، دبي، الإمارات العربية المتحدة',
-  regulatoryEn: 'Professional Licence No. 766222 - Dubai Department of Economy and Tourism (DET); branch of DM Immigration Consultants DMCC, Licence No. DMCC-788993',
-  regulatoryAr: 'الرخصة المهنية رقم 766222 - دائرة الاقتصاد والسياحة في دبي؛ فرع شركة دي إم إميغريشن كونسلتنتس م.د.م.س، الرخصة رقم DMCC-788993',
-  idLabelEn: 'Emirates ID No.',
-  idLabelAr: 'رقم الهوية الإماراتية',
+  nameEn: 'Commonwealth Migration Group',
+  nameAr: 'مجموعة كومنولث للهجرة',
+  tradingAsEn: 'Commonwealth Documents Clearing Services',
+  tradingAsAr: 'خدمات كومنولث لتخليص المستندات',
+  addressEn: 'Office 307, 3rd Floor, Business Atrium Building, Oud Metha, Dubai, UAE',
+  addressAr: 'مكتب 307، الطابق الثالث، مبنى بزنس أتريوم، عود ميثاء، دبي، الإمارات العربية المتحدة',
+  regulatoryEn: 'MARA-registered migration consultancy, UAE-based ("CMG / the Company")',
+  regulatoryAr: 'شركة استشارات هجرة مسجلة لدى هيئة MARA ومقرها دولة الإمارات العربية المتحدة ("CMG" أو "الشركة")',
+  contactEn: 'leads@cwmigrationgroup.ae | cwmigrationgroup.ae',
+  contactAr: 'leads@cwmigrationgroup.ae | cwmigrationgroup.ae',
   currencyCode: 'AED',
-  renewalFeeUsd: RENEWAL_FEE_USD_LABEL,
-  renewalFeeUsdAr: RENEWAL_FEE_USD_LABEL_AR,
 };
 
-// The 15 clauses, verbatim from the signed PDF, in its own order/numbering.
-const clauses: Array<[string, string, string, string]> = [
-  ['1. DEFINITIONS AND CONTRACT DOCUMENTS',
-    '1.1 "Services" means only the advisory, administrative and documentation services selected in the CRM and described in Annexure A. 1.2 "Advisory Fee" means the Company\u2019s professional fee and excludes all government, authority, examination, translation, courier, medical, educational, legal and third-party charges unless expressly included. 1.3 CRM records, approved quotations, invoices, payment links, emails, recorded confirmations and Annexure A form part of this Agreement. 1.4 If documents conflict, this Agreement prevails, followed by Annexure A, the approved quotation and the CRM record. 1.5 Headings are for convenience and do not limit interpretation.',
-    '1. التعريفات ومستندات التعاقد',
-    '1.1 تعني "الخدمات" حصرًا الخدمات الاستشارية والإدارية وخدمات المستندات المختارة في نظام إدارة علاقات العملاء والمبينة في الملحق أ. 1.2 تعني "رسوم الخدمات الاستشارية" الأتعاب المهنية للشركة ولا تشمل رسوم الحكومات أو الجهات أو الاختبارات أو الترجمة أو البريد أو الفحوص الطبية أو المؤسسات التعليمية أو الخدمات القانونية أو الأطراف الثالثة ما لم يرد نص صريح بخلاف ذلك. 1.3 تعد سجلات نظام إدارة علاقات العملاء والعروض المعتمدة والفواتير وروابط الدفع ورسائل البريد والتأكيدات المسجلة والملحق أ جزءًا من هذه الاتفاقية. 1.4 عند التعارض تسود هذه الاتفاقية ثم الملحق أ ثم العرض المعتمد ثم سجل النظام. 1.5 وضعت العناوين للتيسير ولا تقيد التفسير.'],
-  ['2. UNIFIED SCOPE OF ADVISORY SERVICES',
-    '2.1 This is one unified agreement for every service program selected through the CRM. 2.2 The Company shall use reasonable professional efforts to provide the selected Services, which may include profile review, options guidance, document checklists, form preparation assistance, coordination, submission support where lawfully permitted, status follow-up and general administrative guidance. 2.3 Only items expressly selected in Annexure A are included. Any additional work, change of program, re-filing, appeal, review, legal representation or service arising after a change in facts or law requires a separate quotation and payment. 2.4 The Company may allocate work among its offices, affiliates, employees and vetted third-party professionals and may transfer the file between them for operational efficiency.',
-    '2. النطاق الموحد للخدمات الاستشارية',
-    '2.1 تمثل هذه الوثيقة اتفاقية موحدة لجميع برامج الخدمات المختارة من خلال نظام إدارة علاقات العملاء. 2.2 تبذل الشركة عناية مهنية معقولة لتقديم الخدمات المختارة، وقد تشمل مراجعة الملف والإرشاد بشأن الخيارات وقوائم المستندات والمساعدة في إعداد النماذج والتنسيق ودعم التقديم حيث يسمح القانون والمتابعة والإرشاد الإداري العام. 2.3 لا يشمل النطاق إلا البنود المحددة صراحة في الملحق أ. وأي عمل إضافي أو تغيير برنامج أو إعادة تقديم أو طعن أو مراجعة أو تمثيل قانوني أو خدمة تنشأ بسبب تغير الوقائع أو القانون يستلزم عرضًا ورسومًا منفصلة. 2.4 يجوز للشركة توزيع العمل بين فروعها وشركاتها التابعة وموظفيها والمهنيين الخارجيين المعتمدين ونقل الملف بينهم لتحقيق الكفاءة التشغيلية.'],
-  ['3. NO GUARANTEE; AUTHORITY AND THIRD-PARTY RISK',
-    '3.1 THE COMPANY DOES NOT GUARANTEE OR WARRANT ANY APPROVAL, VISA, PERMIT, NOMINATION, INVITATION, ADMISSION, JOB, BUSINESS RESULT, TIMELINE OR OTHER OUTCOME. 3.2 All decisions, processing times, quotas, interviews, requests and refusals are controlled exclusively by the relevant authority or third party. 3.3 The Company is not liable for changes in law, policy, eligibility, occupation lists, points, quotas, fees, exchange rates, processing times, closures, system failures or third-party conduct. 3.4 Estimates and opinions are based on information and rules available at the time and may change. 3.5 An adverse result, delay or change does not by itself establish breach, negligence or entitlement to refund.',
-    '3. عدم ضمان النتائج ومخاطر الجهات والأطراف الثالثة',
-    '3.1 لا تضمن الشركة ولا تكفل أي موافقة أو تأشيرة أو تصريح أو ترشيح أو دعوة أو قبول أو وظيفة أو نتيجة أعمال أو مدة أو أي نتيجة أخرى. 3.2 تخضع جميع القرارات ومدد المعالجة والحصص والمقابلات والطلبات والرفض حصرًا للجهة المختصة أو الطرف الثالث. 3.3 لا تتحمل الشركة مسؤولية تغير القوانين أو السياسات أو الأهلية أو قوائم المهن أو النقاط أو الحصص أو الرسوم أو أسعار الصرف أو مدد المعالجة أو الإغلاقات أو أعطال الأنظمة أو تصرفات الأطراف الثالثة. 3.4 تعتمد التقديرات والآراء على المعلومات والقواعد المتاحة وقت تقديمها وقد تتغير. 3.5 لا تشكل النتيجة السلبية أو التأخير أو التغيير بذاتها إخلالًا أو إهمالًا أو حقًا في الاسترداد.'],
-  ['4. CLIENT WARRANTIES AND DUTIES',
-    '4.1 The Client warrants that all information and documents are authentic, accurate, complete, current and not misleading. 4.2 The Client must promptly disclose refusals, criminal or civil matters, health issues, prior applications, immigration history, financial issues and any material change. 4.3 The Client is solely responsible for reviewing every form and submission before approval and for meeting deadlines, language tests, interviews, medicals, biometrics, funds and authority requirements. 4.4 The Client must not submit false or altered documents, conceal facts, contact an authority in a manner that conflicts with the Company\u2019s instructions, or take financial, employment or relocation decisions in reliance on an anticipated outcome. 4.5 Failure, delay, non-cooperation, abusive conduct or non-payment is a material breach permitting suspension or termination without refund, subject to mandatory law.',
-    '4. إقرارات العميل والتزاماته',
-    '4.1 يضمن العميل أن جميع المعلومات والمستندات أصلية وصحيحة وكاملة وحديثة وغير مضللة. 4.2 يجب على العميل الإفصاح فورًا عن حالات الرفض والمسائل الجنائية أو المدنية والحالة الصحية والطلبات السابقة والسجل الهجري والمسائل المالية وأي تغير جوهري. 4.3 يتحمل العميل وحده مسؤولية مراجعة كل نموذج ومستند قبل اعتماده والالتزام بالمواعيد واختبارات اللغة والمقابلات والفحوص والبصمات وإثبات الأموال ومتطلبات الجهات. 4.4 لا يجوز للعميل تقديم مستندات مزورة أو معدلة أو إخفاء الوقائع أو التواصل مع جهة بما يتعارض مع تعليمات الشركة أو اتخاذ قرارات مالية أو وظيفية أو انتقالية اعتمادًا على نتيجة متوقعة. 4.5 يشكل التأخر أو عدم التعاون أو السلوك المسيء أو عدم الدفع إخلالًا جوهريًا يجيز تعليق الخدمات أو إنهاءها دون استرداد، مع مراعاة الأحكام الآمرة في القانون.'],
-  ['5. FEES, TAXES AND PAYMENT',
-    '5.1 Fees are earned progressively as work is performed and resources are reserved. 5.2 The Client shall pay each instalment on time without set-off, deduction or withholding. 5.3 Government and third-party charges are separate, may change without notice and remain the Client\u2019s responsibility. 5.4 The Company may suspend work, withhold deliverables or refrain from submission until all amounts are cleared. 5.5 Bank, card, financing, currency-conversion and collection charges are payable by the Client. 5.6 Late or failed payments may result in administrative and recovery charges to the extent permitted by law.',
-    '5. الرسوم والضرائب والدفع',
-    '5.1 تستحق الرسوم تدريجيًا مع إنجاز العمل وتخصيص الموارد. 5.2 يلتزم العميل بسداد كل قسط في موعده دون مقاصة أو خصم أو حجز. 5.3 رسوم الحكومات والأطراف الثالثة منفصلة وقد تتغير دون إشعار وتظل مسؤولية العميل. 5.4 يجوز للشركة تعليق العمل أو حجب المخرجات أو الامتناع عن التقديم إلى حين سداد جميع المبالغ. 5.5 يتحمل العميل رسوم البنك والبطاقة والتمويل وتحويل العملات والتحصيل. 5.6 قد يترتب على التأخر أو فشل الدفع رسوم إدارية وتكاليف تحصيل بالقدر الذي يسمح به القانون.'],
-  ['6. REFUND, CANCELLATION AND CHARGEBACK POLICY',
-    '6.1 TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, ALL FEES ARE NON-REFUNDABLE ONCE PAID, EXCEPT ONLY FOR AN EXPRESS REFUND RIGHT STATED IN ANNEXURE A OR A NON-WAIVABLE RIGHT UNDER LAW. 6.2 In every case, registration, assessment, consultation, administration, CRM activation, document-review, research, strategy, drafting, translation coordination, third-party and work already performed are non-refundable. 6.3 If a discretionary refund is approved, the Company may deduct: (a) the value of completed work at prevailing rates; (b) committed staff and third-party costs; (c) taxes, bank and card charges; (d) government and authority fees; (e) discounts previously granted; and (f) reasonable administration and closure costs. 6.4 No refund is due for refusal, delay, policy change, ineligibility, expiry, client withdrawal, non-cooperation, misrepresentation, missed deadline, changed circumstances or termination for Client breach. 6.5 Refund requests must be written, supported and submitted within 14 days of the event relied upon. 6.6 The Client shall not initiate a chargeback for an amount legitimately due. An improper chargeback is a material breach, and the Company may suspend services, submit this Agreement and service records to the payment provider, and recover reasonable costs. 6.7 Nothing in this clause excludes mandatory statutory rights that cannot lawfully be waived.',
-    '6. سياسة الاسترداد والإلغاء والاعتراض على الدفع',
-    '6.1 إلى أقصى حد يسمح به القانون واجب التطبيق، تكون جميع الرسوم غير قابلة للاسترداد بعد سدادها، ولا يستثنى من ذلك إلا حق استرداد منصوص عليه صراحة في الملحق أ أو حق إلزامي لا يجوز التنازل عنه قانونًا. 6.2 وفي جميع الأحوال لا ترد رسوم التسجيل والتقييم والاستشارة والإدارة وتفعيل النظام ومراجعة المستندات والبحث والاستراتيجية والصياغة وتنسيق الترجمة وتكاليف الأطراف الثالثة وقيمة العمل المنجز. 6.3 عند الموافقة التقديرية على استرداد، يجوز للشركة خصم: (أ) قيمة العمل المنجز وفق الأسعار السائدة؛ (ب) تكاليف الموظفين والأطراف الثالثة الملتزم بها؛ (ج) الضرائب ورسوم البنك والبطاقة؛ (د) رسوم الحكومات والجهات؛ (هـ) الخصومات الممنوحة سابقًا؛ و(و) تكاليف الإدارة وإغلاق الملف المعقولة. 6.4 لا يستحق أي استرداد بسبب الرفض أو التأخير أو تغير السياسة أو عدم الأهلية أو انتهاء الصلاحية أو انسحاب العميل أو عدم التعاون أو التضليل أو فوات الموعد أو تغير الظروف أو الإنهاء بسبب إخلال العميل. 6.5 يجب تقديم طلب الاسترداد كتابة مع المستندات خلال 14 يومًا من الواقعة المستند إليها. 6.6 لا يجوز للعميل تقديم اعتراض على عملية دفع لمبلغ مستحق بصورة مشروعة. ويعد الاعتراض غير المشروع إخلالًا جوهريًا، ويجوز للشركة تعليق الخدمات وتقديم هذه الاتفاقية وسجلات الخدمة لمزود الدفع واسترداد التكاليف المعقولة. 6.7 لا يستبعد هذا البند أي حقوق قانونية إلزامية لا يجوز التنازل عنها.'],
-  // Clause 7 carries the extra "7.5 Duration and Renewal" sub-clause and its
-  // Agreement Renewal Fee, which is specific to this branch's signed PDF.
-  ['7. TERMINATION, SUSPENSION, DURATION AND RENEWAL',
-    '7.1 The Company may suspend or terminate immediately for non-payment, false information, suspected fraud, abusive conduct, conflict of interest, regulatory concern, impossible or unlawful instructions, prolonged inactivity or material breach. 7.2 The Client may terminate by written notice, but termination does not cancel accrued fees or create a refund right. 7.3 On termination, the Company may close the file, cease deadlines and communications, retain copies required by law, and release available client-owned originals after payment of all lawful outstanding amounts. 7.4 Re-opening a closed file is subject to availability, fresh assessment and additional fees. 7.5 DURATION AND RENEWAL. This Agreement is valid for the Service Term applicable to the Client\u2019s selected Program, as set out in the Company\u2019s Program Term Schedule and reflected in Annexure A. Where a Program is not listed in the then-current Program Term Schedule, the default term shall be 18 months from the Agreement Date. Where the Client requests renewal beyond that term, a fixed, non-refundable Agreement Renewal Fee of USD 500 (or its equivalent in AED at the exchange rate prevailing on the renewal date) shall apply per renewal term — the same amount regardless of the Program\u2019s original Service Term — in addition to any Third-Party Costs, taxes, and other fees referred to in Clause 7.4. The Renewal Fee is payable before the file is reactivated and does not revive any right to a refund of Fees already paid, nor does it alter the Services originally selected in Annexure A unless a new Annexure A is issued.',
-    '7. التعليق والإنهاء والمدة والتجديد',
-    '7.1 يجوز للشركة تعليق الخدمات أو إنهاؤها فورًا بسبب عدم الدفع أو المعلومات الكاذبة أو الاشتباه في الاحتيال أو السلوك المسيء أو تعارض المصالح أو المخاوف التنظيمية أو التعليمات المستحيلة أو غير القانونية أو انعدام النشاط لمدة طويلة أو الإخلال الجوهري. 7.2 يجوز للعميل الإنهاء بإشعار كتابي، إلا أن الإنهاء لا يلغي الرسوم المستحقة ولا ينشئ حقًا في الاسترداد. 7.3 عند الإنهاء يجوز للشركة إغلاق الملف ووقف المواعيد والمراسلات والاحتفاظ بالنسخ المطلوبة قانونًا وتسليم الأصول المملوكة للعميل والمتاحة بعد سداد المبالغ المستحقة قانونًا. 7.4 تخضع إعادة فتح الملف للتوافر والتقييم الجديد ورسوم إضافية. 7.5 المدة والتجديد. تسري هذه الاتفاقية للمدة المحددة لبرنامج العميل المختار، وفق جدول مدد البرامج المعتمد لدى الشركة والمبيّن في الملحق أ. وفي حال عدم إدراج البرنامج ضمن جدول مدد البرامج المعمول به، تكون المدة الافتراضية ثمانية عشر (18) شهرًا من تاريخ الاتفاقية. وفي حال طلب العميل التجديد بعد انتهاء هذه المدة، تُستحق رسوم تجديد ثابتة وغير قابلة للاسترداد قدرها 500 دولار أمريكي (أو ما يعادلها بالدرهم الإماراتي وفق سعر الصرف السائد بتاريخ التجديد) عن كل مدة تجديد — وهو المبلغ ذاته بصرف النظر عن مدة البرنامج الأصلية — إضافة إلى أي تكاليف أطراف ثالثة وضرائب ورسوم أخرى مشار إليها في البند 7.4. تُسدد رسوم التجديد قبل إعادة تفعيل الملف، ولا تنشئ أي حق في استرداد الرسوم المدفوعة سابقًا، ولا تُغيّر الخدمات المختارة أصلًا في الملحق أ ما لم يُصدر ملحق أ جديد.'],
-  ['8. LIMITATION OF LIABILITY',
-    '8.1 To the maximum extent permitted by law, the Company is not liable for indirect, consequential, special, exemplary or economic loss, including loss of profit, opportunity, employment, admission, travel, rent, business, reputation or anticipated savings. 8.2 The Company is not liable for acts or omissions of authorities, banks, couriers, translators, educational institutions, employers, agents or other third parties. 8.3 The Company\u2019s aggregate liability arising from the selected Services shall not exceed the professional Advisory Fees actually received by the Company for the specific affected service, less taxes, third-party charges and refunded amounts. 8.4 The limitations do not apply to liability that cannot lawfully be limited, including fraud or wilful misconduct where applicable. 8.5 No claim may be brought unless written notice with reasonable particulars is delivered within 30 days after the Client became aware, and in any event within the limitation period imposed by mandatory law.',
-    '8. تحديد المسؤولية',
-    '8.1 إلى أقصى حد يسمح به القانون، لا تتحمل الشركة مسؤولية الخسائر غير المباشرة أو التبعية أو الخاصة أو العقابية أو الاقتصادية، بما فيها خسارة الربح أو الفرصة أو الوظيفة أو القبول أو السفر أو الإيجار أو الأعمال أو السمعة أو الوفورات المتوقعة. 8.2 لا تتحمل الشركة مسؤولية أفعال أو امتناع الجهات أو البنوك أو شركات البريد أو المترجمين أو المؤسسات التعليمية أو أصحاب العمل أو الوكلاء أو الأطراف الثالثة. 8.3 لا تتجاوز المسؤولية الإجمالية للشركة الناشئة عن الخدمات المختارة قيمة رسوم الخدمات الاستشارية المهنية التي استلمتها فعليًا عن الخدمة المتأثرة تحديدًا، بعد خصم الضرائب ورسوم الأطراف الثالثة والمبالغ المستردة. 8.4 لا تسري القيود على المسؤولية التي لا يجوز قانونًا تقييدها، بما في ذلك الاحتيال أو سوء السلوك العمدي حيثما ينطبق. 8.5 لا تقبل أي مطالبة ما لم يوجه إشعار كتابي بتفاصيل معقولة خلال 30 يومًا من علم العميل، وفي جميع الأحوال خلال مدة التقادم الإلزامية قانونًا.'],
-  ['9. CLIENT INDEMNITY',
-    'The Client shall indemnify and hold harmless the Company, its owners, officers, employees, affiliates and representatives from third-party claims, penalties, losses and reasonable professional costs arising from the Client\u2019s false, incomplete or late information; forged or unlawful documents; breach of this Agreement; unauthorized conduct; infringement of third-party rights; or instructions that expose the Company to regulatory or legal action, except to the extent caused by the Company\u2019s fraud or wilful misconduct.',
-    '9. تعويض العميل',
-    'يلتزم العميل بتعويض الشركة ومالكيها ومسؤوليها وموظفيها وشركاتها التابعة وممثليها عن مطالبات الأطراف الثالثة والعقوبات والخسائر والتكاليف المهنية المعقولة الناشئة عن معلومات العميل الكاذبة أو الناقصة أو المتأخرة أو المستندات المزورة أو غير القانونية أو الإخلال بهذه الاتفاقية أو التصرف غير المصرح به أو انتهاك حقوق الغير أو التعليمات التي تعرض الشركة لإجراء تنظيمي أو قانوني، باستثناء القدر الناشئ عن احتيال الشركة أو سوء سلوكها العمدي.'],
-  ['10. DATA, RECORDINGS AND COMMUNICATIONS',
-    '10.1 The Client authorizes collection, verification, storage, processing and cross-border transfer of personal information reasonably required for the Services, compliance, quality control, fraud prevention and communication. 10.2 Information may be shared with affiliates, authorities, professional representatives, service providers and third parties involved in the selected program, subject to applicable law. 10.3 Calls, meetings and electronic communications may be recorded or retained for quality, evidence, training and compliance where lawful. 10.4 Email, CRM, portals, messaging applications and electronic signatures are valid communication and execution methods. 10.5 The Client must maintain current contact details and check communications regularly.',
-    '10. البيانات والتسجيلات والمراسلات',
-    '10.1 يفوض العميل الشركة بجمع المعلومات الشخصية والتحقق منها وتخزينها ومعالجتها ونقلها عبر الحدود بالقدر المعقول اللازم للخدمات والامتثال وضبط الجودة ومنع الاحتيال والتواصل. 10.2 يجوز مشاركة المعلومات مع الشركات التابعة والجهات والممثلين المهنيين ومقدمي الخدمات والأطراف الثالثة المشاركة في البرنامج المختار، مع مراعاة القانون واجب التطبيق. 10.3 يجوز تسجيل أو الاحتفاظ بالمكالمات والاجتماعات والمراسلات الإلكترونية لأغراض الجودة والإثبات والتدريب والامتثال حيث يسمح القانون. 10.4 تعد رسائل البريد ونظام إدارة علاقات العملاء والبوابات وتطبيقات المراسلة والتوقيع الإلكتروني وسائل صحيحة للتواصل والتنفيذ. 10.5 يجب على العميل تحديث بيانات الاتصال ومراجعة المراسلات بانتظام.'],
-  ['11. INTELLECTUAL PROPERTY AND USE RESTRICTIONS',
-    'The Company retains ownership of its templates, checklists, strategies, reports, methods, training materials, forms and internal know-how. The Client receives a limited personal licence to use final deliverables solely for the selected matter and shall not copy, publish, sell, reverse engineer or provide them to competitors or unrelated third parties, except to authorities or professional advisers for the selected matter.',
-    '11. الملكية الفكرية وقيود الاستخدام',
-    'تحتفظ الشركة بملكية قوالبها وقوائمها واستراتيجياتها وتقاريرها وأساليبها ومواد التدريب والنماذج والمعرفة الداخلية. ويمنح العميل ترخيصًا شخصيًا محدودًا لاستخدام المخرجات النهائية حصرًا للمعاملة المختارة، ولا يجوز نسخها أو نشرها أو بيعها أو تحليلها أو تقديمها للمنافسين أو لأطراف غير مرتبطة، باستثناء الجهات أو المستشارين المهنيين لأغراض المعاملة المختارة.'],
-  ['12. FORCE MAJEURE',
-    'The Company is not liable for delay or failure caused by events beyond reasonable control, including governmental action, policy change, war, civil disturbance, epidemic, natural disaster, labour disruption, cyberattack, telecommunications failure, platform outage, closure or third-party default. Deadlines and performance periods shall be extended reasonably, and the Company may adjust the delivery method or terminate impracticable Services without liability for unperformed external outcomes.',
-    '12. القوة القاهرة',
-    'لا تتحمل الشركة مسؤولية التأخير أو عدم التنفيذ الناشئ عن أحداث خارجة عن السيطرة المعقولة، ومنها إجراءات الحكومات وتغير السياسات والحرب والاضطرابات والأوبئة والكوارث وتعطل العمل والهجمات الإلكترونية وفشل الاتصالات وتعطل المنصات والإغلاق وإخفاق الأطراف الثالثة. وتمدد المدد بصورة معقولة، ويجوز للشركة تعديل طريقة التنفيذ أو إنهاء الخدمات المتعذر تنفيذها دون مسؤولية عن النتائج الخارجية غير المنجزة.'],
-  ['13. COMPLAINTS AND DISPUTE PROCESS',
-    '13.1 Before commencing proceedings, the Client must submit a detailed written complaint and allow the Company 30 days to investigate and propose a resolution. 13.2 The parties shall first attempt good-faith negotiation and, where mutually agreed, mediation. 13.3 Nothing prevents urgent interim relief or a complaint to a regulator where permitted. 13.4 The Client shall not publish knowingly false or misleading statements and the Company may protect its lawful rights and reputation.',
-    '13. الشكاوى وتسوية المنازعات',
-    '13.1 قبل بدء أي إجراء، يجب على العميل تقديم شكوى كتابية مفصلة ومنح الشركة 30 يومًا للتحقيق واقتراح الحل. 13.2 يحاول الطرفان أولاً التفاوض بحسن نية، وعند الاتفاق المتبادل، الوساطة. 13.3 لا يمنع ذلك طلب تدبير وقتي عاجل أو تقديم شكوى إلى جهة تنظيمية حيث يسمح القانون. 13.4 لا يجوز للعميل نشر بيانات يعلم أنها كاذبة أو مضللة، وللشركة حماية حقوقها وسمعتها المشروعة.'],
-  // Clause 14 is DIAC arbitration (Dubai International Arbitration Centre),
-  // governed by the laws of the Emirate of Dubai — not the shared
-  // template's court-jurisdiction clause.
-  ['14. GOVERNING LAW AND DISPUTE RESOLUTION',
-    'This Agreement is governed by the laws of the Emirate of Dubai and the applicable federal laws of the United Arab Emirates. Any dispute, controversy or claim arising out of or relating to this Agreement, including its formation, validity, interpretation, breach or termination, shall be referred to and finally resolved by arbitration administered by the Dubai International Arbitration Centre (DIAC) in accordance with the DIAC Arbitration Rules in force at the time the arbitration is commenced. The seat of arbitration shall be Dubai, UAE, the language of arbitration shall be English, and the tribunal shall consist of a sole arbitrator unless the parties agree otherwise. This arbitration agreement is exclusive, and the arbitral award shall be final and binding on the parties. Subject only to any mandatory consumer or regulatory jurisdiction that cannot lawfully be excluded, the parties waive any right to apply to any court for interim, protective or injunctive relief in connection with this Agreement, including before the arbitral tribunal is constituted. The English and Arabic texts are intended to correspond; if an inconsistency cannot be reconciled, the language given priority by mandatory local law shall prevail, otherwise the English text shall be used for contractual interpretation.',
-    '14. القانون واجب التطبيق وتسوية المنازعات',
-    'تخضع هذه الاتفاقية لقوانين إمارة دبي والقوانين الاتحادية واجبة التطبيق في دولة الإمارات العربية المتحدة. يحال أي نزاع أو خلاف أو مطالبة تنشأ عن هذه الاتفاقية أو تتعلق بها، بما في ذلك تكوينها أو صحتها أو تفسيرها أو الإخلال بها أو إنهاءها، إلى التحكيم النهائي الذي يديره مركز دبي الدولي للتحكيم (DIAC) وفقًا لقواعد التحكيم الخاصة به السارية وقت بدء إجراءات التحكيم، ويكون مقر التحكيم في دبي، الإمارات العربية المتحدة، ولغة التحكيم اللغة الإنجليزية، وتتشكل هيئة التحكيم من محكّم واحد ما لم يتفق الطرفان على خلاف ذلك. يكون اتفاق التحكيم هذا حصريًا، ويكون قرار التحكيم نهائيًا وملزمًا للطرفين. ومع مراعاة أي اختصاص إلزامي للمستهلك أو الجهات التنظيمية لا يجوز استبعاده قانونًا، يتنازل الطرفان عن أي حق في اللجوء إلى أي محكمة لطلب تدبير وقتي أو تحفظي أو تحوطي فيما يتعلق بهذه الاتفاقية، بما في ذلك قبل تشكيل هيئة التحكيم. يقصد أن يتطابق النصان الإنجليزي والعربي؛ وإذا تعذر التوفيق بينهما، تسود اللغة التي يمنحها القانون المحلي الإلزامي الأولوية، وإلا فيُستخدم النص الإنجليزي لتفسير العقد.'],
-  ['15. GENERAL PROVISIONS',
-    '15.1 This Agreement is the entire agreement and replaces prior discussions concerning the selected Services. 15.2 No oral amendment is effective; amendments may be made electronically in writing. 15.3 Invalid provisions shall be severed or narrowed to the minimum extent necessary, and the remainder remains effective. 15.4 Failure to enforce a right is not a waiver. 15.5 The Company may assign or subcontract operational obligations to an affiliate or qualified provider; the Client may not assign without written consent. 15.6 Clauses concerning fees, refunds, liability, indemnity, data, intellectual property, disputes and governing law survive termination. 15.7 The Client confirms understanding the commercial allocation of risk and voluntarily accepts these terms.',
-    '15. أحكام عامة',
-    '15.1 تمثل هذه الاتفاقية كامل الاتفاق وتحل محل المناقشات السابقة المتعلقة بالخدمات المختارة. 15.2 لا يكون أي تعديل شفهي نافذًا، ويجوز إجراء التعديلات كتابة بوسائل إلكترونية. 15.3 إذا بطل حكم يفصل أو يضيق بالحد الأدنى اللازم وتظل بقية الأحكام نافذة. 15.4 عدم إنفاذ حق لا يعد تنازلًا عنه. 15.5 يجوز للشركة إحالة أو إسناد الالتزامات التشغيلية إلى شركة تابعة أو مزود مؤهل، ولا يجوز للعميل الإحالة دون موافقة كتابية. 15.6 تظل أحكام الرسوم والاسترداد والمسؤولية والتعويض والبيانات والملكية الفكرية والمنازعات والقانون سارية بعد الإنهاء. 15.7 يقر العميل بفهم التوزيع التجاري للمخاطر وقبوله هذه الشروط طوعًا.'],
+// The 14 clauses, verbatim (English) from the signed PDF, in its own order/numbering.
+const clauses: Array<[string, string[], string, string[]]> = [
+  ['1. DEFINITIONS AND INTERPRETATION', [
+    '1.1 "CMG" means Commonwealth Migration Group, its officers, employees, agents, and authorised representatives.',
+    '1.2 "Client" means the individual named in this Agreement who has engaged CMG for migration consultancy services.',
+    '1.3 "Services" means only the immigration consultancy services specified in Annexure A.',
+    '1.4 "Retainer Fee" means the professional fees payable to CMG as detailed in Annexure A.',
+    '1.5 "Government / Authority Fees" means all fees payable to the Department of Home Affairs, Skills Assessment Authorities, or any government body. These are excluded from the Retainer Fee and are the Client’s sole responsibility.',
+  ], '1. التعريفات والتفسير', [
+    '1.1 تعني "CMG" مجموعة كومنولث للهجرة وموظفيها ومسؤوليها ووكلائها وممثليها المعتمدين.',
+    '1.2 يعني "العميل" الشخص المحدد اسمه في هذه الاتفاقية والذي استعان بـ CMG للحصول على خدمات استشارات الهجرة.',
+    '1.3 تعني "الخدمات" حصرًا خدمات استشارات الهجرة المحددة في الملحق أ.',
+    '1.4 تعني "رسوم الاحتجاز" الأتعاب المهنية المستحقة لـ CMG كما هو مفصل في الملحق أ.',
+    '1.5 تعني "رسوم الحكومة / الجهات المختصة" جميع الرسوم المستحقة لوزارة الشؤون الداخلية أو هيئات تقييم المهارات أو أي جهة حكومية. وهذه الرسوم مستثناة من رسوم الاحتجاز وتقع على عاتق العميل وحده.',
+  ]],
+  ['2. SCOPE OF SERVICES', [
+    '2.1 CMG agrees to provide only the Services specified in Annexure A. Services are strictly limited to migration consultancy and do not include legal representation or legal advice.',
+    '2.2 Any services beyond the scope of Annexure A require a separate written agreement and additional fees.',
+    '2.3 CMG may engage third-party agents or assessors to fulfil part of the Services. The Client consents to sharing their information with such third parties.',
+  ], '2. نطاق الخدمات', [
+    '2.1 توافق CMG على تقديم الخدمات المحددة في الملحق أ فقط. وتقتصر الخدمات حصرًا على الاستشارات المتعلقة بالهجرة ولا تشمل التمثيل القانوني أو المشورة القانونية.',
+    '2.2 أي خدمات تتجاوز نطاق الملحق أ تستلزم اتفاقية مكتوبة منفصلة ورسومًا إضافية.',
+    '2.3 يجوز لـ CMG الاستعانة بوكلاء أو مقيّمين من أطراف ثالثة لتنفيذ جزء من الخدمات، ويوافق العميل على مشاركة معلوماته مع هذه الأطراف الثالثة.',
+  ]],
+  ['3. NO GUARANTEE OF OUTCOME', [
+    '3.1 CMG DOES NOT GUARANTEE, REPRESENT, OR WARRANT THE SUCCESS, APPROVAL, OR POSITIVE OUTCOME OF ANY VISA APPLICATION, SKILLS ASSESSMENT, OR IMMIGRATION PROCESS.',
+    '3.2 All decisions are made solely by the relevant Authorities. CMG has no influence over Authority decisions and accepts no liability for them.',
+    '3.3 CMG is not liable for any changes in immigration laws, policies, occupation lists, invitation scores, or processing times.',
+    '3.4 An unsuccessful outcome does not entitle the Client to any refund except as stated in Clause 6.',
+    '3.5 No verbal or written representation made by any CMG employee outside this Agreement constitutes a guarantee of outcome. The Client agrees not to rely on any such representation.',
+  ], '3. عدم ضمان النتائج', [
+    '3.1 لا تضمن CMG ولا تقر ولا تكفل نجاح أو الموافقة على أو تحقيق نتيجة إيجابية لأي طلب تأشيرة أو تقييم مهارات أو إجراء هجرة.',
+    '3.2 تُتخذ جميع القرارات حصرًا من قبل الجهات المختصة ذات الصلة، ولا تملك CMG أي تأثير على قرارات هذه الجهات ولا تتحمل أي مسؤولية عنها.',
+    '3.3 لا تتحمل CMG مسؤولية أي تغييرات في قوانين أو سياسات الهجرة، أو قوائم المهن، أو درجات الدعوة، أو مدد المعالجة.',
+    '3.4 لا تخول النتيجة غير الناجحة العميل الحق في أي استرداد إلا وفق ما هو منصوص عليه في البند 6.',
+    '3.5 لا يشكل أي تصريح شفهي أو كتابي يصدر عن أي موظف لدى CMG خارج نطاق هذه الاتفاقية ضمانًا لأي نتيجة، ويوافق العميل على عدم الاعتماد على أي تصريح من هذا القبيل.',
+  ]],
+  ['4. CLIENT OBLIGATIONS AND REPRESENTATIONS', [
+    '4.1 The Client warrants that all information and documents provided to CMG are true, accurate, complete, and not misleading. The Client accepts full responsibility for the accuracy of all submissions.',
+    '4.2 The Client shall promptly provide all documents and information requested. Any delay by the Client that adversely affects the application is the Client’s sole responsibility.',
+    '4.3 The Client shall NOT contact any immigration authority directly without prior written approval from CMG during this Agreement.',
+    '4.4 The Client shall maintain respectful conduct with all CMG employees. Abusive or inappropriate conduct constitutes a material breach and may result in immediate termination without refund.',
+    '4.5 The Client shall not provide false, fraudulent, or forged documents. CMG has a duty to report fraudulent documents to the Authorities.',
+    '4.6 The Client shall not take actions — such as resigning from employment or making financial commitments — in anticipation of a visa grant. CMG accepts no liability for such actions.',
+  ], '4. التزامات العميل وإقراراته', [
+    '4.1 يقر العميل بأن جميع المعلومات والمستندات المقدمة إلى CMG صحيحة ودقيقة وكاملة وغير مضللة، ويتحمل العميل المسؤولية الكاملة عن دقة جميع المستندات المقدمة.',
+    '4.2 يجب على العميل تقديم جميع المستندات والمعلومات المطلوبة فور طلبها. وأي تأخر من جانب العميل يؤثر سلبًا على الطلب يقع على عاتقه وحده.',
+    '4.3 لا يجوز للعميل التواصل مع أي جهة هجرة مباشرة دون الحصول على موافقة كتابية مسبقة من CMG طوال مدة هذه الاتفاقية.',
+    '4.4 يلتزم العميل بالتعامل باحترام مع جميع موظفي CMG. ويُعد أي سلوك مسيء أو غير لائق إخلالًا جوهريًا قد يؤدي إلى إنهاء فوري للاتفاقية دون استرداد.',
+    '4.5 لا يجوز للعميل تقديم مستندات كاذبة أو احتيالية أو مزورة. وتلتزم CMG بالإبلاغ عن أي مستندات احتيالية إلى الجهات المختصة.',
+    '4.6 لا يجوز للعميل اتخاذ إجراءات — مثل الاستقالة من العمل أو الالتزام بتعهدات مالية — تحسبًا للحصول على تأشيرة. ولا تتحمل CMG أي مسؤولية عن مثل هذه الإجراءات.',
+  ]],
+  ['5. FEES AND PAYMENT', [
+    '5.1 The Client agrees to pay the Retainer Fee per the schedule in Annexure A.',
+    '5.2 All Government / Authority fees are entirely the Client’s responsibility and are not covered by this Agreement.',
+    '5.3 Non-payment of any instalment may result in immediate suspension or termination of Services without notice or refund.',
+    '5.4 CMG may withhold submission of any application until all outstanding fees are paid.',
+    '5.5 Any amount not paid within 7 days of its due date shall accrue interest at the rate of 1.5% per month (or the maximum rate permitted by UAE law, whichever is lower) from the due date until the date of actual payment.',
+    '5.6 In the event CMG engages legal counsel or a debt recovery agency to recover outstanding amounts, all associated costs — including legal fees, court fees, and collection charges — shall be borne entirely by the Client.',
+    '5.7 Any payment plan agreed verbally or in writing must be honoured in full. Failure to adhere to an agreed payment plan constitutes a material breach of this Agreement.',
+  ], '5. الرسوم والدفع', [
+    '5.1 يوافق العميل على سداد رسوم الاحتجاز وفق الجدول الزمني المحدد في الملحق أ.',
+    '5.2 تقع جميع رسوم الحكومة / الجهات المختصة على عاتق العميل وحده وهي غير مشمولة بهذه الاتفاقية.',
+    '5.3 قد يؤدي عدم سداد أي قسط إلى تعليق أو إنهاء فوري للخدمات دون إشعار أو استرداد.',
+    '5.4 يجوز لـ CMG تأجيل تقديم أي طلب إلى حين سداد جميع الرسوم المستحقة.',
+    '5.5 يستحق على أي مبلغ لم يُسدد خلال 7 أيام من تاريخ استحقاقه فائدة تأخيرية بمعدل 1.5% شهريًا (أو الحد الأقصى الذي يسمح به القانون الإماراتي، أيهما أدنى) من تاريخ الاستحقاق وحتى تاريخ السداد الفعلي.',
+    '5.6 في حال اضطرار CMG إلى الاستعانة بمستشار قانوني أو وكالة تحصيل ديون لاسترداد مبالغ مستحقة، تقع جميع التكاليف المرتبطة بذلك — بما في ذلك أتعاب المحاماة ورسوم المحكمة وتكاليف التحصيل — على عاتق العميل وحده.',
+    '5.7 يجب الوفاء الكامل بأي خطة سداد متفق عليها شفهيًا أو كتابيًا. ويُعد الإخفاق في الالتزام بخطة السداد المتفق عليها إخلالًا جوهريًا بهذه الاتفاقية.',
+  ]],
+  ['6. REFUND POLICY', [
+    '6.1 ALL FEES ARE STRICTLY NON-REFUNDABLE, except as expressly stated in this Clause.',
+    '6.2 Non-refundable in all circumstances: registration/administration fees; fees for work performed; instalment payments; fees where the application is refused by any Authority; fees on termination due to Client breach; fees on Client’s voluntary termination; fees where Client provides false documents; fees on Client misconduct.',
+    '6.3 A partial refund may be considered, at CMG’s sole discretion, only where CMG has been wholly unable to commence any services due to a reason solely attributable to CMG.',
+    '6.4 No refund applies in the event of Force Majeure or the death of any person.',
+    '6.5 The cooling-off period does not apply once any assessment or advice has been provided.',
+  ], '6. سياسة الاسترداد', [
+    '6.1 جميع الرسوم غير قابلة للاسترداد بصورة قاطعة، إلا وفق ما هو منصوص عليه صراحة في هذا البند.',
+    '6.2 غير قابل للاسترداد في جميع الأحوال: رسوم التسجيل/الإدارة؛ رسوم الأعمال المنجزة؛ دفعات الأقساط؛ الرسوم في حال رفض الطلب من قبل أي جهة مختصة؛ الرسوم عند الإنهاء بسبب إخلال العميل؛ الرسوم عند الإنهاء الطوعي من قبل العميل؛ الرسوم في حال تقديم العميل مستندات كاذبة؛ الرسوم في حال سوء سلوك العميل.',
+    '6.3 يجوز النظر في استرداد جزئي، وفق التقدير المطلق لـ CMG، فقط في حال عجز CMG الكامل عن بدء أي خدمات لسبب يعود بالكامل إلى CMG.',
+    '6.4 لا ينطبق أي استرداد في حالات القوة القاهرة أو وفاة أي شخص.',
+    '6.5 لا تسري فترة التراجع بعد تقديم أي تقييم أو مشورة.',
+  ]],
+  ['7. LIMITATION OF LIABILITY', [
+    '7.1 TO THE MAXIMUM EXTENT PERMITTED BY LAW, CMG SHALL NOT BE LIABLE FOR: any Authority decision; changes in law or policy; inaccurate information provided by the Client; Client’s delay in providing documents; Client’s unauthorised contact with Authorities; Client’s actions taken in anticipation of a visa; Force Majeure Events; or reliance on representations outside this Agreement.',
+    '7.2 CMG’s maximum aggregate liability shall not exceed the total Retainer Fee actually paid by the Client.',
+  ], '7. تحديد المسؤولية', [
+    '7.1 إلى أقصى حد يسمح به القانون، لا تتحمل CMG المسؤولية عن: أي قرار صادر عن جهة مختصة؛ التغييرات في القانون أو السياسة؛ المعلومات غير الدقيقة المقدمة من العميل؛ تأخر العميل في تقديم المستندات؛ تواصل العميل غير المصرح به مع الجهات المختصة؛ إجراءات العميل المتخذة تحسبًا للحصول على تأشيرة؛ أحداث القوة القاهرة؛ أو الاعتماد على تصريحات خارج نطاق هذه الاتفاقية.',
+    '7.2 لا تتجاوز المسؤولية الإجمالية القصوى لـ CMG إجمالي رسوم الاحتجاز التي سددها العميل فعليًا.',
+  ]],
+  ['8. CONFIDENTIALITY AND DATA PROTECTION', [
+    '8.1 Both parties agree to maintain the confidentiality of all information received under this Agreement. Confidential Information shall not be disclosed without prior written consent, except as required by law.',
+    '8.2 The Client consents to CMG sharing their personal information with third parties as necessary to provide the Services (e.g., skills assessment bodies, Department of Home Affairs, nomination authorities).',
+    '8.3 The Client releases CMG from all liability arising from electronic communications interception or delivery failure, provided CMG uses reasonable security measures.',
+    '8.4 CMG processes the Client’s personal data in accordance with UAE Federal Decree-Law No. 45 of 2021 on the Protection of Personal Data (PDPL) and any applicable regulations thereunder. The Client’s data is collected and processed solely for the purpose of providing the Services and fulfilling CMG’s regulatory and legal obligations.',
+    '8.5 The Client has the right to request access to, correction of, or deletion of their personal data, subject to CMG’s legal obligations to retain records. Such requests shall be made in writing to operations@cwmigrationgroup.ae.',
+    '8.6 CMG implements reasonable technical and organisational security measures to protect the Client’s personal data against unauthorised access, loss, or disclosure.',
+  ], '8. السرية وحماية البيانات', [
+    '8.1 يتفق الطرفان على الحفاظ على سرية جميع المعلومات المتلقاة بموجب هذه الاتفاقية. ولا يجوز الإفصاح عن المعلومات السرية دون موافقة كتابية مسبقة، إلا وفق ما يقتضيه القانون.',
+    '8.2 يوافق العميل على مشاركة CMG لمعلوماته الشخصية مع أطراف ثالثة بالقدر اللازم لتقديم الخدمات (مثل هيئات تقييم المهارات، ووزارة الشؤون الداخلية، وجهات الترشيح).',
+    '8.3 يُعفي العميل CMG من أي مسؤولية ناشئة عن اعتراض الاتصالات الإلكترونية أو فشل تسليمها، شريطة أن تتخذ CMG تدابير أمنية معقولة.',
+    '8.4 تعالج CMG بيانات العميل الشخصية وفقًا للمرسوم بقانون اتحادي رقم 45 لسنة 2021 بشأن حماية البيانات الشخصية (PDPL) وأي لوائح تنفيذية سارية بموجبه. ويتم جمع بيانات العميل ومعالجتها حصرًا لغرض تقديم الخدمات والوفاء بالتزامات CMG التنظيمية والقانونية.',
+    '8.5 يحق للعميل طلب الاطلاع على بياناته الشخصية أو تصحيحها أو حذفها، مع مراعاة التزامات CMG القانونية بالاحتفاظ بالسجلات. وتُقدَّم هذه الطلبات كتابةً إلى operations@cwmigrationgroup.ae.',
+    '8.6 تطبق CMG تدابير أمنية تقنية وتنظيمية معقولة لحماية بيانات العميل الشخصية من الوصول غير المصرح به أو الفقدان أو الإفصاح.',
+  ]],
+  ['9. INDEMNIFICATION', [
+    '9.1 The Client shall indemnify, defend, and hold harmless CMG, its officers, employees, agents, and authorised representatives (collectively "Indemnified Parties") from and against any and all claims, demands, losses, damages, liabilities, costs, and expenses (including reasonable legal fees) arising out of or in connection with: (a) any false, misleading, incomplete, or fraudulent information or documents provided by the Client to CMG or any Authority; (b) any breach by the Client of this Agreement; (c) any action taken by the Client in anticipation of a visa grant, skills assessment outcome, or other immigration result; (d) any unauthorised direct contact by the Client with any immigration authority, government body, or third party in connection with the Services; (e) any complaint, claim, or report filed by the Client with any regulatory authority, licensing body, or government agency that results in any investigation, suspension, cancellation, or restriction of CMG’s MARA registration, business licence, or operational capacity.',
+    '9.2 Without limiting Clause 9.1(e), if any action or complaint by the Client — whether filed directly or facilitated through a third party — results in the suspension, cancellation, or restriction of CMG’s MARA registration or any operating licence, the Client shall be liable to CMG for all direct and consequential losses during the period of suspension or restriction, including but not limited to: (a) lost revenue and loss of business opportunities; (b) costs of legal representation in any regulatory proceedings; (c) reputational and operational rehabilitation costs.',
+    '9.3 This indemnification obligation shall survive the termination or expiry of this Agreement.',
+    '9.4 CMG shall notify the Client promptly upon becoming aware of any claim or potential claim to which this Clause applies, and the Client shall cooperate fully with CMG in the defence of any such claim.',
+  ], '9. التعويض', [
+    '9.1 يلتزم العميل بتعويض CMG ومسؤوليها وموظفيها ووكلائها وممثليها المعتمدين ("الأطراف المُعوَّضة") والدفاع عنهم وإبراء ذمتهم من وضد جميع المطالبات والطلبات والخسائر والأضرار والمسؤوليات والتكاليف والمصاريف (بما في ذلك أتعاب المحاماة المعقولة) الناشئة عن أو المرتبطة بـ: (أ) أي معلومات أو مستندات كاذبة أو مضللة أو ناقصة أو احتيالية يقدمها العميل إلى CMG أو أي جهة مختصة؛ (ب) أي إخلال من العميل بهذه الاتفاقية؛ (ج) أي إجراء يتخذه العميل تحسبًا للحصول على تأشيرة، أو نتيجة تقييم مهارات، أو أي نتيجة هجرة أخرى؛ (د) أي تواصل مباشر غير مصرح به من العميل مع أي جهة هجرة أو جهة حكومية أو طرف ثالث فيما يتعلق بالخدمات؛ (هـ) أي شكوى أو مطالبة أو بلاغ يقدمه العميل إلى أي جهة تنظيمية أو هيئة ترخيص أو جهة حكومية يؤدي إلى أي تحقيق أو تعليق أو إلغاء أو تقييد لتسجيل CMG لدى MARA أو رخصتها التجارية أو قدرتها التشغيلية.',
+    '9.2 دون الإخلال بعمومية البند 9.1(هـ)، إذا أدى أي إجراء أو شكوى من العميل — سواء قُدمت مباشرة أو من خلال طرف ثالث — إلى تعليق أو إلغاء أو تقييد تسجيل CMG لدى MARA أو أي رخصة تشغيلية، يكون العميل مسؤولًا تجاه CMG عن جميع الخسائر المباشرة والتبعية خلال فترة التعليق أو التقييد، بما في ذلك على سبيل المثال لا الحصر: (أ) الإيرادات المفقودة وفرص الأعمال الضائعة؛ (ب) تكاليف التمثيل القانوني في أي إجراءات تنظيمية؛ (ج) تكاليف إعادة التأهيل السمعي والتشغيلي.',
+    '9.3 يظل التزام التعويض هذا ساريًا بعد إنهاء هذه الاتفاقية أو انقضائها.',
+    '9.4 تُخطر CMG العميل فور علمها بأي مطالبة أو مطالبة محتملة تنطبق عليها أحكام هذا البند، ويتعاون العميل تعاونًا كاملًا مع CMG في الدفاع عن أي مطالبة من هذا القبيل.',
+  ]],
+  ['10. TERM AND TERMINATION', [
+    '10.1 This Agreement commences on the date of signing and remains in force until Services are completed or until terminated.',
+    '10.2 Either party may terminate with 15 days’ written notice by email.',
+    '10.3 CMG may terminate immediately without notice for: non-payment; provision of false documents; material breach; Client misconduct; or engaging another agent without consent.',
+    '10.4 Upon termination: all CMG obligations cease; no refund is due except per Clause 6; the Client remains liable for outstanding fees.',
+    '10.5 This Agreement expires automatically after 12 months unless extended in writing.',
+  ], '10. مدة الاتفاقية وإنهاؤها', [
+    '10.1 تسري هذه الاتفاقية اعتبارًا من تاريخ التوقيع وتظل نافذة حتى إتمام الخدمات أو حتى إنهائها.',
+    '10.2 يحق لأي من الطرفين إنهاء الاتفاقية بإشعار كتابي مدته 15 يومًا عبر البريد الإلكتروني.',
+    '10.3 يحق لـ CMG إنهاء الاتفاقية فورًا ودون إشعار في الحالات التالية: عدم السداد؛ تقديم مستندات مزورة؛ الإخلال الجوهري؛ سوء سلوك العميل؛ أو الاستعانة بوكيل آخر دون موافقة.',
+    '10.4 عند الإنهاء: تنتهي جميع التزامات CMG؛ ولا يستحق أي استرداد إلا وفق البند 6؛ ويظل العميل مسؤولًا عن أي رسوم مستحقة.',
+    '10.5 تنتهي هذه الاتفاقية تلقائيًا بعد 12 شهرًا ما لم يتم تمديدها كتابيًا.',
+  ]],
+  ['11. SOCIAL MEDIA, REVIEWS, AND DEFAMATION', [
+    '11.1 The Client acknowledges that freedom of expression does not extend to the publication of false, defamatory, misleading, or malicious content. The Client agrees not to publish or cause to be published, on any platform (including but not limited to Google, social media, review sites, or messaging applications), any content about CMG or its employees that is: (a) factually false or misleading; (b) defamatory or injurious to CMG’s reputation; (c) malicious, abusive, or designed to harass or intimidate; or (d) calculated to cause commercial harm to CMG without factual basis.',
+    '11.2 Legitimate grievances shall be addressed exclusively through the dispute resolution mechanism set out in Clause 13. The Client agrees to exhaust the dispute resolution process before making any public statement about CMG in connection with a dispute arising from this Agreement.',
+    '11.3 CMG reserves the right to seek injunctive relief, damages, and all available remedies under UAE Federal Law No. 34 of 2021 on Combating Rumours and Cybercrime, UAE Federal Decree-Law No. 31 of 2021 (Penal Code), and applicable defamation laws in any relevant jurisdiction (including Australian law) for any breach of this Clause.',
+    '11.4 Nothing in this Clause prevents the Client from making truthful, factual, and non-malicious statements about their experience with CMG in good faith, provided such statements are not designed to cause harm and the Client has first followed the dispute resolution process under Clause 13.',
+  ], '11. وسائل التواصل الاجتماعي والمراجعات والتشهير', [
+    '11.1 يقر العميل بأن حرية التعبير لا تمتد لتشمل نشر محتوى كاذب أو تشهيري أو مضلل أو كيدي. ويوافق العميل على عدم نشر أو التسبب في نشر أي محتوى عن CMG أو موظفيها، على أي منصة (بما في ذلك على سبيل المثال لا الحصر جوجل، ووسائل التواصل الاجتماعي، ومواقع المراجعات، وتطبيقات المراسلة)، يكون: (أ) كاذبًا أو مضللًا من الناحية الواقعية؛ (ب) تشهيريًا أو مسيئًا لسمعة CMG؛ (ج) كيديًا أو مسيئًا أو مصممًا للتحرش أو التخويف؛ أو (د) يهدف إلى إلحاق ضرر تجاري بـ CMG دون أساس واقعي.',
+    '11.2 تُعالَج الشكاوى المشروعة حصرًا من خلال آلية تسوية المنازعات المنصوص عليها في البند 13. ويوافق العميل على استنفاد إجراءات تسوية المنازعات قبل الإدلاء بأي تصريح علني بشأن CMG فيما يتعلق بأي نزاع ناشئ عن هذه الاتفاقية.',
+    '11.3 تحتفظ CMG بحقها في طلب الإنصاف القضائي العاجل والتعويضات وجميع سبل الانتصاف المتاحة بموجب القانون الاتحادي رقم 34 لسنة 2021 بشأن مكافحة الشائعات والجرائم الإلكترونية، والمرسوم بقانون اتحادي رقم 31 لسنة 2021 (قانون العقوبات)، وقوانين التشهير المعمول بها في أي اختصاص قضائي ذي صلة (بما في ذلك القانون الأسترالي) عن أي إخلال بهذا البند.',
+    '11.4 لا يحول هذا البند دون قيام العميل بالإدلاء بتصريحات صادقة وواقعية وغير كيدية عن تجربته مع CMG بحسن نية، شريطة ألا تهدف هذه التصريحات إلى التسبب في ضرر وأن يكون العميل قد اتبع أولًا إجراءات تسوية المنازعات المنصوص عليها في البند 13.',
+  ]],
+  ['12. FORCE MAJEURE', [
+    '12.1 Neither party is liable for failure to perform obligations caused by events beyond their reasonable control, including acts of God, war, government restrictions, pandemics, or infrastructure failures ("Force Majeure Event").',
+    '12.2 If a Force Majeure Event continues for more than 90 days, either party may terminate this Agreement. No refund applies in Force Majeure circumstances.',
+  ], '12. القوة القاهرة', [
+    '12.1 لا يتحمل أي من الطرفين مسؤولية الإخفاق في الوفاء بالتزاماته الناتج عن أحداث خارجة عن إرادته المعقولة، بما في ذلك الكوارث الطبيعية، والحروب، والقيود الحكومية، والأوبئة، أو أعطال البنية التحتية ("حدث القوة القاهرة").',
+    '12.2 إذا استمر حدث القوة القاهرة لأكثر من 90 يومًا، يحق لأي من الطرفين إنهاء هذه الاتفاقية. ولا ينطبق أي استرداد في ظروف القوة القاهرة.',
+  ]],
+  ['13. GOVERNING LAW AND DISPUTE RESOLUTION', [
+    '13.1 This Agreement is governed by the laws of the United Arab Emirates, specifically the laws applicable in the Emirate of Dubai.',
+    '13.2 Disputes shall first be addressed through good-faith negotiations within 21 days of written notice.',
+    '13.3 Unresolved disputes shall be referred to arbitration under the Dubai International Arbitration Centre (DIAC) Rules, with the seat of arbitration in Dubai. The arbitral award shall be final and binding.',
+    '13.4 CMG reserves the right to seek urgent injunctive relief from any competent court.',
+  ], '13. القانون الحاكم وتسوية المنازعات', [
+    '13.1 تخضع هذه الاتفاقية لقوانين دولة الإمارات العربية المتحدة، وتحديدًا القوانين السارية في إمارة دبي.',
+    '13.2 تُعالَج المنازعات أولًا من خلال مفاوضات بحسن نية خلال 21 يومًا من تاريخ الإشعار الكتابي.',
+    '13.3 تُحال المنازعات غير المحلولة إلى التحكيم وفقًا لقواعد مركز دبي الدولي للتحكيم (DIAC)، على أن يكون مقر التحكيم في دبي. ويكون قرار التحكيم نهائيًا وملزمًا للطرفين.',
+    '13.4 تحتفظ CMG بحقها في طلب الإنصاف القضائي العاجل من أي محكمة مختصة.',
+  ]],
+  ['14. GENERAL PROVISIONS', [
+    '14.1 Entire Agreement: This Agreement supersedes all prior representations, negotiations, and commitments, whether oral or written.',
+    '14.2 Amendments: Amendments require a written instrument signed by both parties.',
+    '14.3 Severability: If any provision is found invalid, the remaining provisions continue in force.',
+    '14.4 By signing this Agreement, the Client confirms they have read, understood, and agree to be bound by all terms and conditions.',
+  ], '14. أحكام عامة', [
+    '14.1 الاتفاقية الكاملة: تحل هذه الاتفاقية محل جميع التصريحات والمفاوضات والالتزامات السابقة، سواء كانت شفهية أو كتابية.',
+    '14.2 التعديلات: تستلزم أي تعديلات وثيقة كتابية موقعة من الطرفين.',
+    '14.3 قابلية الفصل: إذا تبين بطلان أي حكم من أحكام هذه الاتفاقية، تظل الأحكام المتبقية سارية المفعول.',
+    '14.4 بتوقيع هذه الاتفاقية، يقر العميل بأنه قرأ وفهم جميع الشروط والأحكام ويوافق على الالتزام بها.',
+  ]],
 ];
 
 const textOrBlank = (value: unknown, fallback = '________________') => {
@@ -141,509 +233,292 @@ const textOrBlank = (value: unknown, fallback = '________________') => {
   return result || fallback;
 };
 
-const box = (
-  englishTitle: string,
-  english: string,
-  arabicTitle: string,
-  arabic: string,
-  className = '',
-) => `<section class="agreement-box ${className}">
-  <div class="language english" lang="en">
-    ${englishTitle ? `<h2>${esc(englishTitle)}</h2>` : ''}
-    <p>${esc(english)}</p>
-  </div>
-  <div class="language arabic" dir="rtl" lang="ar">
-    ${arabicTitle ? `<h2>${esc(arabicTitle)}</h2>` : ''}
-    <p>${esc(arabic)}</p>
-  </div>
-</section>`;
+// ── Bilingual section header bar (dark navy, EN left / AR right) ──────────
+const sectionHeader = (englishTitle: string, arabicTitle: string) => `<div class="cmg-section-header">
+  <span class="en">${esc(englishTitle)}</span>
+  <span class="ar" dir="rtl" lang="ar">${esc(arabicTitle)}</span>
+</div>`;
 
-const feeTitle = () => `<section class="agreement-box fee-title" aria-label="Fee summary">
-  <div class="language english"><h2>FEE SUMMARY</h2></div>
-  <div class="language arabic" dir="rtl" lang="ar"><h2>ملخص الرسوم</h2></div>
-</section>`;
+// ── One striped label:value row, EN left cell / AR right cell ─────────────
+const row = (labelEn: string, value: string, labelAr: string, arValue?: string) => `<div class="cmg-row">
+  <div class="en"><strong>${esc(labelEn)}:</strong> ${esc(value)}</div>
+  <div class="ar" dir="rtl" lang="ar"><strong>${esc(labelAr)}:</strong> ${esc(arValue ?? value)}</div>
+</div>`;
 
-const bilingualHeader = () => `<header class="agreement-header">
-  <div class="header-column header-english">
-    <div class="company-name">${esc(COMPANY.nameEn.toUpperCase())}</div>
-    <div>${esc(COMPANY.regulatoryEn)}</div>
-    <div>Address: ${esc(COMPANY.addressEn)}</div>
-    <div class="agreement-name">AGREEMENT FOR ADVISORY SERVICES — UNIFIED TERMS (ALL SERVICE PROGRAMS)</div>
-  </div>
-  <div class="header-column header-arabic" dir="rtl" lang="ar">
-    <div class="company-name">${esc(COMPANY.nameAr)}</div>
-    <div>${esc(COMPANY.regulatoryAr)}</div>
-    <div>العنوان: ${esc(COMPANY.addressAr)}</div>
-    <div class="agreement-name">اتفاقية الخدمات الاستشارية — شروط موحدة لجميع برامج الخدمات</div>
-  </div>
-</header>`;
+// ── A section: header bar + its striped rows, kept together ───────────────
+const section = (englishTitle: string, arabicTitle: string, rows: string) =>
+  `<section class="cmg-block">${sectionHeader(englishTitle, arabicTitle)}<div class="cmg-rows">${rows}</div></section>`;
 
-const getAgreementDetails = (v: DubaiAgreementValues) => {
-  const paymentMilestonesEn = `Initial payment ${textOrBlank(v.initialPayment, '________')} upon signing; second payment ${textOrBlank(v.secondPayment, '________')} per Annexure A.`;
-  const paymentMilestonesAr = `الدفعة الأولى ${textOrBlank(v.initialPayment, '________')} عند التوقيع؛ الدفعة الثانية ${textOrBlank(v.secondPayment, '________')} وفق الملحق أ.`;
-  return {
-    agreementNumber: textOrBlank(v.agreementNumber),
-    agreementDate: textOrBlank(v.agreementDate),
-    agreementExpiry: textOrBlank(v.agreementExpiry),
-    serviceProgram: textOrBlank(v.serviceProgram),
-    programCode: textOrBlank(v.programCode),
-    programTermSchedule: textOrBlank(v.programTermSchedule, '6 / 12 / 18 months'),
-    destinationCountry: textOrBlank(v.destinationCountry),
-    clientName: textOrBlank(v.clientName),
-    clientEmail: textOrBlank(v.clientEmail),
-    clientPhone: textOrBlank(v.clientPhone),
-    nationality: textOrBlank(v.nationality),
-    passportNumber: textOrBlank(v.passportNumber),
-    idNumber: textOrBlank(v.idNumber),
-    clientId: textOrBlank(v.clientId),
-    totalAmount: textOrBlank(v.totalAmount),
-    initialPayment: textOrBlank(v.initialPayment),
-    secondPayment: textOrBlank(v.secondPayment),
-    includedDeliverables: textOrBlank(v.includedDeliverables),
-    expressExclusions: textOrBlank(v.expressExclusions),
-    specialTerms: textOrBlank(v.specialTerms),
-    currencyCode: v.currencyCode || COMPANY.currencyCode,
-    paymentMilestonesEn,
-    paymentMilestonesAr,
-  };
+// ── One clause: header bar + one striped row per sub-clause sentence ──────
+const clauseSection = (englishTitle: string, english: string[], arabicTitle: string, arabic: string[]) => {
+  const rows = english.map((en, i) => `<div class="cmg-row">
+    <div class="en">${esc(en)}</div>
+    <div class="ar" dir="rtl" lang="ar">${esc(arabic[i] ?? '')}</div>
+  </div>`).join('');
+  return `<section class="cmg-block cmg-clause">${sectionHeader(englishTitle, arabicTitle)}<div class="cmg-rows">${rows}</div></section>`;
 };
 
-export function renderDubaiAgreement(v: DubaiAgreementValues): string {
-  const d = getAgreementDetails(v);
+const paragraph = (englishTitle: string, english: string, arabicTitle: string, arabic: string) =>
+  `<section class="cmg-block cmg-clause">${sectionHeader(englishTitle, arabicTitle)}<div class="cmg-rows"><div class="cmg-row"><div class="en">${esc(english)}</div><div class="ar" dir="rtl" lang="ar">${esc(arabic)}</div></div></div></section>`;
 
-  const clauseHtml = clauses.map(([englishTitle, english, arabicTitle, arabic]) =>
-    box(englishTitle, english, arabicTitle, arabic, 'clause')).join('');
+export function renderDubaiAgreement(v: DubaiAgreementValues): string {
+  const currencyCode = v.currencyCode || COMPANY.currencyCode;
+  const agreementNumber = textOrBlank(v.agreementNumber);
+  const agreementDate = textOrBlank(v.agreementDate);
+  const clientName = textOrBlank(v.clientName);
+  const nationality = textOrBlank(v.nationality);
+  const passportNumber = textOrBlank(v.passportNumber);
+  const clientPhone = textOrBlank(v.clientPhone);
+  const clientEmail = textOrBlank(v.clientEmail);
+  const occupation = textOrBlank(v.occupation, 'N/A');
+  const serviceProgram = textOrBlank(v.serviceProgram);
+  const destinationCountry = textOrBlank(v.destinationCountry);
+  const visaSubclass = textOrBlank(v.visaSubclass, 'To be confirmed based on the applicable occupation/points assessment');
+  const totalAmount = textOrBlank(v.totalAmount);
+  const initialPayment = textOrBlank(v.initialPayment);
+  const secondPayment = textOrBlank(v.secondPayment);
+  const secondPaymentDue = textOrBlank(v.secondPaymentDue, 'As per Annexure A');
+  const includedDeliverables = textOrBlank(v.includedDeliverables, 'As selected for the Service Program above');
+  const expressExclusions = textOrBlank(v.expressExclusions, 'Legal representation; services not listed above');
+  const specialTerms = textOrBlank(v.specialTerms, 'None');
+
+  const clauseHtml = clauses.map(([enTitle, enBody, arTitle, arBody]) =>
+    clauseSection(enTitle, enBody, arTitle, arBody)).join('');
 
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <title>Agreement for Advisory Services ${esc(d.agreementNumber)}</title>
+  <title>Client Service Agreement ${esc(agreementNumber)}</title>
   <style>
-    @page {
-      size: Letter;
-      margin: 9mm 6mm 13mm;
-    }
-
-    :root {
-      --ink: #111111;
-      --border: #4b5563;
-      --english-bg: #ffffff;
-      --arabic-bg: #ffffff;
-      --heading-en: #111111;
-      --heading-ar: #111111;
-      --accent-en: #111111;
-      --accent-ar: #111111;
-      --important: #111111;
-      --page-width: 8.5in;
-    }
-
+    @page { size: A4; margin: 10mm 8mm 14mm; }
     * { box-sizing: border-box; }
-
+    :root {
+      --navy: #0f2a4a;
+      --navy-dark: #0a1e38;
+      --border: #9fb0c8;
+      --stripe: #eaf0f9;
+      --red: #c1272d;
+    }
     html, body {
-      margin: 0;
-      padding: 0;
-      background: #ffffff;
-      color: var(--ink);
+      margin: 0; padding: 0;
+      background: #fff;
+      color: #14213d;
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 10.35px;
-      line-height: 1.35;
+      font-size: 10.5px;
+      line-height: 1.4;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
+    .document { width: 100%; max-width: 8.27in; margin: 0 auto; }
 
-    .document {
-      width: 100%;
-      max-width: var(--page-width);
-      margin: 0 auto;
-      padding: 0;
-    }
-
-    /* ── header ── */
-    .agreement-header {
+    /* ── letterhead ── */
+    .letterhead {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      border: 1.5px solid var(--border);
-      border-radius: 0;
-      overflow: hidden;
-      margin: 0 0 10px;
-      break-inside: avoid;
-      page-break-inside: avoid;
+      border-bottom: 3px solid var(--navy);
+      padding-bottom: 8px;
+      margin-bottom: 6px;
     }
+    .letterhead .en, .letterhead .ar { padding: 0 6px; }
+    .letterhead .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; }
+    .letterhead .company-name { font-size: 15px; font-weight: 800; color: var(--navy); }
+    .letterhead .trading-as { font-size: 9.5px; color: #445; margin-top: 1px; }
+    .letterhead .addr { font-size: 9px; color: #556; margin-top: 3px; }
 
-    .header-column {
-      min-width: 0;
-      padding: 10px 12px;
-    }
-
-    .header-english {
-      background: #ffffff;
-      border-right: 1.5px solid var(--border);
-      text-align: left;
-    }
-
-    .header-arabic {
-      background: #ffffff;
-      text-align: right;
-      font-family: Tahoma, Arial, sans-serif;
-      font-size: 10.7px;
-      line-height: 1.5;
-    }
-
-    .header-column > div {
-      margin: 0 0 3px;
-    }
-
-    .company-name {
-      font-weight: 700;
-      font-size: 12px;
-    }
-
-    .agreement-name {
-      margin-top: 6px !important;
-      font-weight: 700;
-      text-transform: uppercase;
-      font-size: 10.5px;
-      letter-spacing: .3px;
-    }
-
-    .contact-line {
-      white-space: pre-line;
-    }
-
-    /* ── generic bilingual boxes ── */
-    .agreement-box {
+    .title-bar {
+      background: var(--navy);
+      color: #fff;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      border: 1.5px solid var(--border);
-      border-radius: 0;
-      overflow: hidden;
-      margin: 0 0 8px;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-
-    .language {
-      min-width: 0;
-      padding: 9px 11px;
-    }
-
-    .language.english {
-      background: var(--english-bg);
-      border-right: 1.5px solid var(--border);
-      text-align: left;
-    }
-
-    .language.arabic {
-      background: var(--arabic-bg);
-      text-align: right;
-      font-family: Tahoma, Arial, sans-serif;
-      font-size: 10.6px;
-      line-height: 1.55;
-    }
-
-    .language h2 {
-      margin: 0 0 5px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: .3px;
-    }
-
-    .language.english h2 { color: var(--heading-en); }
-    .language.arabic h2 { color: var(--heading-ar); }
-
-    .fee-title .language {
-      padding: 7px 11px;
-    }
-
-    .fee-title .language h2 {
-      margin: 0;
-    }
-
-    .fee-content {
-      margin-bottom: 12px;
-    }
-
-    .fee-content .english p,
-    .fee-content .arabic p {
-      font-size: 10.9px;
-      line-height: 1.4;
-    }
-
-    .fee-content .important,
-    .fee-content .renewal-fee {
-      font-weight: 700;
-    }
-
-    .fee-content .important { color: var(--important); }
-    .fee-content .renewal-fee { color: var(--accent-en); }
-    .fee-content .arabic .renewal-fee { color: var(--accent-ar); }
-
-    .fee-summary-group {
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-
-    .clause {
+      padding: 7px 10px;
       margin-bottom: 8px;
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: .3px;
     }
+    .title-bar .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; }
 
-    .annexure-title-pair {
+    /* ── generic bilingual block ── */
+    .cmg-block { border: 1px solid var(--border); margin-bottom: 7px; break-inside: avoid; page-break-inside: avoid; }
+    .cmg-section-header {
+      background: var(--navy);
+      color: #fff;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      margin-top: 12px;
-      border: 1.5px solid var(--border);
-      border-radius: 0;
-      overflow: hidden;
+      padding: 5px 10px;
+      font-weight: 700;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .2px;
     }
+    .cmg-section-header .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; text-transform: none; }
+    .cmg-rows > .cmg-row:nth-child(odd) { background: var(--stripe); }
+    .cmg-row { display: grid; grid-template-columns: 1fr 1fr; }
+    .cmg-row .en, .cmg-row .ar { padding: 5px 10px; }
+    .cmg-row .en { border-right: 1px solid var(--border); }
+    .cmg-row .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; font-size: 10.3px; line-height: 1.6; }
+    .cmg-clause .cmg-row .en, .cmg-clause .cmg-row .ar { padding: 6px 10px; }
+
+    .important-note {
+      border: 1.5px solid var(--red);
+      background: #fdecec;
+      color: var(--red);
+      font-weight: 700;
+      padding: 6px 10px;
+      margin-bottom: 8px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      font-size: 10px;
+    }
+    .important-note .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; }
+
+    .preamble p { margin: 0 0 6px; }
+    .preamble p:last-child { margin-bottom: 0; }
 
     .annexure-title {
-      padding: 8px 11px;
-      font-size: 11px;
-      font-weight: 700;
+      background: #e5e7eb;
+      border: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 7px 10px;
+      font-weight: 800;
+      font-size: 11.5px;
       text-transform: uppercase;
-      letter-spacing: .4px;
-      color: #111111;
+      margin: 10px 0 7px;
     }
+    .annexure-title .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; text-transform: none; }
 
-    .annexure-title-pair > div:first-child {
-      background: #e5e7eb;
-      border-right: 1.5px solid var(--border);
-    }
-
-    .annexure-title-pair > div:last-child {
-      background: #e5e7eb;
-      text-align: right;
-      font-family: Tahoma, Arial, sans-serif;
-      text-transform: none;
-      letter-spacing: 0;
-    }
-
-    .signature .language {
-      min-height: 130px;
-    }
-
-    .signature p {
-      line-height: 1.7;
-    }
-
-    .language p {
-      margin: 0;
-      white-space: pre-line;
-    }
+    .signature-block { margin-top: 8px; }
+    .signature-block .cmg-row .en, .signature-block .cmg-row .ar { padding: 10px; min-height: 46px; }
 
     .print-footer {
       position: fixed;
-      left: 6mm;
-      right: 6mm;
-      bottom: 4mm;
-      display: flex;
-      justify-content: center;
-      color: #444;
-      font-size: 8.4px;
-      line-height: 1;
-      text-align: center;
-      white-space: nowrap;
+      left: 8mm; right: 8mm; bottom: 4mm;
+      display: flex; justify-content: space-between;
+      color: #667; font-size: 8px;
     }
-
-    .page-number::after {
-      content: counter(page);
-    }
+    .page-number::after { content: counter(page); }
 
     @media screen {
-      body {
-        background: #eef0f3;
-        padding: 14px 0;
-      }
-
-      .document {
-        background: #fff;
-        min-height: 11in;
-        padding: 9mm 6mm 13mm;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, .1);
-      }
-
-      .print-footer {
-        position: static;
-        margin-top: 11px;
-      }
+      body { background: #eef0f3; padding: 14px 0; }
+      .document { background: #fff; padding: 10mm 8mm 14mm; box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+      .print-footer { position: static; margin-top: 10px; }
     }
-
-    @media print {
-      .document { padding: 0; }
-      .print-footer { position: fixed; }
-    }
-
+    @media print { .document { padding: 0; } .print-footer { position: fixed; } }
     @media (max-width: 700px) {
       html, body { font-size: 11px; }
-      .document { width: 100%; }
-      .agreement-header,
-      .agreement-box,
-      .annexure-title-pair {
+      .letterhead, .title-bar, .cmg-section-header, .cmg-row, .important-note, .annexure-title {
         grid-template-columns: 1fr;
       }
-      .header-english,
-      .english,
-      .annexure-title-pair > div:first-child {
-        border-right: 0;
-        border-bottom: 1.5px solid var(--border);
-      }
-      .contact-line { white-space: normal; }
-      .print-footer { white-space: normal; }
+      .letterhead .en, .title-bar .en, .cmg-row .en { border-right: 0; border-bottom: 1px solid var(--border); }
     }
   </style>
 </head>
 <body>
   <main class="document">
-    ${bilingualHeader()}
-
-    ${box(
-      'AGREEMENT DETAILS',
-      `Agreement No.: ${d.agreementNumber}
-Date: ${d.agreementDate}
-Agreement Expiry: ${d.agreementExpiry}
-Service Program / CRM Selection: ${d.serviceProgram}
-Program Code / Service Term (see Program Term Schedule): ${d.programCode}
-Destination Country: ${d.destinationCountry}
-The Client's details, program, scope, fees and milestones may be populated dynamically from the Company's CRM and incorporated into Annexure A.`,
-      'تفاصيل الاتفاقية',
-      `رقم الاتفاقية: ${d.agreementNumber}
-التاريخ: ${d.agreementDate}
-تاريخ انتهاء الاتفاقية: ${d.agreementExpiry}
-برنامج الخدمة / اختيار النظام: ${d.serviceProgram}
-رمز البرنامج / مدة الخدمة (وفق جدول مدد البرامج): ${d.programCode}
-دولة المقصد: ${d.destinationCountry}
-يجوز إدخال بيانات العميل والبرنامج والنطاق والرسوم ومراحل الدفع بصورة ديناميكية من نظام إدارة علاقات العملاء وإدراجها في الملحق أ.`,
-    )}
-
-    ${box(
-      'SERVICE PROVIDER',
-      [
-        `${COMPANY.nameEn}`,
-        COMPANY.regulatoryEn,
-        `Address: ${COMPANY.addressEn}`,
-        '',
-        'CLIENT DETAILS',
-        `Full Name: ${d.clientName}`,
-        `Nationality: ${d.nationality}`,
-        `Passport No.: ${d.passportNumber}`,
-        `${COMPANY.idLabelEn}: ${d.idNumber}`,
-        `Phone: ${d.clientPhone}`,
-        `Email: ${d.clientEmail}`,
-      ].join('\n'),
-      'مقدم الخدمة',
-      [
-        `${COMPANY.nameAr}`,
-        COMPANY.regulatoryAr,
-        `العنوان: ${COMPANY.addressAr}`,
-        '',
-        'بيانات العميل',
-        `الاسم الكامل: ${d.clientName}`,
-        `الجنسية: ${d.nationality}`,
-        `رقم جواز السفر: ${d.passportNumber}`,
-        `${COMPANY.idLabelAr}: ${d.idNumber}`,
-        `الهاتف: ${d.clientPhone}`,
-        `البريد الإلكتروني: ${d.clientEmail}`,
-      ].join('\n'),
-      'service-client',
-    )}
-
-    <div class="fee-summary-group">
-    ${feeTitle()}
-
-    <section class="agreement-box fee-content">
-      <div class="language english">
-        <p>Total Advisory Fee (${esc(d.currencyCode)}): ${esc(d.totalAmount)}
-Initial Payment (${esc(d.currencyCode)}): ${esc(d.initialPayment)}
-Subsequent Payment(s): ${esc(d.secondPayment)}
-Government / Authority / Third-Party Fees: NOT INCLUDED unless Annexure A states otherwise.</p>
-        <p class="important">IMPORTANT — NON-REFUNDABLE: Fees are non-refundable except only as expressly provided in Clause 6 and subject to mandatory applicable law.</p>
-        <p class="renewal-fee">AGREEMENT RENEWAL FEE: A flat, non-refundable fee of ${COMPANY.renewalFeeUsd} (or its AED equivalent) applies per renewal term, regardless of the Program's Service Term — see Clause 7.5.</p>
+    <header class="letterhead">
+      <div class="en">
+        <div class="company-name">${esc(COMPANY.nameEn.toUpperCase())}</div>
+        <div class="trading-as">${esc(COMPANY.tradingAsEn)}</div>
+        <div class="addr">${esc(COMPANY.addressEn)}</div>
+        <div class="addr">${esc(COMPANY.contactEn)}</div>
       </div>
-      <div class="language arabic" dir="rtl" lang="ar">
-        <p>إجمالي رسوم الخدمات الاستشارية (${esc(d.currencyCode)}): ${esc(d.totalAmount)}
-الدفعة الأولى (${esc(d.currencyCode)}): ${esc(d.initialPayment)}
-الدفعات اللاحقة: ${esc(d.secondPayment)}
-رسوم الحكومة / الجهات / الأطراف الثالثة: غير مشمولة ما لم ينص الملحق أ على خلاف ذلك.</p>
-        <p class="important">هام — غير قابل للاسترداد: الرسوم غير قابلة للاسترداد إلا وفق ما يرد صراحة في البند 6 ومع مراعاة الأحكام القانونية الإلزامية.</p>
-        <p class="renewal-fee">رسوم تجديد الاتفاقية: تُستحق رسوم ثابتة وغير قابلة للاسترداد قدرها ${COMPANY.renewalFeeUsdAr} (أو ما يعادلها بالدرهم الإماراتي) عن كل مدة تجديد، بصرف النظر عن مدة البرنامج — انظر البند 7.5.</p>
+      <div class="ar" dir="rtl" lang="ar">
+        <div class="company-name">${esc(COMPANY.nameAr)}</div>
+        <div class="trading-as">${esc(COMPANY.tradingAsAr)}</div>
+        <div class="addr">${esc(COMPANY.addressAr)}</div>
+        <div class="addr">${esc(COMPANY.contactAr)}</div>
       </div>
-    </section>
+    </header>
+
+    <div class="title-bar">
+      <span class="en">CLIENT SERVICE AGREEMENT</span>
+      <span class="ar" dir="rtl" lang="ar">اتفاقية خدمات العميل</span>
     </div>
 
-    ${box(
-      'PREAMBLE',
-      `This Agreement is entered into between the Company identified above and the Client. The Company provides advisory, administrative, documentation, education, global mobility, immigration-process support, business, career and related services for multiple programs and destination countries. The Company does not control any government, embassy, consulate, regulator, employer, educational institution, assessment body or other third party. The Client confirms having had a full opportunity to read this Agreement, ask questions and obtain independent legal advice before signing.`,
-      'تمهيد',
-      `أُبرمت هذه الاتفاقية بين الشركة المبينة أعلاه والعميل. تقدم الشركة خدمات استشارية وإدارية وخدمات مستندات وتعليم وتنقل عالمي ودعم إجراءات الهجرة والأعمال والمسار المهني والخدمات ذات الصلة لبرامج ودول مقصد متعددة. ولا تسيطر الشركة على أي حكومة أو سفارة أو قنصلية أو جهة تنظيمية أو صاحب عمل أو مؤسسة تعليمية أو هيئة تقييم أو أي طرف ثالث. ويقر العميل بأنه أتيحت له فرصة كاملة لقراءة هذه الاتفاقية وطرح الأسئلة والحصول على مشورة قانونية مستقلة قبل التوقيع.`,
-    )}
+    ${section('AGREEMENT DETAILS', 'تفاصيل الاتفاقية', [
+      row('Agreement No.', agreementNumber, 'رقم الاتفاقية'),
+      row('Date', agreementDate, 'التاريخ'),
+      row('Service Program', serviceProgram, 'برنامج الخدمة'),
+      row('Country', destinationCountry, 'الدولة'),
+    ].join(''))}
+
+    ${section('SERVICE PROVIDER', 'مقدم الخدمة', [
+      row('Company', `${COMPANY.nameEn} (CMG)`, 'الشركة', `${COMPANY.nameAr} (CMG)`),
+      row('Address', COMPANY.addressEn, 'العنوان', COMPANY.addressAr),
+    ].join(''))}
+
+    ${section('CLIENT DETAILS', 'بيانات العميل', [
+      row('Full Name', clientName, 'الاسم الكامل'),
+      row('Nationality', nationality, 'الجنسية'),
+      row('Passport No.', passportNumber, 'رقم جواز السفر'),
+      row('Phone', clientPhone, 'الهاتف'),
+      row('Email', clientEmail, 'البريد الإلكتروني'),
+      row('Occupation', occupation, 'المهنة'),
+    ].join(''))}
+
+    ${section('FEE SUMMARY', 'ملخص الرسوم', [
+      row('Total Retainer Fee', `${currencyCode} ${totalAmount}`, 'إجمالي رسوم الاحتجاز'),
+      row('Initial Payment', `${currencyCode} ${initialPayment}`, 'الدفعة الأولى'),
+      row('Second Payment', `${currencyCode} ${secondPayment} (${secondPaymentDue})`, 'الدفعة الثانية', `${currencyCode} ${secondPayment} (${secondPaymentDue})`),
+      row('Government / Authority Fees', 'NOT INCLUDED — paid directly by Client', 'رسوم الحكومة / الجهات المختصة', 'غير مشمولة — يدفعها العميل مباشرة'),
+      row('VAT', 'Applicable per UAE VAT Law', 'ضريبة القيمة المضافة', 'مطبقة وفق قانون ضريبة القيمة المضافة الإماراتي'),
+    ].join(''))}
+
+    <div class="important-note">
+      <span class="en">IMPORTANT: All retainer fees are strictly non-refundable except as stated in Clause 6.</span>
+      <span class="ar" dir="rtl" lang="ar">هام: جميع رسوم الاحتجاز غير قابلة للاسترداد بصورة قاطعة إلا وفق ما هو منصوص عليه في البند 6.</span>
+    </div>
+
+    <section class="cmg-block cmg-clause preamble">
+      ${sectionHeader('PREAMBLE', 'تمهيد')}
+      <div class="cmg-rows"><div class="cmg-row">
+        <div class="en">This Client Service Agreement ("Agreement") is entered into between Commonwealth Migration Group, operating as Commonwealth Documents Clearing Services, a MARA-registered, UAE-based migration consultancy ("CMG / the Company"), and the Client identified above.<br><br>WHEREAS CMG specialises in Australian skilled migration, partner visas, student visas, visitor visas, and related document clearing services for individuals in the UAE and the region.<br><br>WHEREAS the Client has been provided a full opportunity to read, review, and seek independent legal advice in relation to this Agreement prior to execution.<br><br>NOW THEREFORE, in consideration of the mutual covenants herein, the parties agree as follows:</div>
+        <div class="ar" dir="rtl" lang="ar">تُبرم اتفاقية خدمات العميل هذه ("الاتفاقية") بين مجموعة كومنولث للهجرة، العاملة تحت اسم "خدمات كومنولث لتخليص المستندات"، وهي شركة استشارات هجرة مسجلة لدى هيئة MARA ومقرها دولة الإمارات العربية المتحدة ("CMG" أو "الشركة")، وبين العميل المحدد أعلاه.<br><br>حيث تتخصص CMG في الهجرة الماهرة إلى أستراليا، وتأشيرات الشريك، وتأشيرات الطلاب، وتأشيرات الزيارة، وخدمات تخليص المستندات ذات الصلة للأفراد في دولة الإمارات العربية المتحدة والمنطقة.<br><br>وحيث أُتيحت للعميل فرصة كاملة لقراءة هذه الاتفاقية ومراجعتها والحصول على مشورة قانونية مستقلة بشأنها قبل توقيعها.<br><br>لذلك، وبناءً على التعهدات المتبادلة الواردة في هذه الاتفاقية، يتفق الطرفان على ما يلي:</div>
+      </div></div>
+    </section>
 
     ${clauseHtml}
 
-    <div class="annexure-title-pair">
-      <div class="annexure-title">ANNEXURE A </div>
-      <div class="annexure-title" dir="rtl" lang="ar">الملحق أ — الاختيار الديناميكي للخدمة</div>
+    <div class="annexure-title">
+      <span class="en">ANNEXURE A — SCOPE OF SERVICES AND FEE SCHEDULE</span>
+      <span class="ar" dir="rtl" lang="ar">الملحق أ — نطاق الخدمات وجدول الرسوم</span>
     </div>
 
-    ${box(
-      '',
-      `CRM Client ID: ${d.clientId}
-Selected Service / Program (Program Code): ${d.programCode}
-Program Term Schedule reference (6 / 12 / 18 months): ${d.programTermSchedule}
-Destination: ${d.destinationCountry}
-Included Deliverables: ${d.includedDeliverables}
-Express Exclusions: ${d.expressExclusions}
-Total Advisory Fee (${d.currencyCode}): ${d.totalAmount}
-Payment Milestones: ${d.paymentMilestonesEn}
-Agreement Renewal Fee: ${COMPANY.renewalFeeUsd} flat (or AED equivalent) per renewal term
-Special terms, if any: ${d.specialTerms}
-Client initials: ________`,
-      '',
-      `رقم العميل في النظام: ${d.clientId}
-الخدمة / البرنامج المختار (رمز البرنامج): ${d.programCode}
-مرجع جدول مدد البرامج (6 / 12 / 18 شهرًا): ${d.programTermSchedule}
-دولة المقصد: ${d.destinationCountry}
-المخرجات المشمولة: ${d.includedDeliverables}
-الاستثناءات الصريحة: ${d.expressExclusions}
-إجمالي رسوم الخدمات الاستشارية (${d.currencyCode}): ${d.totalAmount}
-مراحل الدفع: ${d.paymentMilestonesAr}
-رسوم تجديد الاتفاقية: ${COMPANY.renewalFeeUsdAr} ثابتة (أو ما يعادلها بـ AED) عن كل مدة تجديد
-الشروط الخاصة، إن وجدت: ${d.specialTerms}
-أحرف العميل: ________`,
-    )}
+    ${section('SERVICES TO BE PROVIDED', 'الخدمات المقدمة', [
+      row('Service Description', serviceProgram, 'وصف الخدمة'),
+      row('Visa Subclass(es)', visaSubclass, 'فئة/فئات التأشيرة'),
+      row('Scope Includes', includedDeliverables, 'يشمل النطاق'),
+      row('Scope Excludes', expressExclusions, 'يستثني النطاق'),
+    ].join(''))}
 
-    ${box(
-      'EXECUTION AND ACKNOWLEDGMENT',
-      `The Client confirms that the Client has read and understood every page, has received or had access to a copy, accepts electronic execution, understands that no outcome is guaranteed, and accepts the refund and liability provisions.
+    ${section('FEE SCHEDULE', 'جدول الرسوم', [
+      row('Total Retainer Fee', `${currencyCode} ${totalAmount}`, 'إجمالي رسوم الاحتجاز'),
+      row('Initial Payment', `${currencyCode} ${initialPayment} — Due upon signing`, 'الدفعة الأولى', `${currencyCode} ${initialPayment} — تستحق عند التوقيع`),
+      row('Second Payment', `${currencyCode} ${secondPayment} — Due: ${secondPaymentDue}`, 'الدفعة الثانية', `${currencyCode} ${secondPayment} — تستحق: ${secondPaymentDue}`),
+      row('Government Fees', 'NOT INCLUDED — paid directly by Client', 'رسوم الحكومة', 'غير مشمولة — يدفعها العميل مباشرة'),
+      row('VAT', 'Applicable per UAE VAT Law', 'ضريبة القيمة المضافة', 'مطبقة وفق قانون ضريبة القيمة المضافة الإماراتي'),
+      row('Special Terms', specialTerms, 'شروط خاصة'),
+    ].join(''))}
 
-Client
-Name: ${d.clientName}
-Signature: ________________________________
-Date: ________________________________
-
-For the Company
-Name/Title: ________________________________
-Signature: ________________________________
-Date: ________________________________`,
-      'التوقيع والإقرار',
-      `يقر العميل بأنه قرأ وفهم كل صفحة، واستلم نسخة أو أتيحت له، ويقبل التوقيع الإلكتروني، ويفهم عدم ضمان أي نتيجة، ويقبل أحكام الاسترداد وتحديد المسؤولية.
-
-العميل
-الاسم: ${d.clientName}
-التوقيع: ________________________________
-التاريخ: ________________________________
-
-عن الشركة
-الاسم/الصفة: ________________________________
-التوقيع: ________________________________
-التاريخ: ________________________________`,
-      'signature',
-    )}
+    <div class="cmg-block signature-block">
+      <div class="cmg-rows">
+        <div class="cmg-row">
+          <div class="en">Client Signature: ________________________________<br><br>Date: ________________________________</div>
+          <div class="ar" dir="rtl" lang="ar">توقيع العميل: ________________________________<br><br>التاريخ: ________________________________</div>
+        </div>
+        <div class="cmg-row">
+          <div class="en">CMG Authorised Signature: ________________________________<br><br>Date: ________________________________</div>
+          <div class="ar" dir="rtl" lang="ar">توقيع CMG المعتمد: ________________________________<br><br>التاريخ: ________________________________</div>
+        </div>
+      </div>
+    </div>
 
     <footer class="print-footer">
-      ${COMPANY.nameEn} - ${COMPANY.addressEn} - Page <span class="page-number"></span>
+      <span>${esc(COMPANY.nameEn)} — ${esc(COMPANY.addressEn)}</span>
+      <span>Page <span class="page-number"></span></span>
     </footer>
   </main>
 </body>

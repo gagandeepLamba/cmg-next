@@ -147,6 +147,11 @@ async function getPayments(search: string, status: string, dateFrom: string, dat
       b.email AS dmBranchEmail,
       b.license_number AS dmBranchLicenseNumber,
       b.vat_gst_percent AS dmBranchVatGstPercent,
+      b.bank_name AS dmBranchBankName,
+      b.bank_account_name AS dmBranchBankAccountName,
+      b.bank_account_number AS dmBranchBankAccountNumber,
+      b.bank_iban AS dmBranchBankIban,
+      b.bank_branch AS dmBranchBankBranch,
       (SELECT a.agreementNumber FROM dm_opportunity_agreements a
        WHERE a.opportunityId = p.opportunityId
        ORDER BY a.createdAt DESC LIMIT 1) AS agreementNumber

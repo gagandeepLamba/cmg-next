@@ -1,17 +1,13 @@
 // Centralized payment-receipt branding + HTML template, shared by every
 // screen that can print a receipt (Opportunity Flow wizard's Payment/Accounts
 // stages, Lead Management's Client List quick-pay, the Clients page
-// quick-pay, and Invoices & Payments). Previously each screen kept its own
-// copy of this template and its own branch-branding logic (some of it
-// hardcoded per-branch name matching, some of it a flat green theme with no
-// per-branch color at all), so branches added later never got the right
-// company details or colors anywhere except by hand-patching every copy.
-// Branding/colors are resolved from the lead/client's actual dm_branch
-// record, with the same per-branch color scheme already proven out in
-// Invoices & Payments (each legal entity has its own known TRN/color that
-// isn't derivable from dm_branch alone, so those specific few branches keep
-// their real, known details; any other branch falls back to its own DB
-// record instead of silently reusing another branch's identity).
+// quick-pay, and Invoices & Payments).
+//
+// The app operates a single branch/entity — Commonwealth Migration Group
+// (CMG), Dubai — so this no longer branches on branch geography/name. Branch
+// identity (company name/address/TRN/VAT/bank details) still comes from the
+// lead/client's actual dm_branch record, not hardcoded, so it stays correct
+// if finance updates those fields.
 
 export interface ReceiptBranchSource {
   name?: string | null;
@@ -23,6 +19,11 @@ export interface ReceiptBranchSource {
   licenseNumber?: string | null;
   vatGstPercent?: number | string | null;
   abbrv?: string | null;
+  bankName?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIban?: string | null;
+  bankBranch?: string | null;
 }
 
 export interface ReceiptBranchDetails {
@@ -34,12 +35,14 @@ export interface ReceiptBranchDetails {
   branchPhone: string;
   licenseNumber: string;
   vatGstPercent: number | null;
-  // dm_branch.abbrv — the stable branch key the agreement renderer uses to
-  // resolve the branch's real legal name/licence/governing law (see
-  // branchAgreementProfiles.ts). Receipts don't need this; it's carried
-  // through here purely so callers building an agreement from the same
-  // lead/opportunity data don't need a second branch lookup.
+  // dm_branch.abbrv — the stable branch key. Kept for callers that key other
+  // lookups off the same lead/opportunity data without a second branch fetch.
   branchAbbrv: string;
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankIban: string;
+  bankBranch: string;
 }
 
 // Only the narrow set of dm_branch columns a receipt/agreement ever needs —
@@ -99,10 +102,15 @@ export function getLeadBranchDetails(
     leadData?.branch_abbrv ||
     '',
   ).trim();
+  const bankName = String(dmBranch.bankName || leadData?.branchBankName || leadData?.branch_bank_name || '').trim();
+  const bankAccountName = String(dmBranch.bankAccountName || leadData?.branchBankAccountName || leadData?.branch_bank_account_name || '').trim();
+  const bankAccountNumber = String(dmBranch.bankAccountNumber || leadData?.branchBankAccountNumber || leadData?.branch_bank_account_number || '').trim();
+  const bankIban = String(dmBranch.bankIban || leadData?.branchBankIban || leadData?.branch_bank_iban || '').trim();
+  const bankBranch = String(dmBranch.bankBranch || leadData?.branchBankBranch || leadData?.branch_bank_branch || '').trim();
 
   return {
-    companyName: branchName || 'DM Immigration Consultants DMCC',
-    branchName: branchName || 'DM Immigration Consultants DMCC',
+    companyName: branchName || 'Commonwealth Migration Group',
+    branchName: branchName || 'Commonwealth Migration Group',
     branchNameAr,
     branchAddress,
     branchEmail,
@@ -110,11 +118,17 @@ export function getLeadBranchDetails(
     licenseNumber,
     vatGstPercent,
     branchAbbrv,
+    bankName,
+    bankAccountName,
+    bankAccountNumber,
+    bankIban,
+    bankBranch,
   };
 }
 
 export interface BranchReceiptConfig {
   companyName: string;
+  issuedByName: string;
   address: string;
   trn: string | null;
   email: string;
@@ -132,30 +146,9 @@ export interface BranchReceiptConfig {
   refLabel: string;
 }
 
-// Company identity (name/address/email/licence) always comes from the
-// branch's own dm_branch record — never hardcoded — because branch legal
-// names collide in ways a name-only lookup can't safely disambiguate (in
-// production, "Disha" is the Qatar entity's name, not Kuwait's, and both the
-// Abu Dhabi and India entities are named "Didactic ..."). Only the
-// geography — read from the combined name+address text, which reliably
-// contains the actual city/country — decides VAT treatment and the color
-// theme, matching the reference receipts (Dubai=blue, Kuwait=brown,
-// Abu Dhabi=green); every other branch gets a deterministic color derived
-// from its own branch id so it's still visually distinct without guessing
-// at an unknown branch's identity.
-const COLOR_PALETTE = [
-  { headerBg: '#eef2f8', accentColor: '#2c4a7a', totalBg: '#2c4a7a', labelColor: '#4a6fa5' }, // slate blue
-  { headerBg: '#f5eef8', accentColor: '#5a2d6b', totalBg: '#5a2d6b', labelColor: '#8a5ea3' }, // plum
-  { headerBg: '#eef8f4', accentColor: '#1f6b52', totalBg: '#1f6b52', labelColor: '#4a9c7e' }, // teal
-  { headerBg: '#f8f4ee', accentColor: '#7a5a1f', totalBg: '#7a5a1f', labelColor: '#a9884a' }, // ochre
-];
-
-function colorForBranch(branchId: number | string | null | undefined) {
-  const n = Number(branchId);
-  if (!Number.isFinite(n) || n <= 0) return COLOR_PALETTE[0];
-  return COLOR_PALETTE[n % COLOR_PALETTE.length];
-}
-
+// Commonwealth Migration Group's fixed navy/red identity — company name,
+// address, TRN, and VAT rate still come from the branch's own dm_branch
+// record (never hardcoded), only the color theme and copy are fixed here.
 export function getBranchReceiptConfig(
   branchName: string = '',
   currency: string = 'AED',
@@ -163,43 +156,31 @@ export function getBranchReceiptConfig(
   branchEmail: string | null = null,
   branchLicenseNumber: string | null = null,
   branchVatGstPercent: number | string | null = null,
-  branchId: number | string | null = null,
+  _branchId: number | string | null = null,
 ): BranchReceiptConfig {
-  const geo = `${branchName} ${branchAddress || ''}`.toLowerCase();
-  const isKuwait = currency === 'KWD' || /kuwait/.test(geo);
-  const isQatar = /qatar|doha/.test(geo);
-  const isAbuDhabi = /abu\s*dhabi/.test(geo);
-  const isIndia = /india|hyderabad/.test(geo);
-  const isDubai = /dubai/.test(geo) && !isAbuDhabi;
-
   const vatRate = branchVatGstPercent !== null && branchVatGstPercent !== undefined && branchVatGstPercent !== ''
     ? Number(branchVatGstPercent)
-    : (isKuwait || isQatar) ? 0 : isIndia ? 18 : 5;
+    : 5;
   const hasVat = vatRate > 0;
-  const taxLabel = isIndia ? 'GST' : 'VAT';
-
-  const palette = isDubai
-    ? { headerBg: '#dce9f8', accentColor: '#14304d', totalBg: '#0f2a4a', labelColor: '#1d4ed8' }
-    : (isKuwait || isQatar)
-      ? { headerBg: '#fdf6ee', accentColor: '#7c3d0c', totalBg: '#7c3d0c', labelColor: '#8B5E3C' }
-      : isAbuDhabi
-        ? { headerBg: '#eef4ed', accentColor: '#2d5a27', totalBg: '#2d5a27', labelColor: '#4a7c44' }
-        : isIndia
-          ? COLOR_PALETTE[1]
-          : colorForBranch(branchId);
 
   return {
-    companyName: branchName || 'DM Immigration Consultants',
+    companyName: branchName || 'Commonwealth Migration Group',
+    issuedByName: 'Commonwealth Document Clearing Services LLC',
     address: branchAddress || '',
     trn: branchLicenseNumber || null,
     email: branchEmail || '',
-    ...palette,
+    headerBg: '#eef2f8',
+    accentColor: '#0f2a4a',
+    totalBg: '#0f2a4a',
+    labelColor: '#1e3a5f',
     receiptTitle: hasVat ? 'TAX INVOICE / PAYMENT RECEIPT' : 'PAYMENT RECEIPT',
-    hasVat, vatRate, taxLabel,
-    totalLabel: hasVat ? `TOTAL PAID (INCL. ${taxLabel})` : 'TOTAL RECEIVED',
+    hasVat, vatRate, taxLabel: 'VAT',
+    totalLabel: hasVat ? 'TOTAL PAID (INCL. VAT)' : 'TOTAL RECEIVED',
     statusLabel: hasVat ? 'PAID IN FULL' : 'RECEIVED IN FULL',
-    footerNote: hasVat ? `Tax Invoice per UAE Federal Tax Authority — ${taxLabel} ${vatRate}%` : 'No VAT/GST applicable for this branch',
-    refLabel: (isKuwait || isQatar) ? 'POS Reference' : 'Bank Reference',
+    footerNote: hasVat
+      ? `Tax Invoice per UAE Federal Tax Authority — VAT ${vatRate}%`
+      : 'This supply qualifies as an export of services under UAE VAT Law and is zero-rated/VAT-exempt accordingly.',
+    refLabel: 'Bank Reference',
   };
 }
 
@@ -230,13 +211,17 @@ export interface ReceiptFields {
   paidAmount?: number | string | null;
   remainingBalance?: number | string | null;
   remark?: string | null;
+  bankName?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIban?: string | null;
+  bankBranch?: string | null;
 }
 
 const titleCase = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 // Shared by every screen that prints a payment receipt so they all render
-// the exact same layout — and the same per-branch color/VAT treatment —
-// instead of maintaining divergent copies.
+// the exact same layout instead of maintaining divergent copies.
 export function buildReceiptHtml(r: ReceiptFields): string {
   const cfg = getBranchReceiptConfig(
     r.branchName || r.companyName || '',
@@ -269,6 +254,15 @@ export function buildReceiptHtml(r: ReceiptFields): string {
   // (paidAmount) — matching how a tax invoice is issued per payment received.
   const netAmount = cfg.hasVat ? paidAmount / (1 + cfg.vatRate / 100) : paidAmount;
   const vatAmount = cfg.hasVat ? paidAmount - netAmount : 0;
+  const vatRowLabel = cfg.hasVat ? `VAT @ ${cfg.vatRate}%` : 'VAT — Export of Services (Exempt)';
+
+  const isBankTransfer = /bank|transfer|swift|iban/i.test(r.paymentMethod || '');
+  const bankName = r.bankName || '';
+  const bankAccountName = r.bankAccountName || '';
+  const bankAccountNumber = r.bankAccountNumber || '';
+  const bankIban = r.bankIban || '';
+  const bankBranch = r.bankBranch || '';
+  const hasBankDetails = isBankTransfer && !!(bankName || bankAccountNumber || bankIban);
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
 <title>Payment Receipt</title>
@@ -286,6 +280,11 @@ export function buildReceiptHtml(r: ReceiptFields): string {
   .vat-row td:first-child, .vat-row td:last-child{color:${cfg.accentColor};font-weight:700;background:#fff}
   .total-row td:first-child{background:${cfg.totalBg}!important;font-size:11.5pt;color:#fff}
   .total-row td:last-child{background:${cfg.totalBg}!important;font-weight:700;font-size:13pt;color:#fff}
+  .amount-table th{background:${cfg.accentColor};color:#fff;text-align:left;padding:9px 12px;font-size:10pt;text-transform:uppercase;letter-spacing:.3px}
+  .amount-table th:last-child, .amount-table td:last-child{text-align:right}
+  .bank-section{margin-top:18px}
+  .bank-title{background:${cfg.accentColor};color:#fff;padding:7px 12px;font-weight:700;font-size:10pt;text-transform:uppercase;letter-spacing:.3px}
+  .bank-table{margin-top:0}
   .footer{margin-top:30px;border-top:2px solid ${cfg.accentColor};padding-top:10px;text-align:center;color:#666;font-size:9pt}
   @media print{@page{size:A4;margin:0}body{padding:40px 50px 60px}.header{margin:-40px -50px 20px}}
 </style></head><body>
@@ -309,25 +308,37 @@ export function buildReceiptHtml(r: ReceiptFields): string {
   <tr><td>Agreement No.</td><td>${r.agreementNumber || 'N/A'}</td></tr>
   ${r.serviceName ? `<tr><td>Service</td><td>${r.serviceName}</td></tr>` : ''}
   ${r.consultantName ? `<tr><td>Consultant</td><td>${r.consultantName}</td></tr>` : ''}
+  <tr><td>Issued By</td><td>${cfg.issuedByName}</td></tr>
   <tr><td>Branch</td><td>${branchName}</td></tr>
   <tr><td>Payment Method</td><td>${titleCase(r.paymentMethod || 'Cash')}</td></tr>
   ${r.transactionId ? `<tr><td>${cfg.refLabel}</td><td>${r.transactionId}</td></tr>` : ''}
   ${r.remark ? `<tr><td>Remark</td><td>${r.remark}</td></tr>` : ''}
+</table>
+<table class="amount-table">
+  <tr><th>Amount</th><th>Value (${currency})</th></tr>
   ${hasPreviouslyPaid ? `<tr><td>Total Amount</td><td>${fmt(totalAmount)}</td></tr>
   <tr><td>Previously Paid</td><td>${fmt(previouslyPaid)}</td></tr>` : ''}
-  ${cfg.hasVat
-    ? `<tr><td>Net Amount (excl. ${cfg.taxLabel})</td><td>${fmt(netAmount)}</td></tr>
-       <tr class="vat-row"><td>${cfg.taxLabel} @ ${cfg.vatRate}%</td><td>${fmt(vatAmount)}</td></tr>`
-    : `<tr><td>Tax</td><td>${cfg.footerNote}</td></tr>`}
+  <tr><td>Net Amount (excl. ${cfg.taxLabel})</td><td>${fmt(netAmount)}</td></tr>
+  <tr class="vat-row"><td>${vatRowLabel}</td><td>${fmt(vatAmount)}</td></tr>
   <tr class="total-row"><td>${hasPreviouslyPaid ? cfg.totalLabel.replace('TOTAL PAID', 'AMOUNT PAID (THIS RECEIPT)').replace('TOTAL RECEIVED', 'AMOUNT RECEIVED (THIS RECEIPT)') : cfg.totalLabel}</td><td>${fmt(paidAmount)}</td></tr>
   ${hasPreviouslyPaid ? `<tr class="total-row"><td>Balance Due</td><td>${fmt(balance)}</td></tr>` : ''}
 </table>
+${hasBankDetails ? `<div class="bank-section">
+  <div class="bank-title">Payment Details (Bank Transfer)</div>
+  <table class="bank-table">
+    ${bankName ? `<tr><td>Bank</td><td>${bankName}</td></tr>` : ''}
+    ${bankAccountName ? `<tr><td>Account Name</td><td>${bankAccountName}</td></tr>` : ''}
+    ${bankAccountNumber ? `<tr><td>Account Number</td><td>${bankAccountNumber}</td></tr>` : ''}
+    ${bankIban ? `<tr><td>IBAN</td><td>${bankIban}</td></tr>` : ''}
+    ${bankBranch ? `<tr><td>Branch</td><td>${bankBranch}</td></tr>` : ''}
+  </table>
+</div>` : ''}
 <p style="margin-top:16px;font-size:10pt;color:#444;">This receipt confirms payment received by ${companyName}. Please retain for your records.</p>
 <div style="margin-top:40px;display:flex;justify-content:space-between;font-size:10pt;">
   <div>Client Signature: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
   <div>Authorised Signatory: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
 </div>
-<div class="footer">${cfg.footerNote}${cfg.trn ? ` · TRN: ${cfg.trn}` : ''}<br>${[companyName, branchAddress, r.licenseNumber && !cfg.trn ? `Licence No. ${r.licenseNumber}` : '', 'www.dm-consultant.com'].filter(Boolean).join(' · ')}</div>
+<div class="footer">${cfg.footerNote}${cfg.trn ? ` · TRN: ${cfg.trn}` : ''}<br>${[companyName, branchAddress, r.licenseNumber && !cfg.trn ? `Licence No. ${r.licenseNumber}` : '', 'cwmigrationgroup.ae'].filter(Boolean).join(' · ')}</div>
 </body></html>`;
 }
 

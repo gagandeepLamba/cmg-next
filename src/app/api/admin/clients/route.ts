@@ -42,6 +42,11 @@ type ClientListRow = {
   branchMobile: string | null;
   branchLicenseNumber: string | null;
   branchVatGstPercent: number | null;
+  branchBankName: string | null;
+  branchBankAccountName: string | null;
+  branchBankAccountNumber: string | null;
+  branchBankIban: string | null;
+  branchBankBranch: string | null;
 };
 
 // A lead becomes a formal "Client" once BOTH accounts (finance) verification
@@ -76,7 +81,9 @@ export async function GET(request: NextRequest) {
          w.id, w.opportunity_id AS opportunityId, w.lead_id AS leadId, w.case_activated_at,
          l.fname, l.lname, l.email, l.dob, l.address, l.area, l.nationality, l.assignTo,
          b.name AS branchName, b.address AS branchAddress, b.email AS branchEmail,
-         b.mobile AS branchMobile, b.license_number AS branchLicenseNumber, b.vat_gst_percent AS branchVatGstPercent
+         b.mobile AS branchMobile, b.license_number AS branchLicenseNumber, b.vat_gst_percent AS branchVatGstPercent,
+         b.bank_name AS branchBankName, b.bank_account_name AS branchBankAccountName,
+         b.bank_account_number AS branchBankAccountNumber, b.bank_iban AS branchBankIban, b.bank_branch AS branchBankBranch
        FROM dm_opportunity_workflow_reviews w
        INNER JOIN (
          SELECT wr.lead_id, MAX(wr.id) AS maxId
@@ -125,6 +132,11 @@ export async function GET(request: NextRequest) {
       branchMobile: r.branchMobile || '',
       branchLicenseNumber: r.branchLicenseNumber || null,
       branchVatGstPercent: r.branchVatGstPercent ?? null,
+      branchBankName: r.branchBankName || null,
+      branchBankAccountName: r.branchBankAccountName || null,
+      branchBankAccountNumber: r.branchBankAccountNumber || null,
+      branchBankIban: r.branchBankIban || null,
+      branchBankBranch: r.branchBankBranch || null,
     }));
 
     return NextResponse.json({ data, pagination: { page: 1, limit, total: data.length, totalPages: 1 } });

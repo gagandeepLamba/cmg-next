@@ -8,7 +8,7 @@ import {
   ArrowUpRight, ArrowDownRight, XCircle
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getBranchReceiptConfig } from '@/lib/receiptTemplate';
+import { printReceipt as printReceiptDocument } from '@/lib/receiptTemplate';
 import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
 
 interface Invoice {
@@ -34,6 +34,8 @@ interface Payment {
   leadId: number; agreementNumber: string | null;
   dmBranchName: string | null; dmBranchAddress: string | null; dmBranchEmail: string | null;
   dmBranchLicenseNumber: string | null; dmBranchVatGstPercent: number | string | null;
+  dmBranchBankName: string | null; dmBranchBankAccountName: string | null;
+  dmBranchBankAccountNumber: string | null; dmBranchBankIban: string | null; dmBranchBankBranch: string | null;
 }
 
 interface Stats {
@@ -204,94 +206,29 @@ export default function InvoicesPaymentsPage() {
   };
 
   const printReceipt = (p: Payment) => {
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const cfg = getBranchReceiptConfig(
-      p.branchName || p.dmBranchName || '',
-      p.currency,
-      p.dmBranchAddress,
-      p.dmBranchEmail,
-      p.dmBranchLicenseNumber,
-      p.dmBranchVatGstPercent,
-    );
-    const cur = p.currency || 'AED';
-    const fmt2 = (n: number) => `${cur} ${(n || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    const totalPaid = p.paidAmount || 0;
-    const netAmount = cfg.hasVat ? totalPaid / (1 + cfg.vatRate / 100) : totalPaid;
-    const vatAmount = cfg.hasVat ? totalPaid - netAmount : 0;
-    const payDate = p.paymentDate ? new Date(p.paymentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-    const clientName = p.clientName || `${p.fname || ''} ${p.lname || ''}`.trim() || 'N/A';
-    const refLabel = (p.paymentMethod || '').toLowerCase().includes('pos') ? 'POS Reference' : cfg.refLabel;
-    w.document.write(`
-      <html><head><title>Receipt ${p.paymentNumber}</title>
-      <style>
-        *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#333}
-        .page{max-width:680px;margin:0 auto;padding:32px}
-        .header{background:${cfg.headerBg};padding:24px 28px 18px;text-align:center;position:relative;border-bottom:1px solid #ddd}
-        .header h1{font-size:20px;font-weight:bold;color:#1a1a1a;margin-bottom:4px}
-        .header p{font-size:11.5px;color:#555;line-height:1.6}
-        .header .trn{font-weight:bold;color:#1a1a1a;font-size:11.5px}
-        .logo{position:absolute;top:18px;right:20px;width:36px;height:36px;background:${cfg.accentColor};border-radius:50%}
-        .body{border:1px solid #ddd;border-top:none}
-        .title-row{display:flex;justify-content:space-between;align-items:center;padding:12px 22px;border-bottom:1px solid #e5e5e5}
-        .title-row .t{font-weight:bold;font-size:12.5px;color:#1a1a1a}
-        .title-row .n{font-weight:bold;font-size:12.5px;color:${cfg.accentColor}}
-        .dr{display:flex;justify-content:space-between;padding:9px 22px;border-bottom:1px solid #f2f2f2}
-        .dr .l{font-size:12px;color:${cfg.labelColor}}
-        .dr .v{font-size:12px;color:#333;text-align:right}
-        .gap{height:6px;border-bottom:1px solid #e5e5e5}
-        .vr{display:flex;justify-content:space-between;padding:9px 22px;border-bottom:1px solid #f2f2f2}
-        .vr .l{font-size:12px;font-weight:bold;color:${cfg.accentColor}}
-        .vr .v{font-size:12px;font-weight:bold;color:${cfg.accentColor};text-align:right}
-        .total{background:${cfg.totalBg};display:flex;justify-content:space-between;align-items:center;padding:13px 22px}
-        .total .l{font-size:12.5px;font-weight:bold;color:#fff}
-        .total .v{font-size:22px;font-weight:bold;color:#fff}
-        .sigs{display:flex;background:#f9f9f7;border-top:1px solid #e5e5e5}
-        .sig{flex:1;padding:18px 22px}
-        .sig:first-child{border-right:1px solid #e5e5e5}
-        .sig .sn{font-weight:bold;font-size:12px;color:${cfg.accentColor};margin-bottom:2px}
-        .sig .sl{font-size:9.5px;color:#999;text-transform:uppercase;letter-spacing:.5px}
-        .foot{padding:10px 22px;border-top:1px solid #e5e5e5;font-size:10px;color:#888;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px}
-        @media print{body{padding:0}.page{padding:16px}}
-      </style></head><body>
-      <div class="page">
-        <div class="header">
-          <div class="logo"></div>
-          <h1>${cfg.companyName}</h1>
-          <p>${cfg.address.replace(/\n/g, '<br>')}</p>
-          ${cfg.trn ? `<p class="trn">TRN: ${cfg.trn}</p>` : ''}
-        </div>
-        <div class="body">
-          <div class="title-row"><span class="t">${cfg.receiptTitle}</span><span class="n">${p.paymentNumber}</span></div>
-          <div class="dr"><span class="l">Date of Supply</span><span class="v">${payDate}</span></div>
-          <div class="dr"><span class="l">Payment Date</span><span class="v">${payDate}</span></div>
-          <div class="dr"><span class="l">Client Name</span><span class="v">${clientName}</span></div>
-          <div class="dr"><span class="l">Agreement No.</span><span class="v">${p.agreementNumber || 'N/A'}</span></div>
-          <div class="dr"><span class="l">Service / Program</span><span class="v">${p.serviceName || 'N/A'}</span></div>
-          <div class="dr"><span class="l">Counselor</span><span class="v">${p.counselorName || 'N/A'}</span></div>
-          <div class="dr"><span class="l">Payment Method</span><span class="v">${(p.paymentMethod || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</span></div>
-          ${p.transactionId ? `<div class="dr"><span class="l">${refLabel}</span><span class="v">${p.transactionId}</span></div>` : ''}
-          <div class="gap"></div>
-          ${cfg.hasVat
-            ? `<div class="dr"><span class="l">Net Amount (excl. VAT)</span><span class="v">${fmt2(netAmount)}</span></div>
-               <div class="vr"><span class="l">VAT @ ${cfg.vatRate}%</span><span class="v">${fmt2(vatAmount)}</span></div>`
-            : `<div class="dr"><span class="l">Professional Service Fee</span><span class="v">${fmt2(totalPaid)}</span></div>
-               <div class="vr"><span class="l">Tax</span><span class="v">No Tax (Kuwait)</span></div>`}
-          <div class="total"><span class="l">${cfg.totalLabel}</span><span class="v">${fmt2(totalPaid)}</span></div>
-          <div class="sigs">
-            <div class="sig"><div class="sn">${clientName}</div><div class="sl">Client Signature</div></div>
-            <div class="sig"><div class="sn">${cfg.companyName}</div><div class="sl">Authorised Signatory</div></div>
-          </div>
-          <div class="foot">
-            <span>${cfg.footerNote}${cfg.trn ? `&nbsp;&nbsp;TRN: ${cfg.trn}` : ''}<br>${cfg.email} &middot; Payment Status: ${cfg.statusLabel}</span>
-          </div>
-        </div>
-      </div>
-      <script>window.onload=()=>window.print();</script>
-      </body></html>
-    `);
-    w.document.close();
+    printReceiptDocument({
+      paymentNumber: p.paymentNumber,
+      paymentDate: p.paymentDate,
+      clientName: p.clientName || `${p.fname || ''} ${p.lname || ''}`.trim() || 'Client',
+      agreementNumber: p.agreementNumber,
+      opportunityId: p.opportunityId,
+      serviceName: p.serviceName,
+      consultantName: p.counselorName,
+      branchName: p.branchName || p.dmBranchName || undefined,
+      branchAddress: p.dmBranchAddress,
+      branchEmail: p.dmBranchEmail,
+      licenseNumber: p.dmBranchLicenseNumber,
+      vatGstPercent: p.dmBranchVatGstPercent,
+      bankName: p.dmBranchBankName,
+      bankAccountName: p.dmBranchBankAccountName,
+      bankAccountNumber: p.dmBranchBankAccountNumber,
+      bankIban: p.dmBranchBankIban,
+      bankBranch: p.dmBranchBankBranch,
+      paymentMethod: p.paymentMethod,
+      transactionId: p.transactionId,
+      currency: p.currency,
+      paidAmount: p.paidAmount,
+    });
   };
 
   return (

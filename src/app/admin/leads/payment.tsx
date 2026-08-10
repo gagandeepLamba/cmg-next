@@ -217,65 +217,23 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
     return y + lines.length * lineHeight;
   };
 
-  const getBranchReceiptConfig = (branchName: string = '', currency: string = 'AED', region?: unknown) => {
-    const bn = branchName.toLowerCase();
-    const isKuwait = currency === 'KWD' || String(region || '') === '9' || bn.includes('kuwait') || bn.includes('disha');
-    const isCMG = bn.includes('commonwealth') || bn.includes('cmg');
-    const isAbuDhabi = bn.includes('abu dhabi') || bn.includes('didactic');
-    if (isKuwait) return {
-      branchCode: 'KWT',
-      companyName: 'Disha Management Consulting Company',
-      address: 'Office 19/20, 6th Floor, Orient Complex,',
-      address2: 'Salmiya, Kuwait City, State of Kuwait',
-      trn: null as string | null,
-      email: 'accounts@disha-kwt.com',
-      headerR: 253, headerG: 246, headerB: 238,
-      accentR: 124, accentG: 61, accentB: 12,
-      receiptTitle: 'PAYMENT RECEIPT', hasVat: false, vatRate: 0,
-      totalLabel: 'TOTAL RECEIVED', statusLabel: 'RECEIVED IN FULL',
-      footerNote: 'No VAT or indirect tax applicable in the State of Kuwait',
-      refLabel: 'POS Reference',
-    };
-    if (isCMG) return {
-      branchCode: 'CMG',
-      companyName: 'Commonwealth Migration Group',
-      address: 'Dubai, United Arab Emirates', address2: '',
-      trn: '[CMG-TRN-NUMBER]' as string | null,
-      email: 'finance@cwmigrationgroup.ae',
-      headerR: 238, headerG: 242, headerB: 248,
-      accentR: 30, accentG: 58, accentB: 95,
-      receiptTitle: 'TAX INVOICE / PAYMENT RECEIPT', hasVat: true, vatRate: 5,
-      totalLabel: 'TOTAL PAID (INCL. VAT)', statusLabel: 'PAID IN FULL',
-      footerNote: 'Tax Invoice per UAE Federal Tax Authority',
-      refLabel: 'POS Reference',
-    };
-    if (isAbuDhabi) return {
-      branchCode: 'AUH',
-      companyName: 'Didactic Management Consultants',
-      address: '1802 Salam Street,', address2: 'Abu Dhabi, United Arab Emirates',
-      trn: '1004344250500003' as string | null,
-      email: 'finance@didactic-auh.com',
-      headerR: 238, headerG: 244, headerB: 237,
-      accentR: 45, accentG: 90, accentB: 39,
-      receiptTitle: 'TAX INVOICE / PAYMENT RECEIPT', hasVat: true, vatRate: 5,
-      totalLabel: 'TOTAL PAID (INCL. VAT)', statusLabel: 'PAID IN FULL',
-      footerNote: 'Tax Invoice per UAE Federal Tax Authority',
-      refLabel: 'POS Reference',
-    };
-    return {
-      branchCode: 'DXB',
-      companyName: 'DM Immigration Consultants DMCC',
-      address: '3703, Latifa Tower, Sheikh Zayed Road,', address2: 'Dubai, United Arab Emirates',
-      trn: '1004344250500003' as string | null,
-      email: 'finance@dmc-immigration.com',
-      headerR: 238, headerG: 242, headerB: 248,
-      accentR: 44, accentG: 74, accentB: 122,
-      receiptTitle: 'TAX INVOICE / PAYMENT RECEIPT', hasVat: true, vatRate: 5,
-      totalLabel: 'TOTAL PAID (INCL. VAT)', statusLabel: 'PAID IN FULL',
-      footerNote: 'Tax Invoice per UAE Federal Tax Authority',
-      refLabel: 'POS Reference',
-    };
-  };
+  // Single branch/entity (Dubai, trading as Commonwealth Migration Group) —
+  // see receiptTemplate.ts, the canonical receipt renderer every live screen
+  // uses. This jsPDF path is unreferenced elsewhere in the app; kept only
+  // for identity consistency, not redesigned to match the newer HTML layout.
+  const getBranchReceiptConfig = (_branchName: string = '', _currency: string = 'AED', _region?: unknown) => ({
+    branchCode: 'CMG',
+    companyName: 'Commonwealth Migration Group',
+    address: 'Office 307, 3rd Floor, Business Atrium Building, Oud Metha,', address2: 'Dubai, United Arab Emirates',
+    trn: null as string | null,
+    email: 'leads@cwmigrationgroup.ae',
+    headerR: 238, headerG: 242, headerB: 248,
+    accentR: 15, accentG: 42, accentB: 74,
+    receiptTitle: 'TAX INVOICE / PAYMENT RECEIPT', hasVat: true, vatRate: 5,
+    totalLabel: 'TOTAL PAID (INCL. VAT)', statusLabel: 'PAID IN FULL',
+    footerNote: 'Tax Invoice per UAE Federal Tax Authority',
+    refLabel: 'Bank Reference',
+  });
 
   const downloadReceipt = async () => {
     const { default: jsPDF } = await import('jspdf');

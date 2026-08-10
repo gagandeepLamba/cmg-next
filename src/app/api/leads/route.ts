@@ -385,6 +385,9 @@ export async function GET(request: NextRequest) {
         b.ar_name as branch_name_ar, b.address as branch_address, b.email as branch_email,
         b.mobile as branch_mobile, b.license_number as branch_license_number,
         b.vat_gst_percent as branch_vat_gst_percent,
+        b.bank_name as branch_bank_name, b.bank_account_name as branch_bank_account_name,
+        b.bank_account_number as branch_bank_account_number, b.bank_iban as branch_bank_iban,
+        b.bank_branch as branch_bank_branch,
         o.status AS opp_status, o.stage AS opp_stage,
         o.paymentReceived, o.agreementSigned, o.retentionStatus,
         (SELECT agr.agreementNumber FROM dm_opportunity_agreements agr WHERE agr.opportunityId = o.id ORDER BY agr.id DESC LIMIT 1) as agreementNumber${withWorkflow ? `,
@@ -436,7 +439,12 @@ export async function GET(request: NextRequest) {
         email: lead.branch_email,
         mobile: lead.branch_mobile,
         licenseNumber: lead.branch_license_number,
-        vatGstPercent: lead.branch_vat_gst_percent
+        vatGstPercent: lead.branch_vat_gst_percent,
+        bankName: lead.branch_bank_name,
+        bankAccountName: lead.branch_bank_account_name,
+        bankAccountNumber: lead.branch_bank_account_number,
+        bankIban: lead.branch_bank_iban,
+        bankBranch: lead.branch_bank_branch
       } : null
     }))
 
