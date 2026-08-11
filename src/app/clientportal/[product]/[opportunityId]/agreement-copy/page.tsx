@@ -56,7 +56,7 @@ export default function AgreementCopyPage() {
           <h1 className="text-lg font-semibold text-slate-900">Service Agreement</h1>
           {isSigned && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Signed</span>}
         </div>
-        <p className="mt-1 text-sm text-slate-500">Your engagement agreement with DMC Immigration for the active product.</p>
+        <p className="mt-1 text-sm text-slate-500">Your engagement agreement with CMGONE for the active product.</p>
 
         <div className="mt-6 space-y-3">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">

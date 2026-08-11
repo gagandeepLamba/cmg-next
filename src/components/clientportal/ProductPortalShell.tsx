@@ -58,7 +58,7 @@ export default function ProductPortalShell({ children }: { children: React.React
     <div className="flex min-h-screen bg-slate-50">
       <div className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-y-auto border-r border-slate-200 bg-white">
         <div className="flex h-16 shrink-0 items-center border-b border-slate-200 px-5">
-          <span className="text-lg font-bold text-slate-900">DMC Client Portal</span>
+          <span className="text-lg font-bold text-slate-900">CMGONE Client Portal</span>
         </div>
 
         <div className="p-3">
@@ -106,7 +106,7 @@ export default function ProductPortalShell({ children }: { children: React.React
               );
             })}
           </nav>
-          <p className="mt-2 px-3 text-[11px] text-slate-400">+ Add product — Configured by DMC team</p>
+          <p className="mt-2 px-3 text-[11px] text-slate-400">+ Add product — Configured by CMGONE team</p>
         </div>
 
         <div className="mt-auto border-t border-slate-200 p-3">

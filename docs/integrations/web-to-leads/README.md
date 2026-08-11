@@ -11,7 +11,7 @@ Copy `vanilla-js-form.js` to the site, set `CRM_WEB_TO_LEADS_URL`, and call `sub
 ```html
 <form id="dmc-lead-form">
   <input name="fullName" required>
-  <input name="email" type="email" required>
+  <input name="email" type="email" required>w
   <input name="phone" required>
   <input name="branch" value="Dubai">
   <input name="destinationCountry">

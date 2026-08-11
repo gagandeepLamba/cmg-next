@@ -67,7 +67,7 @@ export default function ContactCpoPage() {
         <h2 className="text-sm font-semibold text-slate-900">Contact about your case</h2>
         <p className="mt-1 text-xs text-slate-500">
           Processing officers are not directly contactable by clients. For any questions about your file or
-          processing status, message your DMC case manager — they liaise with the processing office on your behalf.
+          processing status, message your CMGONE case manager — they liaise with the processing office on your behalf.
         </p>
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2"><span className="text-sm text-slate-500">Case manager</span><span className="text-sm font-medium text-slate-900">{contact.caseManagerName || 'Not yet assigned'}</span></div>
