@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
 import { verifyToken } from '@/lib/auth';
-import { isCeo } from '@/lib/roleChecks';
+import { isCeo, isCounsellor } from '@/lib/roleChecks';
 
 function roleCat(cu: { type?: string | null; role?: number | null; roleName?: string | null }) {
   if (Number(cu.role) === 1) return 'admin';
@@ -16,6 +16,51 @@ function roleCat(cu: { type?: string | null; role?: number | null; roleName?: st
   // meant to assign unassigned leads within their own branch.
   if (['branch_manager', 'bm', 'foe'].includes(t)) return 'branch_manager';
   return 'other';
+}
+
+type LeadFilters = {
+  search?: string;
+  status?: string;
+  assigned?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  priority?: string;
+  branch?: string;
+  nationality?: string;
+  serviceInterest?: string;
+  marketSource?: string;
+};
+
+// Shared by GET (listing) and POST (the "select all matching leads" transfer)
+// so the set of leads a bulk transfer acts on always matches what the user
+// filtered down to on screen.
+function buildLeadConditions(cat: string, userBranch: number, filters: LeadFilters) {
+  const conds: string[] = ['1=1'];
+  const rep: Record<string, unknown> = {};
+
+  if (cat === 'branch_manager' && userBranch) {
+    conds.push('l.branch = :userBranch');
+    rep.userBranch = userBranch;
+  }
+  if (filters.search) {
+    conds.push(`(LOWER(CONCAT(COALESCE(l.fname,''),' ',COALESCE(l.lname,''))) LIKE LOWER(:search) OR LOWER(COALESCE(l.email,'')) LIKE LOWER(:search) OR COALESCE(l.phone,'') LIKE :search OR COALESCE(l.mobile,'') LIKE :search)`);
+    rep.search = `%${filters.search}%`;
+  }
+  if (filters.status) {
+    conds.push(`LOWER(COALESCE(l.status,'')) = LOWER(:status)`);
+    rep.status = filters.status;
+  }
+  if (filters.assigned === 'unassigned') conds.push('(l.assignTo IS NULL OR l.assignTo = 0)');
+  if (filters.assigned === 'assigned')   conds.push('l.assignTo IS NOT NULL AND l.assignTo > 0');
+  if (filters.dateFrom) { conds.push('DATE(COALESCE(l.created,l.regdate)) >= :dateFrom'); rep.dateFrom = filters.dateFrom; }
+  if (filters.dateTo)   { conds.push('DATE(COALESCE(l.created,l.regdate)) <= :dateTo');   rep.dateTo   = filters.dateTo;   }
+  if (filters.priority) { conds.push('LOWER(COALESCE(l.priority,"")) = LOWER(:priority)'); rep.priority = filters.priority; }
+  if (filters.branch && cat !== 'branch_manager') { conds.push('l.branch = :branchFilter'); rep.branchFilter = Number(filters.branch); }
+  if (filters.nationality) { conds.push('LOWER(COALESCE(l.nationality,"")) LIKE LOWER(:nationality)'); rep.nationality = `%${filters.nationality}%`; }
+  if (filters.serviceInterest) { conds.push('l.service_interest = :serviceInterest'); rep.serviceInterest = filters.serviceInterest; }
+  if (filters.marketSource) { conds.push('l.market_source = :marketSource'); rep.marketSource = filters.marketSource; }
+
+  return { where: `WHERE ${conds.join(' AND ')}`, rep };
 }
 
 
@@ -46,32 +91,11 @@ export async function GET(request: NextRequest) {
     const marketSource  = searchParams.get('marketSource') || '';
     const offset   = (page - 1) * limit;
 
-    const conds: string[] = ['1=1'];
-    const rep: Record<string, unknown> = { limit, offset };
-
-    if (cat === 'branch_manager' && userBranch) {
-      conds.push('l.branch = :userBranch');
-      rep.userBranch = userBranch;
-    }
-    if (search) {
-      conds.push(`(LOWER(CONCAT(COALESCE(l.fname,''),' ',COALESCE(l.lname,''))) LIKE LOWER(:search) OR LOWER(COALESCE(l.email,'')) LIKE LOWER(:search) OR COALESCE(l.phone,'') LIKE :search OR COALESCE(l.mobile,'') LIKE :search)`);
-      rep.search = `%${search}%`;
-    }
-    if (status) {
-      conds.push(`LOWER(COALESCE(l.status,'')) = LOWER(:status)`);
-      rep.status = status;
-    }
-    if (assigned === 'unassigned') conds.push('(l.assignTo IS NULL OR l.assignTo = 0)');
-    if (assigned === 'assigned')   conds.push('l.assignTo IS NOT NULL AND l.assignTo > 0');
-    if (dateFrom) { conds.push('DATE(COALESCE(l.created,l.regdate)) >= :dateFrom'); rep.dateFrom = dateFrom; }
-    if (dateTo)   { conds.push('DATE(COALESCE(l.created,l.regdate)) <= :dateTo');   rep.dateTo   = dateTo;   }
-    if (priority) { conds.push('LOWER(COALESCE(l.priority,"")) = LOWER(:priority)'); rep.priority = priority; }
-    if (branchFilter && cat !== 'branch_manager') { conds.push('l.branch = :branchFilter'); rep.branchFilter = Number(branchFilter); }
-    if (nationality) { conds.push('LOWER(COALESCE(l.nationality,"")) LIKE LOWER(:nationality)'); rep.nationality = `%${nationality}%`; }
-    if (serviceInterest) { conds.push('l.service_interest = :serviceInterest'); rep.serviceInterest = serviceInterest; }
-    if (marketSource) { conds.push('l.market_source = :marketSource'); rep.marketSource = marketSource; }
-
-    const where = `WHERE ${conds.join(' AND ')}`;
+    const { where, rep: filterRep } = buildLeadConditions(cat, userBranch, {
+      search, status, assigned, dateFrom, dateTo, priority,
+      branch: branchFilter, nationality, serviceInterest, marketSource,
+    });
+    const rep: Record<string, unknown> = { ...filterRep, limit, offset };
 
     const [countRow] = await sequelize.query<{ total: number }>(
       `SELECT COUNT(*) AS total FROM dmc_forum_leads l ${where}`,
@@ -108,21 +132,33 @@ export async function GET(request: NextRequest) {
       { replacements: rep, type: QueryTypes.SELECT }
     );
 
-    // Counsellors for transfer dropdown — all active employees (BM: branch-filtered)
+    // Counsellors for transfer dropdown — active employees holding the Counsellor
+    // role (BM: branch-filtered). isCounsellor() is the same role-matching logic
+    // used elsewhere to distinguish individual-contributor sales staff from
+    // Branch Manager/HR/PRO/Accountant/CEO etc., so this list only ever offers
+    // actual counsellors as transfer targets.
     const cRep: Record<string, unknown> = {};
     const cConds = ['e.status = 1'];
     if (cat === 'branch_manager' && userBranch) {
       cConds.push('e.branch = :branchId');
       cRep.branchId = userBranch;
     }
-    const counsellors = await sequelize.query(
-      `SELECT e.id, e.name, e.branch, COALESCE(b.branch,'') AS branchName
+    const counsellorCandidates = await sequelize.query<{
+      id: number; name: string; branch: number; branchName: string;
+      roleName: string | null; roleType: string | null;
+    }>(
+      `SELECT e.id, e.name, e.branch, COALESCE(b.branch,'') AS branchName,
+        r.name AS roleName, r.type AS roleType
       FROM dm_employee e
       LEFT JOIN dm_branch b ON e.branch = b.id
+      LEFT JOIN dm_role r ON r.id = e.role
       WHERE ${cConds.join(' AND ')}
       ORDER BY e.name ASC LIMIT 300`,
       { replacements: cRep, type: QueryTypes.SELECT }
     );
+    const counsellors = counsellorCandidates
+      .filter((row) => isCounsellor({ roleName: row.roleName, type: row.roleType }))
+      .map(({ id, name, branch, branchName }) => ({ id, name, branch, branchName }));
 
     const branches = cat !== 'branch_manager'
       ? await sequelize.query(`SELECT id, branch AS name FROM dm_branch WHERE status=1 ORDER BY branch ASC LIMIT 50`, { type: QueryTypes.SELECT })
@@ -157,28 +193,61 @@ export async function POST(request: NextRequest) {
 
     const userBranch = Number(cu.branch || 0);
     const body = await request.json();
-    const { leadIds, counsellorId } = body as { leadIds: unknown[]; counsellorId: unknown };
+    const { leadIds, counsellorId, selectAll, filters } = body as {
+      leadIds: unknown[];
+      counsellorId: unknown;
+      selectAll?: boolean;
+      filters?: LeadFilters;
+    };
 
-    if (!Array.isArray(leadIds) || leadIds.length === 0)
-      return NextResponse.json({ error: 'leadIds array is required' }, { status: 400 });
     if (!counsellorId)
       return NextResponse.json({ error: 'counsellorId is required' }, { status: 400 });
 
-    const ids = leadIds.map(Number).filter(id => id > 0);
-    if (ids.length === 0)
-      return NextResponse.json({ error: 'No valid lead IDs' }, { status: 400 });
+    const upRep: Record<string, unknown> = { cid: Number(counsellorId) };
+    let whereClause: string;
+    let expectedCount: number;
 
-    const upRep: Record<string, unknown> = { cid: Number(counsellorId), ids };
-    let whereClause = 'WHERE id IN (:ids)';
-    if (cat === 'branch_manager' && userBranch) {
-      whereClause += ' AND branch = :userBranch';
-      upRep.userBranch = userBranch;
+    if (selectAll) {
+      // "Select all N leads" spans every page, not just the ones loaded in the
+      // browser — re-run the same filters server-side (scoped to the same
+      // where-clause GET uses) instead of trusting a client-supplied ID list,
+      // which would only ever cover the currently-rendered page.
+      const { where, rep: filterRep } = buildLeadConditions(cat, userBranch, filters || {});
+      whereClause = where;
+      Object.assign(upRep, filterRep);
+
+      const [countRow] = await sequelize.query<{ total: number }>(
+        `SELECT COUNT(*) AS total FROM dmc_forum_leads l ${whereClause}`,
+        { replacements: upRep, type: QueryTypes.SELECT }
+      );
+      expectedCount = Number(countRow?.total || 0);
+      if (expectedCount === 0)
+        return NextResponse.json({ error: 'No leads match the current filters' }, { status: 400 });
+    } else {
+      if (!Array.isArray(leadIds) || leadIds.length === 0)
+        return NextResponse.json({ error: 'leadIds array is required' }, { status: 400 });
+
+      const ids = leadIds.map(Number).filter(id => id > 0);
+      if (ids.length === 0)
+        return NextResponse.json({ error: 'No valid lead IDs' }, { status: 400 });
+
+      upRep.ids = ids;
+      whereClause = 'WHERE id IN (:ids)';
+      if (cat === 'branch_manager' && userBranch) {
+        whereClause += ' AND branch = :userBranch';
+        upRep.userBranch = userBranch;
+      }
+      expectedCount = ids.length;
     }
 
-    await sequelize.query(
-      `UPDATE dmc_forum_leads SET assignTo = :cid, Counsilor = :cid ${whereClause}`,
-      { replacements: upRep, type: QueryTypes.UPDATE }
-    );
+    // buildLeadConditions() aliases the leads table as `l` (needed for its JOIN-free
+    // reuse from GET); the UPDATE statement needs that same alias for the WHERE
+    // clause it produced to resolve.
+    const updateSql = selectAll
+      ? `UPDATE dmc_forum_leads l SET l.assignTo = :cid, l.Counsilor = :cid ${whereClause}`
+      : `UPDATE dmc_forum_leads SET assignTo = :cid, Counsilor = :cid ${whereClause}`;
+
+    await sequelize.query(updateSql, { replacements: upRep, type: QueryTypes.UPDATE });
 
     const [counsellor] = await sequelize.query<{ name: string }>(
       `SELECT name FROM dm_employee WHERE id = :cid LIMIT 1`,
@@ -187,7 +256,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      transferred: ids.length,
+      transferred: expectedCount,
       counsellorName: counsellor?.name || 'Unknown',
     });
   } catch (err) {

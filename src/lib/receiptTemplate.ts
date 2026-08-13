@@ -3,6 +3,11 @@
 // stages, Lead Management's Client List quick-pay, the Clients page
 // quick-pay, and Invoices & Payments).
 //
+// Layout matches the FTA-style "Tax Invoice / Receipt" reference document
+// exactly: a plain, grayscale bordered document rather than a colour-branded
+// one — Company Legal Name / Trading As / Company TRN / Client Residency
+// Status are all real fields on the printed page, not just internal data.
+//
 // The app operates a single branch/entity — Commonwealth Migration Group
 // (CMG), Dubai — so this no longer branches on branch geography/name. Branch
 // identity (company name/address/TRN/VAT/bank details) still comes from the
@@ -17,6 +22,7 @@ export interface ReceiptBranchSource {
   mobile?: string | null;
   phone?: string | null;
   licenseNumber?: string | null;
+  trn?: string | null;
   vatGstPercent?: number | string | null;
   abbrv?: string | null;
   bankName?: string | null;
@@ -34,6 +40,7 @@ export interface ReceiptBranchDetails {
   branchEmail: string;
   branchPhone: string;
   licenseNumber: string;
+  trn: string;
   vatGstPercent: number | null;
   // dm_branch.abbrv — the stable branch key. Kept for callers that key other
   // lookups off the same lead/opportunity data without a second branch fetch.
@@ -90,6 +97,12 @@ export function getLeadBranchDetails(
     leadData?.branch_license_number ||
     '',
   ).trim();
+  const trn = String(
+    dmBranch.trn ||
+    leadData?.branchTrn ||
+    leadData?.branch_trn ||
+    '',
+  ).trim();
   // dm_branch.vat_gst_percent is a DECIMAL column, which the MySQL driver
   // returns as a string — coerce here so callers can use it as a number.
   const rawVatGstPercent = dmBranch.vatGstPercent ?? leadData?.branchVatGstPercent ?? leadData?.branch_vat_gst_percent;
@@ -116,6 +129,7 @@ export function getLeadBranchDetails(
     branchEmail,
     branchPhone,
     licenseNumber,
+    trn,
     vatGstPercent,
     branchAbbrv,
     bankName,
@@ -126,63 +140,56 @@ export function getLeadBranchDetails(
   };
 }
 
+// Fixed legal identity of the single entity this app operates as — matches
+// the signed Tax Invoice/Receipt reference document exactly. The *trading*
+// display name (header banner) still comes from the branch record via
+// getLeadBranchDetails so it stays correct if finance ever renames it.
+const CMG_LEGAL_NAME = 'Commonwealth Documents Clearing Services LLC';
+const CMG_TRADING_AS = 'Commonwealth Migration Group ("CMG")';
+const CMG_ISSUER_EMAIL = 'accounts@cwmigrationgroup.ae';
+
 export interface BranchReceiptConfig {
   companyName: string;
-  issuedByName: string;
+  legalName: string;
+  tradingAs: string;
   address: string;
   trn: string | null;
+  licenseNumber: string | null;
   email: string;
-  headerBg: string;
-  accentColor: string;
-  totalBg: string;
-  labelColor: string;
-  receiptTitle: string;
-  hasVat: boolean;
-  vatRate: number; // percentage, e.g. 5 for 5%
-  taxLabel: 'VAT' | 'GST';
-  totalLabel: string;
-  statusLabel: string;
-  footerNote: string;
-  refLabel: string;
+  vatRate: number; // the branch's own default/standard rate, e.g. 5 for 5%
+  branchChargesVat: boolean; // false for branches with no VAT/GST regime at all (e.g. Kuwait, Qatar)
 }
 
-// Commonwealth Migration Group's fixed navy/red identity — company name,
-// address, TRN, and VAT rate still come from the branch's own dm_branch
-// record (never hardcoded), only the color theme and copy are fixed here.
+// Commonwealth Migration Group's identity for the printed invoice — legal
+// name/trading name are fixed (this app operates a single UAE entity); TRN,
+// address, and VAT rate still come from the branch's own dm_branch record
+// (never hardcoded), so they stay correct if finance updates those fields.
 export function getBranchReceiptConfig(
   branchName: string = '',
-  currency: string = 'AED',
   branchAddress: string | null = null,
   branchEmail: string | null = null,
   branchLicenseNumber: string | null = null,
+  branchTrn: string | null = null,
   branchVatGstPercent: number | string | null = null,
-  _branchId: number | string | null = null,
 ): BranchReceiptConfig {
   const vatRate = branchVatGstPercent !== null && branchVatGstPercent !== undefined && branchVatGstPercent !== ''
     ? Number(branchVatGstPercent)
     : 5;
-  const hasVat = vatRate > 0;
 
   return {
-    companyName: branchName || 'Commonwealth Migration Group',
-    issuedByName: 'Commonwealth Document Clearing Services LLC',
+    companyName: branchName || CMG_TRADING_AS,
+    legalName: CMG_LEGAL_NAME,
+    tradingAs: CMG_TRADING_AS,
     address: branchAddress || '',
-    trn: branchLicenseNumber || null,
-    email: branchEmail || '',
-    headerBg: '#eef2f8',
-    accentColor: '#0f2a4a',
-    totalBg: '#0f2a4a',
-    labelColor: '#1e3a5f',
-    receiptTitle: hasVat ? 'TAX INVOICE / PAYMENT RECEIPT' : 'PAYMENT RECEIPT',
-    hasVat, vatRate, taxLabel: 'VAT',
-    totalLabel: hasVat ? 'TOTAL PAID (INCL. VAT)' : 'TOTAL RECEIVED',
-    statusLabel: hasVat ? 'PAID IN FULL' : 'RECEIVED IN FULL',
-    footerNote: hasVat
-      ? `Tax Invoice per UAE Federal Tax Authority — VAT ${vatRate}%`
-      : 'This supply qualifies as an export of services under UAE VAT Law and is zero-rated/VAT-exempt accordingly.',
-    refLabel: 'Bank Reference',
+    trn: branchTrn || null,
+    licenseNumber: branchLicenseNumber || null,
+    email: branchEmail || CMG_ISSUER_EMAIL,
+    vatRate,
+    branchChargesVat: vatRate > 0,
   };
 }
+
+export type ClientResidencyStatus = 'uae_resident' | 'non_resident';
 
 export interface ReceiptFields {
   receiptNumber?: string | null;
@@ -190,10 +197,12 @@ export interface ReceiptFields {
   paymentDate?: string | Date | null;
   clientName?: string | null;
   email?: string | null;
+  phone?: string | null;
   passportNumber?: string | null;
   agreementNumber?: string | null;
   opportunityId?: number | string | null;
   serviceName?: string | null;
+  purposeOfPayment?: string | null;
   consultantName?: string | null;
   companyName?: string | null;
   branchId?: number | string | null;
@@ -202,7 +211,16 @@ export interface ReceiptFields {
   branchEmail?: string | null;
   branchPhone?: string | null;
   licenseNumber?: string | null;
+  branchTrn?: string | null;
   vatGstPercent?: number | string | null;
+  // Client residency status determines VAT treatment (5% standard-rated vs
+  // 0% zero-rated export of services). Pass either the resolved status or
+  // the raw dmc_forum_leads.novat flag (1 = non-resident/zero-rated) — the
+  // template never defaults to zero-rating on its own (matches the UAE VAT
+  // Law guidance that export-of-services zero-rating must be confirmed, not
+  // assumed).
+  residencyStatus?: ClientResidencyStatus | null;
+  novat?: number | string | null;
   paymentMethod?: string | null;
   transactionId?: string | null;
   currency?: string | null;
@@ -220,26 +238,66 @@ export interface ReceiptFields {
 
 const titleCase = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
+const esc = (value: unknown) => String(value ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+// ── English number-to-words, for the "Amount in Words" line ───────────────
+const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+  'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+const SCALES = ['', 'Thousand', 'Million', 'Billion'];
+
+function threeDigitsToWords(n: number): string {
+  let s = '';
+  if (n >= 100) {
+    s += `${ONES[Math.floor(n / 100)]} Hundred`;
+    n %= 100;
+    if (n) s += ' ';
+  }
+  if (n >= 20) {
+    s += TENS[Math.floor(n / 10)];
+    if (n % 10) s += `-${ONES[n % 10]}`;
+  } else if (n > 0) {
+    s += ONES[n];
+  }
+  return s;
+}
+
+function integerToWords(num: number): string {
+  if (num <= 0) return 'Zero';
+  let n = Math.floor(num);
+  const parts: string[] = [];
+  let scale = 0;
+  while (n > 0) {
+    const chunk = n % 1000;
+    if (chunk) parts.unshift(`${threeDigitsToWords(chunk)}${SCALES[scale] ? ' ' + SCALES[scale] : ''}`);
+    n = Math.floor(n / 1000);
+    scale++;
+  }
+  return parts.join(' ');
+}
+
+function amountInWords(amount: number, currency: string): string {
+  const whole = Math.floor(amount);
+  const fils = Math.round((amount - whole) * 100);
+  let words = `${currency} ${integerToWords(whole)}`;
+  if (fils > 0) words += ` and ${integerToWords(fils)} Fils`;
+  return `${words} only`;
+}
+
 // Shared by every screen that prints a payment receipt so they all render
 // the exact same layout instead of maintaining divergent copies.
 export function buildReceiptHtml(r: ReceiptFields): string {
   const cfg = getBranchReceiptConfig(
     r.branchName || r.companyName || '',
-    r.currency || 'AED',
     r.branchAddress || null,
     r.branchEmail || null,
     r.licenseNumber || null,
+    r.branchTrn || null,
     r.vatGstPercent ?? null,
-    r.branchId ?? null,
   );
   const currency = r.currency || 'AED';
-  const companyName = r.companyName || cfg.companyName;
-  const branchName = r.branchName || companyName;
   const branchAddress = (r.branchAddress || cfg.address || '').replace(/\n/g, ', ');
-  const contactLine = [
-    r.branchPhone ? `Ph: ${r.branchPhone}` : '',
-    r.branchEmail || cfg.email || '',
-  ].filter(Boolean).join(' · ');
   const fmt = (n: number) => `${currency} ${n.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const totalAmount = Number(r.totalAmount || 0);
@@ -250,11 +308,37 @@ export function buildReceiptHtml(r: ReceiptFields): string {
     ? Number(r.remainingBalance)
     : Math.max(0, totalAmount - paidAmount);
 
+  // Client residency resolves the VAT treatment for *this* invoice. Never
+  // zero-rate without an explicit non-resident confirmation — an unset/
+  // unknown status is treated as UAE-resident/standard-rated, per the UAE
+  // VAT Law export-of-services note (zero-rating must be verified, not
+  // assumed by default).
+  const residencyStatus: ClientResidencyStatus =
+    r.residencyStatus === 'non_resident' ? 'non_resident'
+    : r.residencyStatus === 'uae_resident' ? 'uae_resident'
+    : (r.novat === 1 || r.novat === '1') ? 'non_resident'
+    : 'uae_resident';
+  const isZeroRatedExport = cfg.branchChargesVat && residencyStatus === 'non_resident';
+  const effectiveVatRate = cfg.branchChargesVat ? (isZeroRatedExport ? 0 : cfg.vatRate) : 0;
+  const chargesVatAtAll = cfg.branchChargesVat;
+
   // The VAT/net split applies to the amount actually being receipted now
   // (paidAmount) — matching how a tax invoice is issued per payment received.
-  const netAmount = cfg.hasVat ? paidAmount / (1 + cfg.vatRate / 100) : paidAmount;
-  const vatAmount = cfg.hasVat ? paidAmount - netAmount : 0;
-  const vatRowLabel = cfg.hasVat ? `VAT @ ${cfg.vatRate}%` : 'VAT — Export of Services (Exempt)';
+  const netAmount = effectiveVatRate > 0 ? paidAmount / (1 + effectiveVatRate / 100) : paidAmount;
+  const vatAmount = effectiveVatRate > 0 ? paidAmount - netAmount : 0;
+  const vatRowLabel = !chargesVatAtAll
+    ? 'VAT — Not Applicable'
+    : isZeroRatedExport
+      ? 'VAT — 0% Export of Services (Zero-Rated)'
+      : `VAT — ${effectiveVatRate}% Standard Rate`;
+  const residencyLabel = residencyStatus === 'non_resident' ? 'Non-UAE Resident (Export of Services)' : 'UAE Resident';
+  const totalLabel = hasPreviouslyPaid ? 'AMOUNT PAID (THIS RECEIPT)' : 'TOTAL DUE';
+
+  const vatNote = !chargesVatAtAll
+    ? ''
+    : isZeroRatedExport
+      ? 'VAT Note: This supply is zero-rated as an export of services under UAE VAT Law (Cabinet Decision 52/2017, Art. 31) — the Client has confirmed non-UAE-residence and being outside the UAE at the time the service is performed.'
+      : `VAT Note: Standard-rated supply — ${effectiveVatRate}% UAE VAT applied as the Client is a UAE resident. Zero-rating as an export of services applies only where the recipient is confirmed non-UAE-resident and outside the UAE at the time of service (Cabinet Decision 52/2017, Art. 31); it is never applied by default.`;
 
   const isBankTransfer = /bank|transfer|swift|iban/i.test(r.paymentMethod || '');
   const bankName = r.bankName || '';
@@ -264,81 +348,109 @@ export function buildReceiptHtml(r: ReceiptFields): string {
   const bankBranch = r.bankBranch || '';
   const hasBankDetails = isBankTransfer && !!(bankName || bankAccountNumber || bankIban);
 
+  const invoiceNo = r.receiptNumber || r.paymentNumber || 'N/A';
+  const invoiceDate = r.paymentDate ? new Date(r.paymentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const trnValue = cfg.trn
+    ? esc(cfg.trn)
+    : '<span class="placeholder">____________________ (mandatory — insert FTA Tax Registration Number)</span>';
+  const clientContact = [r.phone || '', r.email || ''].filter(Boolean).join(' | ') || '—';
+  const purposeOfPayment = r.purposeOfPayment || `Professional Migration & Visa Consulting Services${r.serviceName ? ` — ${r.serviceName}` : ''}`;
+
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
-<title>Payment Receipt</title>
+<title>Tax Invoice / Receipt ${esc(invoiceNo)}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;color:#222;font-size:11pt;padding:50px 60px 80px}
-  .header{background:${cfg.headerBg};border-bottom:3px solid ${cfg.accentColor};padding:16px 20px;margin:-50px -60px 20px;display:flex;align-items:center;justify-content:space-between}
-  .brand{font-size:15pt;font-weight:700;color:${cfg.accentColor}}
-  .sub{font-size:9pt;color:#555;margin-top:3px}
-  .badge{background:${cfg.accentColor};color:#fff;padding:6px 16px;border-radius:4px;font-weight:700;font-size:10pt;white-space:nowrap}
-  table{width:100%;border-collapse:collapse;margin:16px 0}
-  td{padding:9px 12px;font-size:10.5pt}
-  tr td:first-child{background:${cfg.labelColor};color:#fff;font-weight:600}
-  tr td:last-child{background:#fff;border-bottom:1px solid #eee}
-  .vat-row td:first-child, .vat-row td:last-child{color:${cfg.accentColor};font-weight:700;background:#fff}
-  .total-row td:first-child{background:${cfg.totalBg}!important;font-size:11.5pt;color:#fff}
-  .total-row td:last-child{background:${cfg.totalBg}!important;font-weight:700;font-size:13pt;color:#fff}
-  .amount-table th{background:${cfg.accentColor};color:#fff;text-align:left;padding:9px 12px;font-size:10pt;text-transform:uppercase;letter-spacing:.3px}
-  .amount-table th:last-child, .amount-table td:last-child{text-align:right}
-  .bank-section{margin-top:18px}
-  .bank-title{background:${cfg.accentColor};color:#fff;padding:7px 12px;font-weight:700;font-size:10pt;text-transform:uppercase;letter-spacing:.3px}
-  .bank-table{margin-top:0}
-  .footer{margin-top:30px;border-top:2px solid ${cfg.accentColor};padding-top:10px;text-align:center;color:#666;font-size:9pt}
-  @media print{@page{size:A4;margin:0}body{padding:40px 50px 60px}.header{margin:-40px -50px 20px}}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:10.5pt;line-height:1.4;padding:36px 44px 60px}
+  .placeholder{color:#666;font-style:italic;font-weight:400}
+  .doc-header{text-align:center;margin-bottom:8px}
+  .doc-header .company{font-size:16pt;font-weight:800;letter-spacing:.3px}
+  .doc-header .legal{font-size:10pt;font-weight:600;margin-top:2px}
+  .doc-header .addr{font-size:9pt;color:#333;margin-top:2px}
+  .rule{border:none;border-top:2px solid #1a1a1a;margin:10px 0 10px}
+  .doc-title{text-align:center;margin-bottom:12px}
+  .doc-title .t1{font-size:13pt;font-weight:800;letter-spacing:.3px}
+  .doc-title .t2{font-size:9.5pt;margin-top:3px}
+  table.info-table{width:100%;border-collapse:collapse;border:1px solid #333;margin-bottom:14px}
+  table.info-table td{border:1px solid #333;padding:6px 10px;font-size:9.8pt;vertical-align:top}
+  table.info-table td.label{background:#eeeeee;font-weight:700;width:30%}
+  table.desc-table{width:100%;border-collapse:collapse;border:1px solid #333;margin-bottom:6px}
+  table.desc-table th{background:#2b2b2b;color:#fff;text-align:left;padding:7px 10px;font-size:9.5pt;text-transform:uppercase;letter-spacing:.3px}
+  table.desc-table th:last-child, table.desc-table td:last-child{text-align:right;width:150px}
+  table.desc-table td{border:1px solid #333;padding:7px 10px;font-size:9.8pt}
+  table.desc-table tr.total-row td{font-weight:800;background:#f0f0f0;font-size:10.5pt}
+  .caption{font-size:8.5pt;color:#333;margin:4px 0;line-height:1.5}
+  .caption.note{font-style:italic;color:#444}
+  table.bank-table{width:100%;border-collapse:collapse;border:1px solid #333;margin-top:14px}
+  table.bank-table th{background:#2b2b2b;color:#fff;text-align:left;padding:7px 10px;font-size:9.5pt;text-transform:uppercase;letter-spacing:.3px}
+  table.bank-table td{border:1px solid #333;padding:6px 10px;font-size:9.8pt}
+  table.bank-table td.label{background:#eeeeee;font-weight:700;width:30%}
+  .sign-row{display:flex;justify-content:space-between;margin-top:38px;gap:40px}
+  .sign-row .box{flex:1;font-size:9.5pt}
+  .sign-row .line{display:block;border-bottom:1px solid #1a1a1a;height:34px}
+  .sign-row .cap{margin-top:4px;font-style:italic;color:#333}
+  .notes{margin-top:26px;border-top:1px solid #999;padding-top:8px}
+  .notes ul{list-style:disc;padding-left:18px;font-size:8.3pt;color:#333;line-height:1.6}
+  @media print{@page{size:A4;margin:12mm 14mm}body{padding:0}}
 </style></head><body>
-<div class="header">
-  <div>
-    <div class="brand">${companyName.toUpperCase()}</div>
-    <div class="sub">${branchAddress || branchName}</div>
-    ${cfg.trn ? `<div class="sub"><strong>TRN: ${cfg.trn}</strong></div>` : ''}
-    ${contactLine ? `<div class="sub">${contactLine}</div>` : ''}
-  </div>
-  <div class="badge">${cfg.receiptTitle}</div>
+<div class="doc-header">
+  <div class="company">${esc(cfg.companyName.toUpperCase())}</div>
+  <div class="legal">${esc(cfg.legalName)}</div>
+  ${branchAddress ? `<div class="addr">${esc(branchAddress)}</div>` : ''}
 </div>
-<div style="margin-bottom:18px;">
-  <div style="font-size:10pt;color:#666;">Receipt No: <strong>${r.receiptNumber || r.paymentNumber || 'N/A'}</strong></div>
-  <div style="font-size:10pt;color:#666;margin-top:4px;">Date: <strong>${r.paymentDate ? new Date(r.paymentDate).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}</strong></div>
+<hr class="rule"/>
+<div class="doc-title">
+  <div class="t1">TAX INVOICE / RECEIPT</div>
+  <div class="t2">Invoice No.: <strong>${esc(invoiceNo)}</strong></div>
 </div>
-<table>
-  <tr><td>Client Name</td><td>${r.clientName || 'Client'}</td></tr>
-  ${r.email ? `<tr><td>Email</td><td>${r.email}</td></tr>` : ''}
-  ${r.passportNumber ? `<tr><td>Passport Number</td><td>${r.passportNumber}</td></tr>` : ''}
-  <tr><td>Agreement No.</td><td>${r.agreementNumber || 'N/A'}</td></tr>
-  ${r.serviceName ? `<tr><td>Service</td><td>${r.serviceName}</td></tr>` : ''}
-  ${r.consultantName ? `<tr><td>Consultant</td><td>${r.consultantName}</td></tr>` : ''}
-  <tr><td>Issued By</td><td>${cfg.issuedByName}</td></tr>
-  <tr><td>Branch</td><td>${branchName}</td></tr>
-  <tr><td>Payment Method</td><td>${titleCase(r.paymentMethod || 'Cash')}</td></tr>
-  ${r.transactionId ? `<tr><td>${cfg.refLabel}</td><td>${r.transactionId}</td></tr>` : ''}
-  ${r.remark ? `<tr><td>Remark</td><td>${r.remark}</td></tr>` : ''}
+<table class="info-table">
+  <tr><td class="label">Company Legal Name</td><td>${esc(cfg.legalName)}</td></tr>
+  <tr><td class="label">Trading As</td><td>${esc(cfg.tradingAs)}</td></tr>
+  <tr><td class="label">Company TRN</td><td>${trnValue}</td></tr>
+  <tr><td class="label">Date of Supply / Invoice Date</td><td>${esc(invoiceDate)}</td></tr>
+  <tr><td class="label">Client Name</td><td>${esc(r.clientName || 'Client')}</td></tr>
+  <tr><td class="label">Client Contact</td><td>${esc(clientContact)}</td></tr>
+  <tr><td class="label">Client Residency Status</td><td>${esc(residencyLabel)}</td></tr>
+  <tr><td class="label">Service / Program</td><td>${esc(r.serviceName || '—')}</td></tr>
+  <tr><td class="label">Purpose of Payment</td><td>${esc(purposeOfPayment)}</td></tr>
+  <tr><td class="label">Payment Mode</td><td>${esc(titleCase(r.paymentMethod || 'Cash'))}</td></tr>
+  <tr><td class="label">Payment Status</td><td><strong>Payment Received</strong></td></tr>
+  ${r.agreementNumber ? `<tr><td class="label">Agreement No.</td><td>${esc(r.agreementNumber)}</td></tr>` : ''}
+  ${r.consultantName ? `<tr><td class="label">Consultant</td><td>${esc(r.consultantName)}</td></tr>` : ''}
+  ${r.transactionId ? `<tr><td class="label">Bank Reference</td><td>${esc(r.transactionId)}</td></tr>` : ''}
+  ${r.remark ? `<tr><td class="label">Remark</td><td>${esc(r.remark)}</td></tr>` : ''}
 </table>
-<table class="amount-table">
-  <tr><th>Amount</th><th>Value (${currency})</th></tr>
+<table class="desc-table">
+  <tr><th>Description</th><th>Value (${esc(currency)})</th></tr>
   ${hasPreviouslyPaid ? `<tr><td>Total Amount</td><td>${fmt(totalAmount)}</td></tr>
   <tr><td>Previously Paid</td><td>${fmt(previouslyPaid)}</td></tr>` : ''}
-  <tr><td>Net Amount (excl. ${cfg.taxLabel})</td><td>${fmt(netAmount)}</td></tr>
-  <tr class="vat-row"><td>${vatRowLabel}</td><td>${fmt(vatAmount)}</td></tr>
-  <tr class="total-row"><td>${hasPreviouslyPaid ? cfg.totalLabel.replace('TOTAL PAID', 'AMOUNT PAID (THIS RECEIPT)').replace('TOTAL RECEIVED', 'AMOUNT RECEIVED (THIS RECEIPT)') : cfg.totalLabel}</td><td>${fmt(paidAmount)}</td></tr>
+  <tr><td>Net Amount — Professional Consulting Fee</td><td>${fmt(netAmount)}</td></tr>
+  <tr><td>${esc(vatRowLabel)}</td><td>${fmt(vatAmount)}</td></tr>
+  <tr class="total-row"><td>${esc(totalLabel)}</td><td>${fmt(paidAmount)}</td></tr>
   ${hasPreviouslyPaid ? `<tr class="total-row"><td>Balance Due</td><td>${fmt(balance)}</td></tr>` : ''}
 </table>
-${hasBankDetails ? `<div class="bank-section">
-  <div class="bank-title">Payment Details (Bank Transfer)</div>
-  <table class="bank-table">
-    ${bankName ? `<tr><td>Bank</td><td>${bankName}</td></tr>` : ''}
-    ${bankAccountName ? `<tr><td>Account Name</td><td>${bankAccountName}</td></tr>` : ''}
-    ${bankAccountNumber ? `<tr><td>Account Number</td><td>${bankAccountNumber}</td></tr>` : ''}
-    ${bankIban ? `<tr><td>IBAN</td><td>${bankIban}</td></tr>` : ''}
-    ${bankBranch ? `<tr><td>Branch</td><td>${bankBranch}</td></tr>` : ''}
-  </table>
-</div>` : ''}
-<p style="margin-top:16px;font-size:10pt;color:#444;">This receipt confirms payment received by ${companyName}. Please retain for your records.</p>
-<div style="margin-top:40px;display:flex;justify-content:space-between;font-size:10pt;">
-  <div>Client Signature: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
-  <div>Authorised Signatory: <span style="display:inline-block;width:160px;border-bottom:1px solid #222;"></span></div>
+<div class="caption"><strong>Amount in Words:</strong> ${esc(amountInWords(paidAmount, currency))}</div>
+${vatNote ? `<div class="caption note">${esc(vatNote)}</div>` : ''}
+${hasBankDetails ? `<table class="bank-table">
+  <tr><th colspan="2">Payment Details (for bank transfer)</th></tr>
+  ${bankName ? `<tr><td class="label">Bank</td><td>${esc(bankName)}</td></tr>` : ''}
+  ${bankAccountName ? `<tr><td class="label">Account Name</td><td>${esc(bankAccountName)}</td></tr>` : ''}
+  ${bankAccountNumber ? `<tr><td class="label">Account Number</td><td>${esc(bankAccountNumber)}</td></tr>` : ''}
+  ${bankIban ? `<tr><td class="label">IBAN</td><td>${esc(bankIban)}</td></tr>` : ''}
+  ${bankBranch ? `<tr><td class="label">Branch</td><td>${esc(bankBranch)}</td></tr>` : ''}
+</table>` : ''}
+<div class="sign-row">
+  <div class="box"><span class="line"></span><div class="cap">Client Signature</div></div>
+  <div class="box"><span class="line"></span><div class="cap">Authorised Signatory — CMG</div></div>
 </div>
-<div class="footer">${cfg.footerNote}${cfg.trn ? ` · TRN: ${cfg.trn}` : ''}<br>${[companyName, branchAddress, r.licenseNumber && !cfg.trn ? `Licence No. ${r.licenseNumber}` : '', 'cwmigrationgroup.ae'].filter(Boolean).join(' · ')}</div>
+<div class="notes">
+  <ul>
+    <li>This is a Tax Invoice per UAE Federal Tax Authority requirements. Valid only when the Company TRN above is completed.</li>
+    <li>Please share the bank transfer receipt / SWIFT copy referencing this invoice number once payment is sent.</li>
+    <li>Bank transfer charges are borne by the applicant, not by ${esc(cfg.legalName)}.</li>
+    <li>Payment will only be recorded/credited as "Payment Received" once funds are realized and cleared in our bank account — not upon initiation or submission of a transfer.</li>
+    <li>${esc(cfg.email)}</li>
+  </ul>
+</div>
 </body></html>`;
 }
 

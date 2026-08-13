@@ -2649,7 +2649,7 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
               {requiresDiscountApproval && retentionData.discountStatus === 'pending' && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-yellow-700">
-                    Pending Director of Sales / Super Admin approval. All next opportunity stages are locked until approval.
+                    Pending Branch Manager or CEO approval (CEO only above 30%). All next opportunity stages are locked until approval.
                   </span>
                   <button
                     onClick={onRefreshDiscount}
@@ -2907,6 +2907,8 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
       paymentDate: r.paymentDate,
       clientName: r.clientName || `${lead?.fname || ''} ${lead?.lname || ''}`.trim() || 'Client',
       passportNumber: (lead as any)?.id_number || '',
+      email: (lead as any)?.email || '',
+      phone: (lead as any)?.mobile || (lead as any)?.phone || '',
       agreementNumber: r.agreementNumber,
       opportunityId,
       serviceName: r.serviceName || lead?.service_interest,
@@ -2917,7 +2919,9 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
       branchEmail: r.branchEmail || branchDetails.branchEmail,
       branchPhone: r.branchPhone || branchDetails.branchPhone,
       licenseNumber: branchDetails.licenseNumber,
+      branchTrn: branchDetails.trn,
       vatGstPercent: branchDetails.vatGstPercent,
+      novat: (lead as any)?.novat,
       bankName: branchDetails.bankName,
       bankAccountName: branchDetails.bankAccountName,
       bankAccountNumber: branchDetails.bankAccountNumber,
@@ -2929,6 +2933,7 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
       totalAmount: data.totalAmount || r.totalAmount,
       paidAmount: data.paidAmount || r.paidAmount || r.amount,
       remainingBalance: data.remainingBalance,
+      remark: r.remark || data.remark || undefined,
     });
     setPrintingReceipt(false);
   };
@@ -3253,6 +3258,8 @@ function AccountsStage({ lead, leadId, opportunityId, onNext, onPrevious }: any)
       paymentDate: p.paymentDate,
       clientName: p.clientName || `${lead?.fname || ''} ${lead?.lname || ''}`.trim(),
       passportNumber: (lead as any)?.id_number || '',
+      email: p.clientEmail || (lead as any)?.email || '',
+      phone: p.clientPhone || (lead as any)?.mobile || (lead as any)?.phone || '',
       agreementNumber: p.agreementNumber,
       opportunityId,
       serviceName: p.serviceName || lead?.service_interest,
@@ -3263,7 +3270,9 @@ function AccountsStage({ lead, leadId, opportunityId, onNext, onPrevious }: any)
       branchEmail: p.branchEmail || branchDetails.branchEmail,
       branchPhone: p.branchPhone || branchDetails.branchPhone,
       licenseNumber: branchDetails.licenseNumber,
+      branchTrn: branchDetails.trn,
       vatGstPercent: branchDetails.vatGstPercent,
+      novat: (lead as any)?.novat,
       bankName: branchDetails.bankName,
       bankAccountName: branchDetails.bankAccountName,
       bankAccountNumber: branchDetails.bankAccountNumber,
@@ -3275,6 +3284,7 @@ function AccountsStage({ lead, leadId, opportunityId, onNext, onPrevious }: any)
       totalAmount: p.totalAmount,
       paidAmount: p.paidAmount,
       remainingBalance: p.remainingBalance ?? p.balanceAmount,
+      remark: p.remark || undefined,
     });
     setPrintingId(null);
   };

@@ -21,7 +21,10 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10')
     const counselorId = searchParams.get('counselorId')
     const date = searchParams.get('date')
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
     const status = searchParams.get('status')
+    const crossBranch = searchParams.get('crossBranch')
 
     const skip = (page - 1) * limit
 
@@ -54,6 +57,20 @@ export async function GET(request: NextRequest) {
     if (date) {
       conditions.push('a.date = :date')
       replacements.date = date
+    } else if (startDate && endDate) {
+      conditions.push('a.date BETWEEN :startDate AND :endDate')
+      replacements.startDate = startDate
+      replacements.endDate = endDate
+    } else if (startDate) {
+      conditions.push('a.date >= :startDate')
+      replacements.startDate = startDate
+    } else if (endDate) {
+      conditions.push('a.date <= :endDate')
+      replacements.endDate = endDate
+    }
+
+    if (crossBranch === '1' || crossBranch === 'true') {
+      conditions.push('a.cross_branch = 1')
     }
 
     if (status) {
@@ -83,6 +100,7 @@ export async function GET(request: NextRequest) {
         a.verified_by,
         a.verified_at,
         a.foe_remark,
+        a.notes,
         a.cross_branch,
         a.assigned_branch,
         a.assigned_by,
@@ -178,7 +196,11 @@ export async function POST(request: NextRequest) {
       not_done: Number(data.not_done ?? 0),
       region: normalizeNumber(data.region),
       branch: normalizeNumber(data.branch) || 0,
+      // `screenshot` is the meeting-proof upload URL only (set when a
+      // counselor marks the meeting done) — booking notes go in `notes` so
+      // marking done doesn't clobber whatever note was recorded at booking.
       screenshot: data.screenshot || '',
+      notes: data.notes || null,
       second_done: Number(data.second_done ?? 0),
       second_meet_date: data.second_meet_date || appointmentDate,
       cross_branch: crossBranch ? 1 : 0,

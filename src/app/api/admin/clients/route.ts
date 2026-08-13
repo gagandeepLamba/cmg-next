@@ -41,12 +41,15 @@ type ClientListRow = {
   branchEmail: string | null;
   branchMobile: string | null;
   branchLicenseNumber: string | null;
+  branchTrn: string | null;
   branchVatGstPercent: number | null;
   branchBankName: string | null;
   branchBankAccountName: string | null;
   branchBankAccountNumber: string | null;
   branchBankIban: string | null;
   branchBankBranch: string | null;
+  mobile: string | null;
+  novat: number | null;
 };
 
 // A lead becomes a formal "Client" once BOTH accounts (finance) verification
@@ -80,8 +83,9 @@ export async function GET(request: NextRequest) {
       `SELECT
          w.id, w.opportunity_id AS opportunityId, w.lead_id AS leadId, w.case_activated_at,
          l.fname, l.lname, l.email, l.dob, l.address, l.area, l.nationality, l.assignTo,
+         l.mobile, l.novat,
          b.name AS branchName, b.address AS branchAddress, b.email AS branchEmail,
-         b.mobile AS branchMobile, b.license_number AS branchLicenseNumber, b.vat_gst_percent AS branchVatGstPercent,
+         b.mobile AS branchMobile, b.license_number AS branchLicenseNumber, b.trn AS branchTrn, b.vat_gst_percent AS branchVatGstPercent,
          b.bank_name AS branchBankName, b.bank_account_name AS branchBankAccountName,
          b.bank_account_number AS branchBankAccountNumber, b.bank_iban AS branchBankIban, b.bank_branch AS branchBankBranch
        FROM dm_opportunity_workflow_reviews w
@@ -131,12 +135,15 @@ export async function GET(request: NextRequest) {
       branchEmail: r.branchEmail || '',
       branchMobile: r.branchMobile || '',
       branchLicenseNumber: r.branchLicenseNumber || null,
+      branchTrn: r.branchTrn || null,
       branchVatGstPercent: r.branchVatGstPercent ?? null,
       branchBankName: r.branchBankName || null,
       branchBankAccountName: r.branchBankAccountName || null,
       branchBankAccountNumber: r.branchBankAccountNumber || null,
       branchBankIban: r.branchBankIban || null,
       branchBankBranch: r.branchBankBranch || null,
+      mobile: r.mobile || '',
+      novat: r.novat ?? null,
     }));
 
     return NextResponse.json({ data, pagination: { page: 1, limit, total: data.length, totalPages: 1 } });

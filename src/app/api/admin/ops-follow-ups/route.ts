@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || '';
     const priority = searchParams.get('priority') || '';
     const search = searchParams.get('search') || '';
+    const startDate = searchParams.get('startDate') || '';
+    const endDate = searchParams.get('endDate') || '';
 
     const role = String(currentUser.type || '').toLowerCase().replace(/[\s-]+/g, '_');
     const canViewAll = currentUser.role === 1 || ['admin', 'administrator', 'super_admin', 'director_of_sales', 'director', 'dos', 'director_of_operations', 'operation_manager'].includes(role);
@@ -63,6 +65,19 @@ export async function GET(request: NextRequest) {
     if (priority) {
       conditions.push('r.priority = :priority');
       replacements.priority = priority;
+    }
+
+    // Date-range filter
+    if (startDate && endDate) {
+      conditions.push('r.reminder_date BETWEEN :startDate AND :endDate');
+      replacements.startDate = startDate;
+      replacements.endDate = endDate;
+    } else if (startDate) {
+      conditions.push('r.reminder_date >= :startDate');
+      replacements.startDate = startDate;
+    } else if (endDate) {
+      conditions.push('r.reminder_date <= :endDate');
+      replacements.endDate = endDate;
     }
 
     // Search filter

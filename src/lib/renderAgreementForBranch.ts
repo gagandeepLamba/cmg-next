@@ -1,4 +1,4 @@
-// Single entry point for "render the Client Service Agreement HTML" — every
+// Single entry point for "render the Client Advisory Agreement HTML" — every
 // screen that generates/previews an agreement (agreement-generation route,
 // sample-agreement route, the standalone opportunity agreement page, the
 // Opportunity Flow wizard, and the Agreements page) should call this instead

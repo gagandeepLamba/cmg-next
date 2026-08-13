@@ -62,6 +62,8 @@ export default function OpsFollowUpsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [rescheduleId, setRescheduleId] = useState<number | null>(null);
@@ -83,6 +85,8 @@ export default function OpsFollowUpsPage() {
       if (statusFilter) params.set('status', statusFilter);
       if (priorityFilter) params.set('priority', priorityFilter);
       if (searchTerm) params.set('search', searchTerm);
+      if (startDateFilter) params.set('startDate', startDateFilter);
+      if (endDateFilter) params.set('endDate', endDateFilter);
       const res = await fetch(`/api/admin/ops-follow-ups?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
@@ -93,7 +97,7 @@ export default function OpsFollowUpsPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, priorityFilter, searchTerm]);
+  }, [statusFilter, priorityFilter, searchTerm, startDateFilter, endDateFilter]);
 
   useEffect(() => { fetchFollowUps(); }, [fetchFollowUps]);
 
@@ -250,6 +254,30 @@ export default function OpsFollowUpsPage() {
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </SearchableSelect>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-500">From</label>
+          <input
+            type="date"
+            value={startDateFilter}
+            onChange={(e) => setStartDateFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <label className="text-sm text-gray-500">To</label>
+          <input
+            type="date"
+            value={endDateFilter}
+            onChange={(e) => setEndDateFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          {(startDateFilter || endDateFilter) && (
+            <button
+              onClick={() => { setStartDateFilter(''); setEndDateFilter(''); }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Error */}

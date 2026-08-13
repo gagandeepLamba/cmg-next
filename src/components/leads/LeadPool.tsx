@@ -210,9 +210,6 @@ export default function LeadPool() {
 
   const handleTransfer = async () => {
     if (!counsellorId) { setError('Please select a counsellor'); return; }
-    const ids = selectAllDb
-      ? 'all'
-      : Array.from(selectedIds);
 
     setTransferring(true);
     setError('');
@@ -220,7 +217,21 @@ export default function LeadPool() {
       const res = await fetch('/api/admin/lead-pool', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadIds: ids === 'all' ? pageLeads.map(l => l.id) : ids, counsellorId: Number(counsellorId), selectAll: ids === 'all' }),
+        body: JSON.stringify(selectAllDb ? {
+          // Spans every page matching the current filters, not just the page
+          // loaded in the browser — the server re-runs these same filters
+          // rather than being handed a page-limited list of IDs.
+          selectAll: true,
+          counsellorId: Number(counsellorId),
+          filters: {
+            search, status: statusFilter, assigned: assignedFilter, dateFrom, dateTo,
+            priority: priorityFilter, branch: branchFilter, nationality: nationalityFilter,
+            serviceInterest: serviceFilter, marketSource: marketFilter,
+          },
+        } : {
+          leadIds: Array.from(selectedIds),
+          counsellorId: Number(counsellorId),
+        }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Transfer failed');

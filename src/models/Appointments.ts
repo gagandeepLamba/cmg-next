@@ -19,6 +19,7 @@ interface AppointmentsAttributes {
   verified_by: number | null;
   verified_at: Date | null;
   foe_remark: string | null;
+  notes: string | null;
   cross_branch: number;
   assigned_branch: number | null;
   assigned_by: number | null;
@@ -26,7 +27,7 @@ interface AppointmentsAttributes {
   acknowledged_at: Date | null;
 }
 
-interface AppointmentsCreationAttributes extends Optional<AppointmentsAttributes, 'id' | 'leadid' | 'date' | 'counsilorid' | 'booked' | 'done' | 'not_done' | 'region' | 'branch' | 'screenshot' | 'second_done' | 'second_meet_date' | 'meeting_status' | 'meeting_verified' | 'verified_by' | 'verified_at' | 'foe_remark' | 'cross_branch' | 'assigned_branch' | 'assigned_by' | 'acknowledged' | 'acknowledged_at'> {}
+interface AppointmentsCreationAttributes extends Optional<AppointmentsAttributes, 'id' | 'leadid' | 'date' | 'counsilorid' | 'booked' | 'done' | 'not_done' | 'region' | 'branch' | 'screenshot' | 'second_done' | 'second_meet_date' | 'meeting_status' | 'meeting_verified' | 'verified_by' | 'verified_at' | 'foe_remark' | 'notes' | 'cross_branch' | 'assigned_branch' | 'assigned_by' | 'acknowledged' | 'acknowledged_at'> {}
 
 class Appointments extends Model<AppointmentsAttributes, AppointmentsCreationAttributes> implements AppointmentsAttributes {
   declare id: number;
@@ -47,6 +48,7 @@ class Appointments extends Model<AppointmentsAttributes, AppointmentsCreationAtt
   declare verified_by: number | null;
   declare verified_at: Date | null;
   declare foe_remark: string | null;
+  declare notes: string | null;
   declare cross_branch: number;
   declare assigned_branch: number | null;
   declare assigned_by: number | null;
@@ -145,6 +147,11 @@ Appointments.init(
     },
     foe_remark: {
       type: DataTypes.STRING(500),
+      allowNull: true,
+      defaultValue: null
+    },
+    notes: {
+      type: DataTypes.TEXT,
       allowNull: true,
       defaultValue: null
     },

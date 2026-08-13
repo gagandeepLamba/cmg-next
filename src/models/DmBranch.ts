@@ -14,6 +14,7 @@ interface DmBranchAttributes {
   status: number;
   website: string;
   license_number: string | null;
+  trn: string | null;
   vat_gst_percent: number | null;
   bank_name: string | null;
   bank_account_name: string | null;
@@ -22,7 +23,7 @@ interface DmBranchAttributes {
   bank_branch: string | null;
 }
 
-interface DmBranchCreationAttributes extends Optional<DmBranchAttributes, 'status' | 'license_number' | 'vat_gst_percent' | 'bank_name' | 'bank_account_name' | 'bank_account_number' | 'bank_iban' | 'bank_branch'> {}
+interface DmBranchCreationAttributes extends Optional<DmBranchAttributes, 'status' | 'license_number' | 'trn' | 'vat_gst_percent' | 'bank_name' | 'bank_account_name' | 'bank_account_number' | 'bank_iban' | 'bank_branch'> {}
 
 class DmBranch extends Model<DmBranchAttributes, DmBranchCreationAttributes> implements DmBranchAttributes {
   declare id: number;
@@ -38,6 +39,7 @@ class DmBranch extends Model<DmBranchAttributes, DmBranchCreationAttributes> imp
   declare status: number;
   declare website: string;
   declare license_number: string | null;
+  declare trn: string | null;
   declare vat_gst_percent: number | null;
   declare bank_name: string | null;
   declare bank_account_name: string | null;
@@ -108,6 +110,10 @@ DmBranch.init(
     },
     license_number: {
       type: DataTypes.STRING(100),
+      allowNull: true
+    },
+    trn: {
+      type: DataTypes.STRING(30),
       allowNull: true
     },
     vat_gst_percent: {

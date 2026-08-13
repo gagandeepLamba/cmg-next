@@ -19,12 +19,15 @@ type ClientWithBranch = DmClientsAttributes & {
   branchEmail?: string;
   branchMobile?: string;
   branchLicenseNumber?: string | null;
+  branchTrn?: string | null;
   branchVatGstPercent?: number | string | null;
   branchBankName?: string | null;
   branchBankAccountName?: string | null;
   branchBankAccountNumber?: string | null;
   branchBankIban?: string | null;
   branchBankBranch?: string | null;
+  mobile?: string | null;
+  novat?: number | null;
 };
 
 interface BalanceRow {
@@ -228,6 +231,7 @@ export default function ClientsManagement() {
         email: client.branchEmail,
         mobile: client.branchMobile,
         licenseNumber: client.branchLicenseNumber,
+        trn: client.branchTrn,
         vatGstPercent: client.branchVatGstPercent,
         bankName: client.branchBankName,
         bankAccountName: client.branchBankAccountName,
@@ -241,6 +245,7 @@ export default function ClientsManagement() {
       paymentDate: qp.date,
       clientName: `${client.first_name} ${client.last_name}`,
       email: client.email,
+      phone: client.mobile,
       agreementNumber: receipt.agreementNumber,
       companyName: branchDetails.companyName,
       branchName: branchDetails.branchName,
@@ -248,7 +253,9 @@ export default function ClientsManagement() {
       branchEmail: branchDetails.branchEmail,
       branchPhone: branchDetails.branchPhone,
       licenseNumber: branchDetails.licenseNumber,
+      branchTrn: branchDetails.trn,
       vatGstPercent: branchDetails.vatGstPercent,
+      novat: client.novat,
       bankName: branchDetails.bankName,
       bankAccountName: branchDetails.bankAccountName,
       bankAccountNumber: branchDetails.bankAccountNumber,

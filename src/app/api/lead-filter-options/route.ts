@@ -24,7 +24,7 @@ const ensureDBConnection = async () => {
   }
 };
 
-const baseStatuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Closed'];
+const baseStatuses = ['Untouched', 'New', 'Contacted', 'Qualified', 'Converted', 'Closed'];
 const basePriorities = ['Hot', 'Warm', 'Cold', 'High', 'Medium', 'Low'];
 const baseLeadQualities = ['Hot', 'Warm', 'Cold'];
 

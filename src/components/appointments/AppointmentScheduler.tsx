@@ -67,6 +67,7 @@ interface ApiAppointment {
   verified_by?: number | null;
   verified_at?: string | null;
   foe_remark?: string | null;
+  notes?: string | null;
   fname?: string | null;
   lname?: string | null;
   leadEmail?: string | null;
@@ -126,7 +127,7 @@ function mapAppointment(appointment: ApiAppointment): Appointment {
     branch: appointment.branchName || (appointment.branch ? `Branch #${appointment.branch}` : 'No branch'),
     region: appointment.regionName || (appointment.region ? `Region #${appointment.region}` : 'No region'),
     location: appointment.branchName || 'Office',
-    notes: '',
+    notes: appointment.notes || '',
     reminderSent: Number(appointment.booked || 0) === 1,
     createdAt: '',
     updatedAt: '',
@@ -166,6 +167,8 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     date: '',
+    dateFrom: '',
+    dateTo: '',
     status: '',
     type: '',
     counsilor: '',
@@ -206,7 +209,12 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
       setLoading(true);
       setError('');
       const params = new URLSearchParams({ page: '1', limit: '100' });
-      if (filters.date) params.set('date', filters.date);
+      if (filters.date) {
+        params.set('date', filters.date);
+      } else {
+        if (filters.dateFrom) params.set('startDate', filters.dateFrom);
+        if (filters.dateTo) params.set('endDate', filters.dateTo);
+      }
       if (filters.status) params.set('status', filters.status);
       if (filters.counsilor) params.set('counselorId', filters.counsilor);
 
@@ -228,7 +236,7 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
 
   useEffect(() => {
     fetchAppointments();
-  }, [filters.date, filters.status, filters.counsilor]);
+  }, [filters.date, filters.dateFrom, filters.dateTo, filters.status, filters.counsilor]);
 
   // Counselor filter dropdown - previously hardcoded to 3 fake names
   // (Sarah Wilson/Mike Johnson/Lisa Chen) that never matched real data.
@@ -590,7 +598,7 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -604,9 +612,30 @@ export default function AppointmentScheduler({ onAppointmentSelect, showActions 
 
           <input
             type="date"
+            title="Exact date"
             value={filters.date}
             onChange={(e) => setFilters({...filters, date: e.target.value})}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+
+          <input
+            type="date"
+            title="From date (used when exact date is empty)"
+            placeholder="From"
+            value={filters.dateFrom}
+            disabled={!!filters.date}
+            onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
+          />
+
+          <input
+            type="date"
+            title="To date (used when exact date is empty)"
+            placeholder="To"
+            value={filters.dateTo}
+            disabled={!!filters.date}
+            onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
           />
 
           <SearchableSelect

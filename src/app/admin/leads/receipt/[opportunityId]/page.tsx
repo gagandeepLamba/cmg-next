@@ -9,10 +9,13 @@ import { getLeadBranchDetails, buildReceiptHtml } from '@/lib/receiptTemplate';
 interface PaymentRecord {
   id: number;
   opportunityId: number;
+  leadId: number | null;
   paymentNumber: string;
   receiptNumber: string | null;
   paymentDate: string;
   clientName: string | null;
+  clientEmail: string | null;
+  clientPhone: string | null;
   serviceName: string | null;
   consultantName: string | null;
   paymentMethod: string;
@@ -27,12 +30,14 @@ interface PaymentRecord {
   branchEmail: string | null;
   branchPhone: string | null;
   branchLicenseNumber: string | null;
+  branchTrn: string | null;
   branchVatGstPercent: number | string | null;
   branchBankName: string | null;
   branchBankAccountName: string | null;
   branchBankAccountNumber: string | null;
   branchBankIban: string | null;
   branchBankBranch: string | null;
+  novat: number | null;
   accountantStatus: string | null;
   remark: string | null;
 }
@@ -51,6 +56,7 @@ export default function ReceiptPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [savingResidency, setSavingResidency] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -87,6 +93,7 @@ export default function ReceiptPage() {
         email: selected.branchEmail,
         mobile: selected.branchPhone,
         licenseNumber: selected.branchLicenseNumber,
+        trn: selected.branchTrn,
         vatGstPercent: selected.branchVatGstPercent,
         bankName: selected.branchBankName,
         bankAccountName: selected.branchBankAccountName,
@@ -100,6 +107,8 @@ export default function ReceiptPage() {
       paymentNumber: selected.paymentNumber,
       paymentDate: selected.paymentDate,
       clientName: selected.clientName,
+      email: selected.clientEmail,
+      phone: selected.clientPhone,
       agreementNumber: selected.agreementNumber,
       opportunityId: selected.opportunityId,
       serviceName: selected.serviceName,
@@ -110,7 +119,9 @@ export default function ReceiptPage() {
       branchEmail: branchDetails.branchEmail,
       branchPhone: branchDetails.branchPhone,
       licenseNumber: branchDetails.licenseNumber,
+      branchTrn: branchDetails.trn,
       vatGstPercent: branchDetails.vatGstPercent,
+      novat: selected.novat,
       bankName: branchDetails.bankName,
       bankAccountName: branchDetails.bankAccountName,
       bankAccountNumber: branchDetails.bankAccountNumber,
@@ -128,6 +139,31 @@ export default function ReceiptPage() {
 
   const handlePrint = () => {
     iframeRef.current?.contentWindow?.print();
+  };
+
+  const handleResidencyChange = async (value: string) => {
+    if (!selected || !selected.leadId) return;
+    const novat = value === 'non_resident' ? 1 : 0;
+    setSavingResidency(true);
+    try {
+      const res = await fetch(`/api/leads/${selected.leadId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ novat }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update residency status');
+      }
+      setPayments((prev) => prev.map((p) => (p.id === selected.id ? { ...p, novat } : p)));
+    } catch (err) {
+      window.toast?.error?.(err instanceof Error ? err.message : 'Failed to update residency status');
+    } finally {
+      setSavingResidency(false);
+    }
   };
 
   return (
@@ -154,6 +190,18 @@ export default function ReceiptPage() {
                   {p.receiptNumber || p.paymentNumber} — {new Date(p.paymentDate).toLocaleDateString('en-GB')}
                 </option>
               ))}
+            </select>
+          )}
+          {selected && selected.leadId && (
+            <select
+              value={selected.novat === 1 ? 'non_resident' : 'uae_resident'}
+              onChange={(e) => handleResidencyChange(e.target.value)}
+              disabled={savingResidency}
+              title="Client Residency Status — determines VAT treatment on the tax invoice"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50"
+            >
+              <option value="uae_resident">UAE Resident (5% VAT)</option>
+              <option value="non_resident">Non-UAE Resident (0% — Export of Services)</option>
             </select>
           )}
           <button

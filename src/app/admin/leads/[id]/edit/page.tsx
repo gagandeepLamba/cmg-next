@@ -444,7 +444,7 @@ export default function AdminEditLeadPage() {
   const genderOptions = ['--None--', 'Male', 'Female', 'Other', 'Prefer not to say'];
   const staticCountries = ALL_COUNTRIES;
   const priorities = formData.status === 'Prospect' ? ['P1', 'P2', 'P3', 'P4'] : ['Hot', 'Warm', 'Cold', 'High', 'Medium', 'Low'];
-  const statuses = ['New', 'Contacted', 'Qualified', 'Converted', 'Closed', 'Prospect', 'Not Interested', 'DNQ', 'Not_answered', 'Could Not Connect', 'Call Back', 'Abroad Lead', 'Junk', 'Duplicate'];
+  const statuses = ['Untouched', 'New', 'Contacted', 'Qualified', 'Converted', 'Closed', 'Prospect', 'Not Interested', 'DNQ', 'Not_answered', 'Could Not Connect', 'Call Back', 'Abroad Lead', 'Junk', 'Duplicate'];
   const leadQualities = ['Hot', 'Warm', 'Cold'];
 
   if (pageLoading) {

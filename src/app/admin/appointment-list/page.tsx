@@ -72,7 +72,7 @@ export default function AppointmentListPage() {
             counselorName: a.counselorName || (a.counsilorid ? `Counselor #${a.counsilorid}` : 'Unassigned'),
             branch: a.branchName || (a.branch ? `Branch #${a.branch}` : ''),
             region: a.regionName || (a.region ? `Region #${a.region}` : ''),
-            notes: a.screenshot || '',
+            notes: a.notes || '',
             createdAt: '',
             crossBranch: Number(a.cross_branch || 0) === 1
           }
@@ -161,7 +161,7 @@ export default function AppointmentListPage() {
             <h1 className="text-3xl font-bold text-gray-900">Appointment List</h1>
             <p className="text-gray-600">View and manage all appointments</p>
           </div>
-          <Button onClick={() => window.location.href = '/appointments'}>
+          <Button onClick={() => window.location.href = '/admin/appointments'}>
             <Plus className="h-4 w-4 mr-2" />
             New Appointment
           </Button>

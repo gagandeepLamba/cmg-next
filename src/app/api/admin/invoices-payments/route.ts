@@ -138,7 +138,7 @@ async function getPayments(search: string, status: string, dateFrom: string, dat
   const payments = await sequelize.query<any>(`
     SELECT
       p.*,
-      l.fname, l.lname, l.phone, l.email,
+      l.fname, l.lname, l.phone, l.email, l.novat,
       o.opportunityName, o.estimatedValue,
       e.name AS counselorName,
       ae.name AS accountantName,
@@ -146,6 +146,7 @@ async function getPayments(search: string, status: string, dateFrom: string, dat
       b.address AS dmBranchAddress,
       b.email AS dmBranchEmail,
       b.license_number AS dmBranchLicenseNumber,
+      b.trn AS dmBranchTrn,
       b.vat_gst_percent AS dmBranchVatGstPercent,
       b.bank_name AS dmBranchBankName,
       b.bank_account_name AS dmBranchBankAccountName,
@@ -200,6 +201,7 @@ async function getInvoices(search: string, status: string, dateFrom: string, dat
       b.address AS branchAddress,
       b.email AS branchEmail,
       b.license_number AS branchLicenseNumber,
+      b.trn AS branchTrn,
       b.vat_gst_percent AS branchVatGstPercent,
       e.name AS counselorName,
       p.paymentNumber, p.paidAmount, p.proofOfPaymentUrl, p.paymentMethod, p.paymentDate,

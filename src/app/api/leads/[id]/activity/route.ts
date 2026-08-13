@@ -86,6 +86,7 @@ export async function GET(
         a.done,
         a.not_done,
         a.screenshot,
+        a.notes,
         e.name AS counselorName,
         b.branch AS branchName,
         r.name AS regionName

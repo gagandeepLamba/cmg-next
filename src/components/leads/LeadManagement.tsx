@@ -85,6 +85,7 @@ interface LeadActivity {
     done?: number | null;
     not_done?: number | null;
     screenshot?: string | null;
+    notes?: string | null;
     counselorName?: string | null;
     branchName?: string | null;
   }>;
@@ -236,6 +237,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   const [assignLead, setAssignLead] = useState<Lead | null>(null);
   const [assignCounselors, setAssignCounselors] = useState<Array<{ id: number; name: string; branch: number | null; role: number | null }>>([]);
   const [assignSearch, setAssignSearch] = useState('');
+  const [assignRemark, setAssignRemark] = useState('');
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignSaving, setAssignSaving] = useState(false);
 
@@ -888,7 +890,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             branch: currentLead.branch,
             region: currentLead.region,
             booked: 1,
-            screenshot: leadActionForm.notes,
+            notes: leadActionForm.notes,
             crossBranch: crossBranchEnabled,
             assignedBranch: crossBranchEnabled ? Number(crossBranchTargetBranch) : undefined,
             leadName: `${currentLead.fname || ''} ${currentLead.lname || ''}`.trim() || undefined,
@@ -1007,6 +1009,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     setAssignLead(lead);
     setShowAssignModal(true);
     setAssignSearch('');
+    setAssignRemark('');
     setAssignLoading(true);
     try {
       const res = await fetch('/api/employees/active');
@@ -1036,7 +1039,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       const res = await fetch(`/api/leads/${assignLead.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignTo: employeeId, Counsilor: employeeId }),
+        body: JSON.stringify({ assignTo: employeeId, Counsilor: employeeId, assignRemark: assignRemark.trim() || undefined }),
       });
       if (!res.ok) throw new Error('Failed to assign lead');
       const updatedLead = await res.json();
@@ -1083,6 +1086,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       paymentDate: qp.date,
       clientName: `${lead.fname} ${lead.lname}`,
       email: lead.email,
+      phone: (lead as any).mobile || (lead as any).phone,
       agreementNumber: receipt.agreementNumber,
       opportunityId: (lead as any).resolved_opportunity_id || (lead as any).opportunity_id,
       companyName: branchDetails.companyName,
@@ -1091,7 +1095,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       branchEmail: branchDetails.branchEmail,
       branchPhone: branchDetails.branchPhone,
       licenseNumber: branchDetails.licenseNumber,
+      branchTrn: branchDetails.trn,
       vatGstPercent: branchDetails.vatGstPercent,
+      novat: (lead as any).novat,
       bankName: branchDetails.bankName,
       bankAccountName: branchDetails.bankAccountName,
       bankAccountNumber: branchDetails.bankAccountNumber,
@@ -2440,7 +2446,12 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 <h4 className="font-semibold text-gray-900 mb-3">Status</h4>
                 <p><span className="font-medium">Status:</span> {currentLead.status || 'N/A'}</p>
                 <p><span className="font-medium">Priority:</span> {currentLead.priority || 'N/A'}</p>
-                <p><span className="font-medium">Assigned:</span> {currentLead.dmEmployeeByASSIGNTo?.name || 'Unassigned'}</p>
+                <p>
+                  <span className="font-medium">Assigned:</span> {currentLead.dmEmployeeByASSIGNTo?.name || 'Unassigned'}
+                  {(currentLead as any).transfer_date && (
+                    <span className="text-gray-500"> (since {new Date((currentLead as any).transfer_date).toLocaleDateString()})</span>
+                  )}
+                </p>
                 <p><span className="font-medium">Branch:</span> {currentLead.dmBranch?.name || 'N/A'}</p>
               </div>
 
@@ -2546,7 +2557,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                               <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">{getAppointmentLabel(appointment)}</span>
                             </div>
                             <div className="mt-1 text-xs text-gray-500">{appointment.counselorName || 'No counselor'}{appointment.branchName ? ` · ${appointment.branchName}` : ''}</div>
-                            {appointment.screenshot && <div className="mt-2 text-xs text-gray-700">{appointment.screenshot}</div>}
+                            {appointment.notes && <div className="mt-2 text-xs text-gray-700">{appointment.notes}</div>}
                           </div>
                         ))}
                       </div>
@@ -3250,6 +3261,13 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                   className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+              <textarea
+                placeholder="Remark for this assignment (optional) — recorded with the assignment date and who assigned it"
+                value={assignRemark}
+                onChange={e => setAssignRemark(e.target.value)}
+                rows={2}
+                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 resize-none"
+              />
             </div>
 
             {/* Counselor list */}

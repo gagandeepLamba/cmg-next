@@ -456,6 +456,7 @@ const rolePermissionMatrixBase: Array<{
       modulePermissions.paymentsCreate,
       modulePermissions.appointmentsView,
       modulePermissions.appointmentsManage,
+      modulePermissions.counselorsManage,
     ],
   },
   {

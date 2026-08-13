@@ -460,7 +460,7 @@ export default function AdminCreateLeadPage() {
   const genderOptions = ['--None--', 'Male', 'Female', 'Other', 'Prefer not to say'];
   const staticCountries = ALL_COUNTRIES;
   const priorities = formData.status === 'Prospect' ? ['P1', 'P2', 'P3', 'P4'] : ['Hot', 'Warm', 'Cold'];
-  const statuses = ['New', 'Contacted', 'Qualified', 'Prospect', 'Converted', 'Closed'];
+  const statuses = ['Untouched', 'New', 'Contacted', 'Qualified', 'Prospect', 'Converted', 'Closed'];
 
   return (
   

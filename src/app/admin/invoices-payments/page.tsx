@@ -31,9 +31,9 @@ interface Payment {
   serviceName: string; branchName: string; counselorName: string;
   fname: string; lname: string; phone: string; email: string;
   accountantStatus: string; accountantRemarks: string; accountantName: string; accountantVerifiedAt: string;
-  leadId: number; agreementNumber: string | null;
+  leadId: number; agreementNumber: string | null; novat: number | null;
   dmBranchName: string | null; dmBranchAddress: string | null; dmBranchEmail: string | null;
-  dmBranchLicenseNumber: string | null; dmBranchVatGstPercent: number | string | null;
+  dmBranchLicenseNumber: string | null; dmBranchTrn: string | null; dmBranchVatGstPercent: number | string | null;
   dmBranchBankName: string | null; dmBranchBankAccountName: string | null;
   dmBranchBankAccountNumber: string | null; dmBranchBankIban: string | null; dmBranchBankBranch: string | null;
 }
@@ -210,6 +210,8 @@ export default function InvoicesPaymentsPage() {
       paymentNumber: p.paymentNumber,
       paymentDate: p.paymentDate,
       clientName: p.clientName || `${p.fname || ''} ${p.lname || ''}`.trim() || 'Client',
+      email: p.clientEmail || p.email,
+      phone: p.clientPhone || p.phone,
       agreementNumber: p.agreementNumber,
       opportunityId: p.opportunityId,
       serviceName: p.serviceName,
@@ -218,7 +220,9 @@ export default function InvoicesPaymentsPage() {
       branchAddress: p.dmBranchAddress,
       branchEmail: p.dmBranchEmail,
       licenseNumber: p.dmBranchLicenseNumber,
+      branchTrn: p.dmBranchTrn,
       vatGstPercent: p.dmBranchVatGstPercent,
+      novat: p.novat,
       bankName: p.dmBranchBankName,
       bankAccountName: p.dmBranchBankAccountName,
       bankAccountNumber: p.dmBranchBankAccountNumber,

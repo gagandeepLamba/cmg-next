@@ -47,6 +47,10 @@ const editableFields = new Set([
   'payBalance',
   'lead_remark',
   'lead_quality',
+  // Client residency status for the tax invoice/receipt (1 = confirmed
+  // non-UAE-resident → 0% zero-rated export of services; 0/null = UAE
+  // resident → 5% standard-rated). See receiptTemplate.ts.
+  'novat',
   'area',
   'opportunity_status',
   'opportunity_stage',
@@ -239,6 +243,7 @@ const fetchLead = async (id: string) => {
       b.email as branch_email,
       b.mobile as branch_mobile,
       b.license_number as branch_license_number,
+      b.trn as branch_trn,
       b.vat_gst_percent as branch_vat_gst_percent,
       b.abbrv as branch_abbrv,
       b.bank_name as branch_bank_name,
@@ -281,6 +286,7 @@ const fetchLead = async (id: string) => {
       email: lead.branch_email,
       mobile: lead.branch_mobile,
       licenseNumber: lead.branch_license_number,
+      trn: lead.branch_trn,
       vatGstPercent: lead.branch_vat_gst_percent,
       abbrv: lead.branch_abbrv,
       bankName: lead.branch_bank_name,
@@ -530,10 +536,14 @@ export async function PUT(
       const nameOf = (empId: number | null) =>
         empId === null ? 'Unassigned' : employeeNames.find((e) => e.id === empId)?.name || `Employee #${empId}`;
 
+      const assignRemarkText = typeof data.assignRemark === 'string' ? data.assignRemark.trim() : '';
+      const assignmentRemark = `Lead assigned from ${nameOf(oldAssignTo)} to ${nameOf(newAssignTo)} by ${actorLabel}`
+        + (assignRemarkText ? ` — ${assignRemarkText}` : '');
+
       await logLeadRemark({
         leadId: Number(id),
         action: 'lead_assigned',
-        remark: `Lead assigned from ${nameOf(oldAssignTo)} to ${nameOf(newAssignTo)} by ${actorLabel}`,
+        remark: assignmentRemark,
         previousValue: nameOf(oldAssignTo),
         newValue: nameOf(newAssignTo),
         actorId: auth.id,

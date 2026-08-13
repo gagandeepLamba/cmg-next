@@ -80,7 +80,7 @@ export default function AgreementPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-base font-semibold text-gray-900">Client Service Agreement</h1>
+            <h1 className="text-base font-semibold text-gray-900">Client Advisory Agreement</h1>
             <p className="text-xs text-gray-500">Opportunity #{opportunityId}</p>
           </div>
         </div>

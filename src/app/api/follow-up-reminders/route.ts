@@ -243,13 +243,17 @@ export async function PUT(request: NextRequest) {
     }
 
     let updateData: any = {};
+    // A completion/reschedule/cancel note is a NEW remark about this action,
+    // not a replacement for whatever the follow-up's original message said —
+    // overwriting it destroyed the original context. Append instead (same
+    // pattern as PUT /api/admin/ops-follow-ups).
+    const actionLabel = action === 'complete' ? 'Completed' : action === 'reschedule' ? 'Rescheduled' : 'Cancelled';
 
     switch (action) {
       case 'complete':
         updateData = {
           status: 'completed',
           completed_at: completedAt ? new Date(completedAt) : new Date(),
-          message: notes || undefined,
           updated_at: new Date()
         };
         break;
@@ -257,14 +261,12 @@ export async function PUT(request: NextRequest) {
         updateData = {
           status: 'rescheduled',
           reminder_date: new Date(rescheduledAt),
-          message: notes || undefined,
           updated_at: new Date()
         };
         break;
       case 'cancel':
         updateData = {
           status: 'cancelled',
-          message: notes || undefined,
           updated_at: new Date()
         };
         break;
@@ -273,6 +275,15 @@ export async function PUT(request: NextRequest) {
           { error: 'Invalid action' },
           { status: 400 }
         );
+    }
+
+    if (notes) {
+      await sequelize.query(
+        `UPDATE dmc_follow_up_reminders
+         SET message = CONCAT(COALESCE(message, ''), '\n--- ', :actionLabel, ' note: ', :notes)
+         WHERE id = :reminderId`,
+        { replacements: { actionLabel, notes, reminderId: parseInt(reminderId) }, type: QueryTypes.UPDATE }
+      );
     }
 
     const reminder = await DmcFollowUpReminders.update(updateData, {
