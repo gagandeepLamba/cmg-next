@@ -223,7 +223,7 @@ export default function PaymentWizard({ leadId, onPaymentProcessed }: PaymentWiz
   // for identity consistency, not redesigned to match the newer HTML layout.
   const getBranchReceiptConfig = (_branchName: string = '', _currency: string = 'AED', _region?: unknown) => ({
     branchCode: 'CMG',
-    companyName: 'Commonwealth Migration Group',
+    companyName: 'Commonwealth Documents Clearing Services LLC',
     address: 'Office 307, 3rd Floor, Business Atrium Building, Oud Metha,', address2: 'Dubai, United Arab Emirates',
     trn: null as string | null,
     email: 'leads@cwmigrationgroup.ae',

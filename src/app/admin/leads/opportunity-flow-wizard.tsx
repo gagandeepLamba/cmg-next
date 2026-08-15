@@ -2742,6 +2742,10 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
     receiptNumber: payment.receiptNumber || payment.paymentNumber,
     paidAmount: payment.paidAmount ?? payment.amount ?? 0,
     remainingBalance: payment.remainingBalance ?? payment.balanceAmount ?? 0,
+    // The API stores the uploaded proof under `receiptUrl` — the wizard's own
+    // state calls it `proofOfPaymentUrl`, so map it here once rather than at
+    // every call site.
+    proofOfPaymentUrl: payment.proofOfPaymentUrl || payment.receiptUrl || null,
   });
 
   // An opportunity can end up with more than one dm_opportunity_payments row —
@@ -2794,6 +2798,10 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
         paymentMethod: payment?.paymentMethod || current.paymentMethod,
         transactionId: payment?.transactionId || current.transactionId,
         paymentDate: payment?.paymentDate ? new Date(payment.paymentDate).toISOString().slice(0, 10) : current.paymentDate,
+        // Restore the already-uploaded proof link so it survives a reload —
+        // the in-memory `proofOfPayment` File object never can (it only ever
+        // exists for the duration of the browser session that picked it).
+        proofOfPaymentUrl: payment?.proofOfPaymentUrl || payment?.receiptUrl || current.proofOfPaymentUrl,
       };
     });
   };
@@ -2864,7 +2872,7 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
     }
   };
 
-  const hasProofOfPayment = data.proofOfPayment instanceof File || Boolean(data.proofOfPaymentUrl || receipt?.proofOfPaymentUrl);
+  const hasProofOfPayment = data.proofOfPayment instanceof File || Boolean(data.proofOfPaymentUrl || receipt?.proofOfPaymentUrl || receipt?.receiptUrl);
 
   const ensureProofOfPaymentUrl = async () => {
     if (data.proofOfPaymentUrl) return data.proofOfPaymentUrl;
@@ -3169,6 +3177,29 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
                     </button>
                   )}
                 </div>
+              ) : data.proofOfPaymentUrl ? (
+                // Already uploaded on a previous visit — the File object itself
+                // can't survive a reload, but the uploaded blob's URL does.
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                  <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
+                  <a
+                    href={data.proofOfPaymentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-green-800 underline truncate flex-1"
+                  >
+                    View uploaded proof
+                  </a>
+                  {!receiptLocked && (
+                    <button
+                      type="button"
+                      onClick={() => setData({ ...data, proofOfPayment: null, proofOfPaymentUrl: null })}
+                      className="text-red-500 hover:text-red-700 text-xs shrink-0"
+                    >
+                      Replace
+                    </button>
+                  )}
+                </div>
               ) : (
                 <label className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-lg transition-colors ${receiptLocked ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 'border-gray-300 cursor-pointer hover:border-blue-400 hover:bg-blue-50'}`}>
                   <Upload className="w-4 h-4 text-gray-500" />
@@ -3329,6 +3360,7 @@ function AccountsStage({ lead, leadId, opportunityId, onNext, onPrevious }: any)
         receiptNumber: p.receiptNumber || p.paymentNumber,
         paidAmount: p.paidAmount ?? p.amount ?? 0,
         remainingBalance: p.remainingBalance ?? p.balanceAmount ?? 0,
+        proofOfPaymentUrl: p.proofOfPaymentUrl || p.receiptUrl || null,
       })));
     } catch (err) {
       console.error('Error fetching payments:', err);
@@ -3482,7 +3514,15 @@ function AccountsStage({ lead, leadId, opportunityId, onNext, onPrevious }: any)
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
                   <div className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-800">Proof of Payment: {p.proofOfPaymentUrl.split('/').pop()}</span>
+                    <span className="text-sm font-medium text-green-800">Proof of Payment:</span>
+                    <a
+                      href={p.proofOfPaymentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-green-800 underline truncate"
+                    >
+                      {p.proofOfPaymentUrl.split('/').pop()}
+                    </a>
                   </div>
                 </div>
               )}

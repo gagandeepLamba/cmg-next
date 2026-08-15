@@ -50,22 +50,37 @@ export async function GET(request: NextRequest) {
     const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
     const yearAgo  = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
 
-    // ── Build WHERE clause for lead queries based on role ────────────────────
-    let leadWhere = '';
-    let leadReplacements: Record<string, unknown> = {};
+    // ── Date filter — defaults to the current calendar month (1st to last
+    // day) so the dashboard doesn't dump all-time totals by default; the
+    // datepicker on the dashboard can widen/narrow this via ?startDate=&endDate=.
+    const now = new Date();
+    const defaultRangeStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const defaultRangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    const rangeStart = searchParams.get('startDate') || defaultRangeStart;
+    const rangeEnd = searchParams.get('endDate') || defaultRangeEnd;
 
-    if (cat === 'admin') {
-      leadWhere = '';
-    } else if (cat === 'branch_manager' && userBranch) {
-      leadWhere = 'WHERE l.branch = :branch';
-      leadReplacements = { branch: userBranch };
+    // ── Build WHERE clause for lead queries: date range + role scope ─────────
+    const leadRoleClauses: string[] = [];
+    let leadReplacements: Record<string, unknown> = { rangeStart, rangeEnd };
+
+    if (cat === 'branch_manager' && userBranch) {
+      leadRoleClauses.push('l.branch = :branch');
+      leadReplacements.branch = userBranch;
     } else if (cat === 'counselor' && userId) {
-      leadWhere = 'WHERE (l.assignTo = :uid OR l.Counsilor = :uid)';
-      leadReplacements = { uid: userId };
-    } else if (cat === 'finance' || cat === 'operations' || cat === 'hr' || cat === 'pro') {
-      // These roles see global summary stats but limited recent leads
-      leadWhere = '';
+      leadRoleClauses.push('(l.assignTo = :uid OR l.Counsilor = :uid)');
+      leadReplacements.uid = userId;
     }
+    // 'admin', 'finance', 'operations', 'hr', 'pro' see the full date-ranged
+    // scope with no extra role clause.
+
+    const leadWhere = ['WHERE DATE(COALESCE(l.created, l.regdate)) BETWEEN :rangeStart AND :rangeEnd', ...leadRoleClauses].join(' AND ');
+    // Role scope only, no date range — used by the trend charts below (year-long
+    // monthly trend, 30-day daily trend, this-month-vs-last-month comparison),
+    // which need their own independent windows rather than the picker's range.
+    const roleWhere = leadRoleClauses.length ? `WHERE ${leadRoleClauses.join(' AND ')}` : '';
+    const roleReplacements: Record<string, unknown> = { ...leadReplacements };
+    delete roleReplacements.rangeStart;
+    delete roleReplacements.rangeEnd;
 
     const andLeadWhere = leadWhere.replace(/^WHERE\s+/, 'AND ');
     const leadWhereForJoin = andLeadWhere ? andLeadWhere : '';
@@ -80,7 +95,8 @@ export async function GET(request: NextRequest) {
     const apptBranchFilter = (cat === 'branch_manager' && userBranch)
       ? 'AND a.branch = :branch'
       : '';
-    const apptReplacements = { today, uid: userId, branch: userBranch };
+    const apptDateFilter = 'AND DATE(a.date) BETWEEN :rangeStart AND :rangeEnd';
+    const apptReplacements = { today, uid: userId, branch: userBranch, rangeStart, rangeEnd };
 
     // ── Lead Stats ───────────────────────────────────────────────────────────
     const [leadStats] = await sequelize.query<any>(`
@@ -126,7 +142,7 @@ export async function GET(request: NextRequest) {
         SUM(CASE WHEN COALESCE(a.done, 0) = 0 AND COALESCE(a.not_done, 0) = 0 THEN 1 ELSE 0 END) AS pendingAppointments,
         SUM(CASE WHEN DATE(a.date) >= :today THEN 1 ELSE 0 END) AS upcomingAppointments
       FROM appointments a
-      WHERE 1=1 ${apptEmployeeFilter} ${apptBranchFilter}
+      WHERE 1=1 ${apptDateFilter} ${apptEmployeeFilter} ${apptBranchFilter}
     `, { replacements: apptReplacements, type: QueryTypes.SELECT });
 
     // ── Month-over-month trend (this month vs last month, same scope as above) ─
@@ -146,8 +162,8 @@ export async function GET(request: NextRequest) {
                AND (LOWER(COALESCE(l.status, '')) IN ('converted','retained','client') OR LOWER(COALESCE(l.opportunity_status, '')) = 'won')
              THEN 1 ELSE 0 END) AS lastMonthConverted
       FROM dmc_forum_leads l
-      ${leadWhere}
-    `, { replacements: { thisMonthStart, lastMonthStart, lastMonthEnd, ...leadReplacements }, type: QueryTypes.SELECT });
+      ${roleWhere}
+    `, { replacements: { thisMonthStart, lastMonthStart, lastMonthEnd, ...roleReplacements }, type: QueryTypes.SELECT });
 
     const [apptTrendStats] = await sequelize.query<any>(`
       SELECT
@@ -171,7 +187,8 @@ export async function GET(request: NextRequest) {
         SUM(CASE WHEN LOWER(COALESCE(status, '')) IN ('qualified','proposal','negotiation','in_progress') THEN 1 ELSE 0 END) AS activeOperations,
         SUM(CASE WHEN LOWER(COALESCE(status, '')) = 'won' THEN 1 ELSE 0 END) AS completedOperations
       FROM dmc_opportunities
-    `, { type: QueryTypes.SELECT });
+      WHERE DATE(createdAt) BETWEEN :rangeStart AND :rangeEnd
+    `, { replacements: { rangeStart, rangeEnd }, type: QueryTypes.SELECT });
 
     // ── Branch count ─────────────────────────────────────────────────────────
     const [branchStats] = await sequelize.query<any>(
@@ -247,11 +264,16 @@ export async function GET(request: NextRequest) {
       ORDER BY count DESC
     `, { replacements: leadReplacements, type: QueryTypes.SELECT });
 
-    // ── Priority Breakdown ────────────────────────────────────────────────────
+    // ── Priority Breakdown (Prospect-stage leads only) ────────────────────────
+    // P1-P4 is a Prospect-only priority scale (other statuses use Hot/Warm/Cold
+    // etc, see the status/priority option lists in the lead edit forms) — the
+    // "Prospect Leads by Priority" card on the dashboard is specifically about
+    // leads still in that stage, not every lead that happens to carry a P1-P4
+    // value from a past visit to the Prospect stage.
     const priorityBreakdown = await sequelize.query<any>(`
       SELECT COALESCE(l.priority, 'Unknown') AS name, COUNT(*) AS value
       FROM dmc_forum_leads l
-      ${leadWhere}
+      ${leadWhere ? leadWhere + " AND LOWER(COALESCE(l.status, '')) = 'prospect'" : "WHERE LOWER(COALESCE(l.status, '')) = 'prospect'"}
       GROUP BY COALESCE(l.priority, 'Unknown')
       ORDER BY value DESC
     `, { replacements: leadReplacements, type: QueryTypes.SELECT });
@@ -305,10 +327,10 @@ export async function GET(request: NextRequest) {
         DATE_FORMAT(COALESCE(l.created, l.regdate), '%Y-%m') AS month,
         COUNT(*) AS count
       FROM dmc_forum_leads l
-      ${leadWhere ? leadWhere + ' AND' : 'WHERE'} DATE(COALESCE(l.created, l.regdate)) >= :yearAgo
+      ${roleWhere ? roleWhere + ' AND' : 'WHERE'} DATE(COALESCE(l.created, l.regdate)) >= :yearAgo
       GROUP BY DATE_FORMAT(COALESCE(l.created, l.regdate), '%Y-%m')
       ORDER BY month ASC
-    `, { replacements: { yearAgo, ...leadReplacements }, type: QueryTypes.SELECT });
+    `, { replacements: { yearAgo, ...roleReplacements }, type: QueryTypes.SELECT });
 
     // ── Daily Trend (30 days) ──────────────────────────────────────────────────
     const leadTrend = await sequelize.query<any>(`
@@ -316,10 +338,10 @@ export async function GET(request: NextRequest) {
         DATE(COALESCE(l.created, l.regdate)) AS date,
         COUNT(*) AS leads
       FROM dmc_forum_leads l
-      ${leadWhere ? leadWhere + ' AND' : 'WHERE'} DATE(COALESCE(l.created, l.regdate)) >= :monthAgo
+      ${roleWhere ? roleWhere + ' AND' : 'WHERE'} DATE(COALESCE(l.created, l.regdate)) >= :monthAgo
       GROUP BY DATE(COALESCE(l.created, l.regdate))
       ORDER BY date ASC
-    `, { replacements: { monthAgo, ...leadReplacements }, type: QueryTypes.SELECT });
+    `, { replacements: { monthAgo, ...roleReplacements }, type: QueryTypes.SELECT });
 
     // ── Compose response ──────────────────────────────────────────────────────
     const totalLeads    = n(leadStats?.totalLeads);
@@ -359,6 +381,10 @@ export async function GET(request: NextRequest) {
       // Identity / role context
       roleCategory: cat,
       userBranch,
+      // The date range this entire response is scoped to (defaults to the
+      // current calendar month) — echoed back so the dashboard's datepicker
+      // can reflect what's actually applied, not just what it requested.
+      dateRange: { startDate: rangeStart, endDate: rangeEnd },
       // Leads
       totalLeads,
       todayLeads: n(leadStats?.todayLeads),

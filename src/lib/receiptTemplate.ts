@@ -146,8 +146,8 @@ export function getLeadBranchDetails(
 // branch/lead the receipt is for (the app operates a single UAE entity) —
 // never the raw dm_branch.name value, which is an internal office label
 // (e.g. "Dubai SZR"), not the company's trading identity.
-const CMG_LEGAL_NAME = 'Commonwealth Documents Clearing Services LLC';
-const CMG_DISPLAY_NAME = 'Commonwealth Migration Group';
+const CMG_LEGAL_NAME = '';
+const CMG_DISPLAY_NAME = 'Commonwealth Documents Clearing Services LLC';
 const CMG_TRADING_AS = 'Commonwealth Migration Group ("CMG")';
 const CMG_ISSUER_EMAIL = 'accounts@cwmigrationgroup.ae';
 
@@ -363,37 +363,41 @@ export function buildReceiptHtml(r: ReceiptFields): string {
 <title>Tax Invoice / Receipt ${esc(invoiceNo)}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:10.5pt;line-height:1.4;padding:36px 44px 60px}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:9pt;line-height:1.3;padding:18px 28px 20px}
   .placeholder{color:#666;font-style:italic;font-weight:400}
-  .doc-header{text-align:center;margin-bottom:8px}
-  .doc-header .company{font-size:16pt;font-weight:800;letter-spacing:.3px}
-  .doc-header .legal{font-size:10pt;font-weight:600;margin-top:2px}
-  .doc-header .addr{font-size:9pt;color:#333;margin-top:2px}
-  .rule{border:none;border-top:2px solid #1a1a1a;margin:10px 0 10px}
-  .doc-title{text-align:center;margin-bottom:12px}
-  .doc-title .t1{font-size:13pt;font-weight:800;letter-spacing:.3px}
-  .doc-title .t2{font-size:9.5pt;margin-top:3px}
-  table.info-table{width:100%;border-collapse:collapse;border:1px solid #333;margin-bottom:14px}
-  table.info-table td{border:1px solid #333;padding:6px 10px;font-size:9.8pt;vertical-align:top}
+  .doc-header{text-align:center;margin-bottom:6px}
+  .doc-header .company{font-size:13.5pt;font-weight:800;letter-spacing:.3px}
+  .doc-header .legal{font-size:8.8pt;font-weight:600;margin-top:1px}
+  .doc-header .addr{font-size:8pt;color:#333;margin-top:1px}
+  .rule{border:none;border-top:2px solid #1a1a1a;margin:6px 0 6px}
+  .doc-title{text-align:center;margin-bottom:8px}
+  .doc-title .t1{font-size:11.5pt;font-weight:800;letter-spacing:.3px}
+  .doc-title .t2{font-size:8.5pt;margin-top:2px}
+  table.info-table{width:100%;border-collapse:collapse;border:1px solid #333;margin-bottom:8px}
+  table.info-table td{border:1px solid #333;padding:3px 8px;font-size:8.3pt;vertical-align:top}
   table.info-table td.label{background:#eeeeee;font-weight:700;width:30%}
-  table.desc-table{width:100%;border-collapse:collapse;border:1px solid #333;margin-bottom:6px}
-  table.desc-table th{background:#2b2b2b;color:#fff;text-align:left;padding:7px 10px;font-size:9.5pt;text-transform:uppercase;letter-spacing:.3px}
+  table.desc-table{width:100%;border-collapse:collapse;border:1px solid #333;margin-bottom:4px}
+  table.desc-table th{background:#2b2b2b;color:#fff;text-align:left;padding:4px 8px;font-size:8.2pt;text-transform:uppercase;letter-spacing:.3px}
   table.desc-table th:last-child, table.desc-table td:last-child{text-align:right;width:150px}
-  table.desc-table td{border:1px solid #333;padding:7px 10px;font-size:9.8pt}
-  table.desc-table tr.total-row td{font-weight:800;background:#f0f0f0;font-size:10.5pt}
-  .caption{font-size:8.5pt;color:#333;margin:4px 0;line-height:1.5}
+  table.desc-table td{border:1px solid #333;padding:4px 8px;font-size:8.3pt}
+  table.desc-table tr.total-row td{font-weight:800;background:#f0f0f0;font-size:9pt}
+  .caption{font-size:7.6pt;color:#333;margin:3px 0;line-height:1.4}
   .caption.note{font-style:italic;color:#444}
-  table.bank-table{width:100%;border-collapse:collapse;border:1px solid #333;margin-top:14px}
-  table.bank-table th{background:#2b2b2b;color:#fff;text-align:left;padding:7px 10px;font-size:9.5pt;text-transform:uppercase;letter-spacing:.3px}
-  table.bank-table td{border:1px solid #333;padding:6px 10px;font-size:9.8pt}
+  table.bank-table{width:100%;border-collapse:collapse;border:1px solid #333;margin-top:8px}
+  table.bank-table th{background:#2b2b2b;color:#fff;text-align:left;padding:4px 8px;font-size:8.2pt;text-transform:uppercase;letter-spacing:.3px}
+  table.bank-table td{border:1px solid #333;padding:3px 8px;font-size:8.3pt}
   table.bank-table td.label{background:#eeeeee;font-weight:700;width:30%}
-  .sign-row{display:flex;justify-content:space-between;margin-top:38px;gap:40px}
-  .sign-row .box{flex:1;font-size:9.5pt}
-  .sign-row .line{display:block;border-bottom:1px solid #1a1a1a;height:34px}
-  .sign-row .cap{margin-top:4px;font-style:italic;color:#333}
-  .notes{margin-top:26px;border-top:1px solid #999;padding-top:8px}
-  .notes ul{list-style:disc;padding-left:18px;font-size:8.3pt;color:#333;line-height:1.6}
-  @media print{@page{size:A4;margin:12mm 14mm}body{padding:0}}
+  .sign-row{display:flex;justify-content:space-between;margin-top:20px;gap:40px}
+  .sign-row .box{flex:1;font-size:8.3pt}
+  .sign-row .line{display:block;border-bottom:1px solid #1a1a1a;height:22px}
+  .sign-row .cap{margin-top:3px;font-style:italic;color:#333}
+  .notes{margin-top:12px;border-top:1px solid #999;padding-top:5px}
+  .notes ul{list-style:disc;padding-left:16px;font-size:7pt;color:#333;line-height:1.35}
+  @media print{
+    @page{size:A4;margin:8mm 10mm}
+    body{padding:0}
+    table.info-table,table.desc-table,table.bank-table,.sign-row,.notes{page-break-inside:avoid}
+  }
 </style></head><body>
 <div class="doc-header">
   <div class="company">${esc(cfg.companyName.toUpperCase())}</div>

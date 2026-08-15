@@ -122,8 +122,18 @@ function StatCard({ title, value, icon, change, changeType }: StatCardProps) {
   );
 }
 
+// Current calendar month, 1st to last day, as YYYY-MM-DD strings — the
+// dashboard's default scope so it doesn't dump all-time totals by default.
+const currentMonthRange = () => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] };
+};
+
 export default function AdminDashboard() {
   const { user, currencyCode } = useAuth();
+  const [dateRange, setDateRange] = useState(currentMonthRange);
   const [stats, setStats] = useState<DashboardStats>({
     totalLeads: 0,
     totalEmployees: 0,
@@ -157,9 +167,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
+      setIsLoading(true);
       try {
-        // Server derives role/branch from the auth token — no need to pass params
-        const response = await fetch('/api/admin/dashboard');
+        // Server derives role/branch from the auth token — only the date range
+        // needs to be passed explicitly, and defaults server-side to the
+        // current month if omitted.
+        const params = new URLSearchParams({ startDate: dateRange.startDate, endDate: dateRange.endDate });
+        const response = await fetch(`/api/admin/dashboard?${params.toString()}`);
 
         if (response.ok) {
           const data = await response.json();
@@ -170,12 +184,21 @@ export default function AdminDashboard() {
             setStats({
               totalLeads: realStats.totalLeads || 0,
               totalEmployees: realStats.totalEmployees || 0,
-              totalClients: realStats.totalLeads || 0, // Use leads as clients for now
+              // Actual converted/retained clients (status in converted/retained/client,
+              // or opportunity_status = won) — not just a raw lead count.
+              totalClients: realStats.convertedLeads || 0,
               totalAppointments: realStats.totalAppointments || realStats.upcomingAppointments || 0,
-              totalRevenue: realStats.totalPayments || realStats.totalRevenue || 0,
+              // Net-of-VAT earned revenue (backend already backs the branch's tax
+              // rate out of payTotal) — not the raw cash-collected figure, which
+              // the separate "Collected" card below already shows.
+              totalRevenue: realStats.totalRevenue ?? realStats.totalPayments ?? 0,
               conversionRate: parseFloat(realStats.conversionRate || 0) || 0,
-              activeProjects: realStats.weekLeads || 0, // Use weekly leads as active projects
-              pendingTasks: realStats.todayLeads || 0, // Use today's leads as pending tasks
+              // Opportunities actually in progress (qualified/proposal/negotiation/
+              // in_progress), not an unrelated "leads created this week" count.
+              activeProjects: realStats.activeOperations || 0,
+              // Backend's own pendingFollowups + pendingAppointments total, not
+              // an unrelated "leads created today" count.
+              pendingTasks: realStats.pendingTasks || 0,
               monthLeads: realStats.monthLeads || 0,
               weekLeads: realStats.weekLeads || 0,
               todayLeads: realStats.todayLeads || 0,
@@ -216,7 +239,7 @@ export default function AdminDashboard() {
     };
 
     fetchDashboardData();
-  }, [user?.id]);
+  }, [user?.id, dateRange.startDate, dateRange.endDate]);
 
   const openLeadModal = useCallback((leadId: number, leadName: string, type: 'appointment' | 'followup') => {
     if (!leadId) return;
@@ -542,11 +565,44 @@ export default function AdminDashboard() {
           </div>
 
           <motion.div
-            className="flex shrink-0 items-center gap-4"
+            className="flex shrink-0 flex-wrap items-center gap-3"
             initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.16 }}
           >
+            <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5">
+              <label className="text-xs font-medium text-gray-500">
+                From
+                <input
+                  type="date"
+                  value={dateRange.startDate}
+                  max={dateRange.endDate}
+                  onChange={(e) => setDateRange((prev) => ({ ...prev, startDate: e.target.value }))}
+                  className="ml-1.5 border-0 p-0 text-sm text-gray-900 focus:outline-none focus:ring-0"
+                />
+              </label>
+              <span className="text-gray-300">–</span>
+              <label className="text-xs font-medium text-gray-500">
+                To
+                <input
+                  type="date"
+                  value={dateRange.endDate}
+                  min={dateRange.startDate}
+                  onChange={(e) => setDateRange((prev) => ({ ...prev, endDate: e.target.value }))}
+                  className="ml-1.5 border-0 p-0 text-sm text-gray-900 focus:outline-none focus:ring-0"
+                />
+              </label>
+              {(dateRange.startDate !== currentMonthRange().startDate || dateRange.endDate !== currentMonthRange().endDate) && (
+                <button
+                  type="button"
+                  onClick={() => setDateRange(currentMonthRange())}
+                  className="ml-1 rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200"
+                >
+                  This Month
+                </button>
+              )}
+            </div>
+
             <motion.button
               className="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
               whileHover={{ scale: 1.03 }}
