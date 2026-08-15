@@ -189,7 +189,11 @@ export async function POST(request: NextRequest) {
       sequenceId: receiptId,
     });
     const paidAmount = Number(paymentData.paidAmount || paymentData.amount || 0);
+    const advisoryPaidAmount = Number(paymentData.advisoryPaidAmount ?? paidAmount);
     const totalAmount = Number(paymentData.totalAmount || paymentData.amount || lead.payTotal || 0);
+    const adminFee = Math.max(0, Number(paymentData.adminFee || 0));
+    const advisoryTotalAmount = Number(paymentData.advisoryTotalAmount ?? Math.max(totalAmount - adminFee, 0));
+    const advisoryBalance = Math.max(advisoryTotalAmount - advisoryPaidAmount, 0);
     const taxAmount = Number(receiptData.taxAmount || 0);
     const discountAmount = Number(receiptData.discountAmount || 0);
 
@@ -235,8 +239,8 @@ export async function POST(request: NextRequest) {
       dueDate: paymentData.dueDate || new Date(),
       description: receiptData.description || `Payment receipt for ${lead.fname} ${lead.lname}`,
       paidAmount,
-      remainingBalance: Math.max(totalAmount - paidAmount, 0),
-      balanceAmount: Math.max(totalAmount - paidAmount, 0),
+      remainingBalance: advisoryBalance,
+      balanceAmount: advisoryBalance,
       createdBy: loggedInUser?.id || paymentData.createdBy || lead.assignTo,
       notes: receiptData.notes || '',
       receiptNumber,
@@ -259,7 +263,7 @@ export async function POST(request: NextRequest) {
     // lead.paidYet/payTotal come back as strings from the raw SQL SELECT (DECIMAL
     // columns via mysql2), so `+`/`-` without Number() silently concatenates instead
     // of adding (e.g. "3000.00" + 1000 => "3000.001000").
-    const newPaidYet = Number(lead.paidYet || 0) + Number(paymentData.paidAmount || paymentData.amount || 0);
+    const newPaidYet = Number(lead.paidYet || 0) + advisoryPaidAmount;
     const newPayBalance = Number(lead.payTotal || 0) - newPaidYet;
 
     // Use a focused SQL update here because legacy installations can lack
@@ -313,7 +317,7 @@ export async function POST(request: NextRequest) {
         payMethod: paymentData.paymentMethod || 'cash',
         payoption: paymentData.paymentStructure || 'full',
         payNextDate: paymentData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        payBalance: Math.max(totalAmount - totalPaidSoFar, 0),
+        payBalance: Math.max(newPayBalance, 0),
         payCategory: receiptData.receiptType || 'payment',
         remarks: receiptData.description || `Receipt ${receiptNumber}`,
         remark: paymentData.remark || null,

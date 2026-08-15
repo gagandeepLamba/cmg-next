@@ -174,7 +174,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Check if opportunity exists
     const [existingResult] = await sequelize.query(`
-      SELECT id, leadId FROM dmc_opportunities WHERE id = ?
+      SELECT o.id, o.leadId, o.status, o.stage, l.status AS leadStatus, l.opportunity_status AS leadOpportunityStatus
+      FROM dmc_opportunities o
+      LEFT JOIN dmc_forum_leads l ON l.id = o.leadId
+      WHERE o.id = ?
     `, {
       replacements: [opportunityId]
     });
@@ -305,6 +308,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     const opportunity = (existingResult as any[])[0];
+    const isClientOpportunity = ['won', 'client', 'converted', 'retained'].includes(String(opportunity.status || '').toLowerCase())
+      || ['won'].includes(String(opportunity.leadOpportunityStatus || '').toLowerCase())
+      || ['retained', 'converted', 'client'].includes(String(opportunity.leadStatus || '').toLowerCase());
+
+    if (isClientOpportunity) {
+      return NextResponse.json(
+        { success: false, error: 'Client/won opportunities cannot be moved back to leads.' },
+        { status: 409 }
+      );
+    }
 
     // Delete related records first (payments, agreements)
     await sequelize.query(`DELETE FROM dm_opportunity_payments WHERE opportunityId = ?`, {
@@ -323,7 +336,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     // Update lead status back to original
     await sequelize.query(`
       UPDATE dmc_forum_leads 
-      SET status = 'new', opportunity_status = NULL, convet = NULL,
+      SET status = 'New', opportunity_status = NULL, opportunity_id = NULL, convet = NULL,
           last_updated = ?, last_updtd_time = ?
       WHERE id = ?
     `, {

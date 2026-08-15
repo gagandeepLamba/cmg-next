@@ -141,10 +141,13 @@ export function getLeadBranchDetails(
 }
 
 // Fixed legal identity of the single entity this app operates as — matches
-// the signed Tax Invoice/Receipt reference document exactly. The *trading*
-// display name (header banner) still comes from the branch record via
-// getLeadBranchDetails so it stays correct if finance ever renames it.
+// the signed Tax Invoice/Receipt reference document exactly. The header
+// banner always reads "COMMONWEALTH MIGRATION GROUP" regardless of which
+// branch/lead the receipt is for (the app operates a single UAE entity) —
+// never the raw dm_branch.name value, which is an internal office label
+// (e.g. "Dubai SZR"), not the company's trading identity.
 const CMG_LEGAL_NAME = 'Commonwealth Documents Clearing Services LLC';
+const CMG_DISPLAY_NAME = 'Commonwealth Migration Group';
 const CMG_TRADING_AS = 'Commonwealth Migration Group ("CMG")';
 const CMG_ISSUER_EMAIL = 'accounts@cwmigrationgroup.ae';
 
@@ -165,7 +168,7 @@ export interface BranchReceiptConfig {
 // address, and VAT rate still come from the branch's own dm_branch record
 // (never hardcoded), so they stay correct if finance updates those fields.
 export function getBranchReceiptConfig(
-  branchName: string = '',
+  _branchName: string = '',
   branchAddress: string | null = null,
   branchEmail: string | null = null,
   branchLicenseNumber: string | null = null,
@@ -177,7 +180,7 @@ export function getBranchReceiptConfig(
     : 5;
 
   return {
-    companyName: branchName || CMG_TRADING_AS,
+    companyName: CMG_DISPLAY_NAME,
     legalName: CMG_LEGAL_NAME,
     tradingAs: CMG_TRADING_AS,
     address: branchAddress || '',
@@ -444,6 +447,7 @@ ${hasBankDetails ? `<table class="bank-table">
 </div>
 <div class="notes">
   <ul>
+    <li>All fees and payments made by the Client under this Agreement are final, non-refundable, and non-transferable, irrespective of the outcome of the services, change in the Client's circumstances, withdrawal, cancellation, or decision not to proceed.</li>
     <li>This is a Tax Invoice per UAE Federal Tax Authority requirements. Valid only when the Company TRN above is completed.</li>
     <li>Please share the bank transfer receipt / SWIFT copy referencing this invoice number once payment is sent.</li>
     <li>Bank transfer charges are borne by the applicant, not by ${esc(cfg.legalName)}.</li>

@@ -362,6 +362,10 @@ export async function POST(request: NextRequest) {
       }
     }
     const paidAmount = Number(paymentData.paidAmount ?? paymentData.amount ?? lead.paidYet ?? 0);
+    const advisoryPaidAmount = Math.min(Number(paymentData.advisoryPaidAmount ?? paidAmount), totalAmount);
+    const adminFee = Math.max(0, Number(paymentData.adminFee || 0));
+    const receiptPaidAmount = paidAmount + adminFee;
+    const receiptTotalAmount = totalAmount + adminFee;
     const paymentProofUrl = String(paymentData.proofOfPaymentUrl || paymentData.paymentProofUrl || '').trim();
     if (paidAmount > 0 && !paymentProofUrl) {
       await transaction.rollback();
@@ -500,8 +504,8 @@ export async function POST(request: NextRequest) {
       receiptNumber,
       paymentStructure: paymentData.paymentStructure || 'full',
       paymentType: normalizePaymentType(paymentData.paymentType),
-      totalAmount,
-      amount: Number(paymentData.amount ?? paidAmount),
+      totalAmount: receiptTotalAmount,
+      amount: Number(paymentData.amount ?? receiptPaidAmount),
       currency: branchCurrency.currencyCode,
       status: paymentStatus,
       paymentMethod: paymentData.paymentMethod || 'cash',
@@ -509,7 +513,7 @@ export async function POST(request: NextRequest) {
       paymentDate: paymentData.paymentDate || now,
       dueDate: paymentData.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
       description: paymentData.description || 'Initial payment for opportunity',
-      paidAmount,
+      paidAmount: receiptPaidAmount,
       remainingBalance,
       balanceAmount: remainingBalance,
       createdBy,
@@ -572,20 +576,20 @@ export async function POST(request: NextRequest) {
         {
           replacements: {
             leadId: lead.id,
-            amount: paidAmount,
+            amount: receiptPaidAmount,
             receiptNumber,
             payDate: paymentData.paymentDate || now,
             payMethod: paymentData.paymentMethod || 'cash',
             payoption: paymentData.paymentStructure || 'full',
             payNextDate: paymentData.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            payBalance: remainingBalance,
+            payBalance: Math.max(totalAmount - advisoryPaidAmount, 0),
             tax: Number(paymentData.taxAmount || invoiceData.taxAmt || 0),
             remarks: paymentData.notes || `Initial payment recorded during opportunity conversion (${paymentNumber})`,
             remark: paymentData.remark || null,
             proofUrl: paymentProofUrl || null,
             refNumber: paymentData.transactionId || paymentNumber,
             createdBy,
-            totalPaidSoFar: paidAmount,
+            totalPaidSoFar: advisoryPaidAmount,
           },
           transaction,
         }
@@ -610,10 +614,10 @@ export async function POST(request: NextRequest) {
           invoiceData.narration || `Invoice generated for opportunity ${opportunityNumber}`,
           Number(invoiceData.vat || 0),
           Number(invoiceData.taxAmt || payment.taxAmount || 0),
-          totalAmount,
+          receiptTotalAmount,
           remainingBalance,
           paymentData.paymentMethod || 'cash',
-          paidAmount,
+          receiptPaidAmount,
           Number(invoiceData.discount || payment.discountAmount || 0),
           isClient ? 1 : 0,
           now,
@@ -648,8 +652,8 @@ export async function POST(request: NextRequest) {
       programTermSchedule: agreementData.programTermSchedule || programValidity || (agreementData.duration ? `${agreementData.duration} months` : ''),
       destinationCountry: String(opportunityData.country || lead.country_interest || ''),
       totalAmount: totalAmount.toLocaleString(),
-      initialPayment: paidAmount.toLocaleString(),
-      secondPayment: Math.max(totalAmount - paidAmount, 0).toLocaleString(),
+      initialPayment: advisoryPaidAmount.toLocaleString(),
+      secondPayment: Math.max(totalAmount - advisoryPaidAmount, 0).toLocaleString(),
       includedDeliverables: agreementData.includedDeliverables || agreementData.agreementTitle || agreementData.title || '',
       expressExclusions: agreementData.expressExclusions || '',
       specialTerms: agreementData.specialTerms || agreementData.specialConditions || agreementData.terms || agreementData.termsAndConditions || '',
@@ -931,8 +935,8 @@ export async function POST(request: NextRequest) {
       last_updated: now.toISOString().split('T')[0],
       last_updtd_time: now.toTimeString().split(' ')[0],
       stepComplete: 2,
-      paidYet: paidAmount,
-      payBalance: remainingBalance,
+      paidYet: advisoryPaidAmount,
+      payBalance: Math.max(totalAmount - advisoryPaidAmount, 0),
       payTotal: totalAmount,
       followup: followUpDate || lead.followup,
       folowuptime: followUpDate || lead.folowuptime,
@@ -942,7 +946,7 @@ export async function POST(request: NextRequest) {
       // demandAmt tracks the outstanding balance; dueDate/demdRemark only
       // overwrite when the Payment stage actually sent a balance-due-date or
       // remark, otherwise leave whatever was already on the lead untouched.
-      demandAmt: remainingBalance,
+      demandAmt: Math.max(totalAmount - advisoryPaidAmount, 0),
       dueDate: paymentData.dueDate ? new Date(paymentData.dueDate) : lead.dueDate,
       demdRemark: paymentData.remark || lead.demdRemark,
     };

@@ -380,6 +380,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   const { sorted: sortedLeadRows, sortKey: leadSortKey, sortDirection: leadSortDirection, toggleSort: toggleLeadSort } = useSortableData(
     leads,
     {
+      id: (lead: Lead) => Number(lead.id || 0),
       name: (lead: Lead) => `${lead.fname || ''} ${lead.mname || ''} ${lead.lname || ''}`,
       contact: (lead: Lead) => lead.email || lead.phone,
       interest: (lead: Lead) => (lead as any).country_interest_label || lead.country_interest,
@@ -701,6 +702,40 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     }
   };
 
+  const handleMoveOpportunityBackToLead = async (lead: Lead) => {
+    if (!isCeo(user)) {
+      window.toast.error('Only the CEO can move an opportunity back to leads.');
+      return;
+    }
+
+    const clientName = `${lead.fname || ''} ${lead.lname || ''}`.trim() || `Lead #${lead.id}`;
+    if (!confirm(`Move ${clientName} back to Leads? This is only allowed before the opportunity becomes a client.`)) return;
+
+    try {
+      const opportunityId = Number((lead as any).resolved_opportunity_id || (lead as any).opportunity_id || 0);
+      const response = opportunityId
+        ? await fetch(`/api/opportunities/${opportunityId}`, { method: 'DELETE' })
+        : await fetch(`/api/leads/${lead.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ opportunity_status: null, opportunity_id: null, status: 'New' }),
+          });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Failed to move opportunity back to leads');
+
+      setSelectedLeads((current) => current.filter((id) => id !== Number(lead.id)));
+      await fetchLeads();
+      window.toast.success('Opportunity moved back to Leads.');
+    } catch (error) {
+      console.error('Error moving opportunity back to lead:', error);
+      window.toast.error(error instanceof Error ? error.message : 'Unable to move opportunity back to leads.');
+    }
+  };
+
   const handleStatusChange = async (leadId: number, newStatus: string) => {
     try {
       const response = await fetch(`/api/leads-simple/${leadId}`, {
@@ -997,6 +1032,15 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
 
       const confirmed = confirm(`Open opportunity wizard for ${lead.fname} ${lead.lname}?`);
       if (!confirmed) return;
+
+      await fetch(`/api/leads/${numericLeadId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ opportunity_status: 'draft' }),
+      }).catch((err) => console.error('Error marking lead as draft opportunity:', err));
 
       router.push(`/admin/leads/opportunity-flow?leadId=${numericLeadId}`);
     } catch (error) {
@@ -1913,6 +1957,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                       />
                     )}
                   </th>
+                  <SortableTh label="Lead ID" sortKey="id" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
                   <SortableTh
                     label={activeTab === 'clients' ? 'Client Information' : activeTab === 'opportunities' ? 'Opportunity Draft' : 'Lead Information'}
                     sortKey="name" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort}
@@ -1951,6 +1996,18 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                       )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <Link
+                        href={`/admin/leads/${lead.id}/edit`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-semibold text-blue-700 hover:text-blue-900 hover:underline"
+                        title={`Open lead #${lead.id} in a new tab`}
+                      >
+                        #{lead.id}
+                      </Link>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
@@ -2239,6 +2296,15 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                           >
                             <Settings className="w-4 h-4" />
                           </Link>
+                        )}
+                        {activeTab === 'opportunities' && isCeo(user) && (
+                          <button
+                            onClick={() => handleMoveOpportunityBackToLead(lead)}
+                            className="text-slate-600 hover:text-slate-900"
+                            title="Move back to Leads"
+                          >
+                            <ChevronsLeft className="w-4 h-4" />
+                          </button>
                         )}
                         <Link
                           href={`/admin/leads/${lead.id}/edit`}

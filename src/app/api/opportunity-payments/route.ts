@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
         sequelize.query<{ opportunityId: number; leadId: number | null; branchName: string | null; branchAddress: string | null; branchEmail: string | null; branchPhone: string | null; branchLicenseNumber: string | null; branchTrn: string | null; branchVatGstPercent: number | string | null; branchBankName: string | null; branchBankAccountName: string | null; branchBankAccountNumber: string | null; branchBankIban: string | null; branchBankBranch: string | null; leadNovat: number | null }>(
           `SELECT o.id AS opportunityId,
                   l.id AS leadId,
-                  b.branch AS branchName,
+                  b.name AS branchName,
                   b.address AS branchAddress,
                   b.email AS branchEmail,
                   b.mobile AS branchPhone,

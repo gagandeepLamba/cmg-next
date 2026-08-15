@@ -27,7 +27,7 @@ const BRANCH_SEEDS = [
     address: 'Abu Dhabi, UAE', ar_address: 'أبوظبي، الإمارات العربية المتحدة',
     email: 'auh@dmconsultants.com', mobile: '+971000000000', website: 'https://www.dmconsultants.com' },
   { name: 'Dubai SZR', ar_name: 'دبي', branch: 'United Arab Emirates', region: 'UAE', abbrv: 'DXB SZR',
-    address: 'Sheikh Zayed Road, Dubai, UAE', ar_address: 'شارع الشيخ زايد، دبي، الإمارات العربية المتحدة',
+    address: '307 Business Atrium Building, Oud Metha, Dubai, United Arab Emirates', ar_address: 'شارع الشيخ زايد، دبي، الإمارات العربية المتحدة',
     email: 'dxb@dmconsultants.com', mobile: '+971000000001', website: 'https://www.dmconsultants.com' },
   { name: 'Kuwait', ar_name: 'الكويت', branch: 'Kuwait', region: 'Kuwait', abbrv: 'KWD',
     address: 'Kuwait City, Kuwait', ar_address: 'مدينة الكويت، الكويت',

@@ -65,7 +65,10 @@ interface PaymentData {
   paymentStructure: 'full' | 'installment' | 'milestone';
   totalAmount: number;
   paidAmount: number;
+  advisoryPaidAmount?: number;
+  adminFee?: number;
   remainingBalance: number;
+  includeAdminFee: boolean;
   paymentMethod: string;
   transactionId: string;
   paymentDate: string;
@@ -138,6 +141,30 @@ const computeAgreementEndDate = (startDate: string, programValidity?: string | n
   const endDateObj = startDate ? new Date(`${startDate}T00:00:00`) : new Date();
   endDateObj.setMonth(endDateObj.getMonth() + validityMonths);
   return endDateObj.toISOString().split('T')[0];
+};
+
+// Applies to both AED branches (Dubai and Abu Dhabi) — gated on currency
+// below rather than a branch id, since AED is only ever those two branches.
+const UAE_ADMIN_FEE_AED = 120;
+const formatAgreementAmount = (value: number) =>
+  Math.max(0, Number.isFinite(value) ? value : 0).toLocaleString('en', {
+    maximumFractionDigits: 2,
+  });
+
+const getAgreementFeeSchedule = (
+  quotationData: Partial<QuotationData> | null | undefined,
+  paymentData: Partial<PaymentData> | null | undefined,
+  fallbackAmount: unknown,
+) => {
+  const finalAmount = Number(quotationData?.total ?? fallbackAmount ?? 0);
+  const totalAmount = Math.max(0, Number.isFinite(finalAmount) ? finalAmount : 0);
+  const paidRaw = Number(paymentData?.paidAmount ?? 0);
+  const initialPayment = Math.min(Math.max(0, Number.isFinite(paidRaw) ? paidRaw : 0), totalAmount);
+  return {
+    totalAmount,
+    initialPayment,
+    secondPayment: Math.max(0, totalAmount - initialPayment),
+  };
 };
 
 export default function OpportunityFlowWizard({ leadId, initialStage, initialOpportunityId }: OpportunityFlowWizardProps) {
@@ -217,6 +244,7 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
     totalAmount: 0,
     paidAmount: 0,
     remainingBalance: 0,
+    includeAdminFee: false,
     paymentMethod: 'cash',
     transactionId: '',
     paymentDate: new Date().toISOString().split('T')[0],
@@ -1034,6 +1062,7 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
           totalAmount,
           amount: paidAmount,
           paidAmount,
+          advisoryPaidAmount: effectivePaymentData.advisoryPaidAmount ?? paidAmount,
           paymentMethod: effectivePaymentData.paymentMethod || 'cash',
           paymentDate: effectivePaymentData.paymentDate,
           transactionId: effectivePaymentData.transactionId,
@@ -1118,8 +1147,8 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
         agreementData.startDate || new Date().toISOString().split('T')[0],
         (lead as any)?.program_validity,
       ),
-      amount: Number(agreementData.amount || quotationData.total || 0),
-      totalAmount: Number(agreementData.amount || quotationData.total || 0),
+      amount: Number(quotationData.total || agreementData.amount || 0),
+      totalAmount: Number(quotationData.total || agreementData.amount || 0),
       terms: agreementData.terms,
       termsAndConditions: agreementData.terms,
       specialConditions: agreementData.specialConditions,
@@ -1199,9 +1228,11 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
           if (!isAlreadySigned) {
             const destinationCountry = (lead as any)?.country_interest_label || (lead as any)?.country_interest || 'Not specified';
             const serviceProgram = (lead as any)?.service_interest_label || (lead as any)?.service_interest || agreementData.agreementType || 'Consulting Service';
-            const totalAmountForAgreement = quotationData?.total || agreementData.amount || (lead as any)?.payTotal || (lead as any)?.demandAmt || '0';
-            const initialPaymentForAgreement = quotationData?.subtotal ? String(quotationData.subtotal) : String(Math.round(Number(totalAmountForAgreement) / 2));
-            const secondPaymentForAgreement = quotationData?.total ? String(Math.max(0, Number(quotationData.total) - Number(initialPaymentForAgreement))) : String(Math.round(Number(totalAmountForAgreement) / 2));
+            const agreementFees = getAgreementFeeSchedule(
+              quotationData,
+              paymentData,
+              agreementData.amount || (lead as any)?.payTotal || (lead as any)?.demandAmt || 0,
+            );
 
             content = renderAgreementForBranch(branchDetails.branchAbbrv, {
               agreementNumber: latestAgreement.agreementNumber,
@@ -1221,9 +1252,9 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
                 ? `${agreementData.startDate} to ${agreementData.endDate}`
                 : ''),
               destinationCountry,
-              totalAmount: String(totalAmountForAgreement),
-              initialPayment: initialPaymentForAgreement,
-              secondPayment: secondPaymentForAgreement,
+              totalAmount: formatAgreementAmount(agreementFees.totalAmount),
+              initialPayment: formatAgreementAmount(agreementFees.initialPayment),
+              secondPayment: formatAgreementAmount(agreementFees.secondPayment),
               clientId: String((lead as any)?.id || ''),
               includedDeliverables: agreementData.agreementTitle || '',
               expressExclusions: '',
@@ -1260,9 +1291,11 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
         // refreshing an existing agreement above — the fixed amount after
         // the approved discount (and tax), not the opportunity's original
         // pre-discount package/estimated value.
-        const firstGenTotalAmount = quotationData?.total || agreementData.amount || (lead as any)?.payTotal || (lead as any)?.demandAmt || 0;
-        const firstGenInitialPayment = quotationData?.subtotal ? String(quotationData.subtotal) : String(Math.round(Number(firstGenTotalAmount) / 2));
-        const firstGenSecondPayment = quotationData?.total ? String(Math.max(0, Number(quotationData.total) - Number(firstGenInitialPayment))) : String(Math.round(Number(firstGenTotalAmount) / 2));
+        const agreementFees = getAgreementFeeSchedule(
+          quotationData,
+          paymentData,
+          agreementData.amount || (lead as any)?.payTotal || (lead as any)?.demandAmt || 0,
+        );
 
         const agreementResponse = await fetch('/api/agreement-generation', {
         method: 'POST',
@@ -1281,9 +1314,9 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
             ),
             paymentMethod: 'Bank Transfer',
             paymentSchedule: 'As per agreed schedule',
-            totalAmount: firstGenTotalAmount,
-            initialPayment: firstGenInitialPayment,
-            secondPayment: firstGenSecondPayment,
+            totalAmount: agreementFees.totalAmount,
+            initialPayment: agreementFees.initialPayment,
+            secondPayment: agreementFees.secondPayment,
           },
           clientData: {
             companyName: agreementData.companyName || branchDetails.companyName,
@@ -1494,6 +1527,7 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
           data={agreementData}
           setData={setAgreementData}
           quotationData={quotationData}
+          paymentData={paymentData}
           programValidity={(lead as any)?.program_validity || ''}
           opportunityId={completedOpportunityId || (lead as any)?.resolved_opportunity_id || (lead as any)?.opportunity_id}
           onSaveAgreement={saveAgreement}
@@ -2715,6 +2749,9 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
   // read-only so they can't alter what's already been issued to the client.
   const canEditAfterReceipt = isBranchManagerOrCeo(user as any);
   const receiptLocked = Boolean(receipt) && !canEditAfterReceipt;
+  const receiptAdminFee = data.includeAdminFee && String(currencyCode || 'AED').toUpperCase() === 'AED'
+    ? UAE_ADMIN_FEE_AED
+    : 0;
 
   const normalizeReceiptForUi = (payment: any) => ({
     ...payment,
@@ -2831,6 +2868,12 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
       const totalAmount = Number(quotationTotal || data.totalAmount || 0);
       const paidAmount = Math.min(Math.max(0, Number(data.paidAmount || 0)), totalAmount);
       const remainingBalance = Math.max(totalAmount - paidAmount, 0);
+      const receiptTotalAmount = totalAmount + receiptAdminFee;
+      const receiptPaidAmount = paidAmount + receiptAdminFee;
+      const receiptRemark = [
+        data.remark,
+        receiptAdminFee ? `Includes admin fee: AED ${receiptAdminFee}` : '',
+      ].filter(Boolean).join('\n');
       // The opportunity may not exist yet at this stage (Payment comes before
       // Documents/Agreement in the flow). Ensuring it here — rather than
       // leaving opportunityId hardcoded to null — is what lets this payment
@@ -2839,7 +2882,14 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
       // off dm_opportunity_payments.opportunityId, so a null value made this
       // payment invisible everywhere except this wizard's own local state.
       const hadOpportunityAlready = Boolean(opportunityId);
-      const ensuredOpportunityId = await onEnsureOpportunity({ proofOfPaymentUrl, totalAmount, paidAmount, remainingBalance });
+      const ensuredOpportunityId = await onEnsureOpportunity({
+        proofOfPaymentUrl,
+        totalAmount,
+        paidAmount,
+        adminFee: receiptAdminFee,
+        remainingBalance,
+        remark: receiptRemark,
+      });
 
       if (!hadOpportunityAlready) {
         // ensureOpportunityForClient() just created the opportunity via
@@ -2865,19 +2915,22 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
               paymentMethod: data.paymentMethod,
               transactionId: data.transactionId,
               paymentDate: data.paymentDate,
-              paidAmount,
-              totalAmount,
-              amount: paidAmount,
+              paidAmount: receiptPaidAmount,
+              advisoryPaidAmount: paidAmount,
+              advisoryTotalAmount: totalAmount,
+              adminFee: receiptAdminFee,
+              totalAmount: receiptTotalAmount,
+              amount: receiptPaidAmount,
               proofOfPaymentUrl,
               dueDate: data.dueDate || undefined,
-              remark: data.remark || undefined,
+              remark: receiptRemark || undefined,
             },
             receiptData: {
               description: `Payment receipt for ${lead.fname} ${lead.lname}`,
               receiptType: 'payment',
               taxAmount: Number(quotationTax) || 0,
               discountAmount: Number(quotationDiscount) || 0,
-              notes: '',
+              notes: receiptAdminFee ? `Includes Dubai admin fee: AED ${receiptAdminFee}` : '',
             },
           }),
         });
@@ -2987,6 +3040,25 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
                 placeholder="0"
                 className="w-full p-3 border rounded-lg disabled:bg-gray-50 disabled:text-gray-500"
               />
+              {String(currencyCode || 'AED').toUpperCase() === 'AED' && (
+                <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(data.includeAdminFee)}
+                    disabled={receiptLocked}
+                    onChange={(e) => setData({ ...data, includeAdminFee: e.target.checked })}
+                    className="mt-1 h-4 w-4 rounded border-gray-300"
+                  />
+                  <span>
+                    Include admin fee ({currencyCode} {UAE_ADMIN_FEE_AED}) — Dubai / Abu Dhabi
+                    {receiptAdminFee > 0 && (
+                      <span className="block text-xs text-gray-500">
+                        Receipt amount will be {currencyCode} {(Number(data.paidAmount || 0) + receiptAdminFee).toFixed(2)}.
+                      </span>
+                    )}
+                  </span>
+                </label>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Remaining Balance</label>
@@ -3655,7 +3727,7 @@ function DocumentsStage({ lead, leadId, onLeadUpdated, data, setData, opportunit
   );
 }
 
-function AgreementStage({ lead, data, setData, quotationData, programValidity, opportunityId, onSaveAgreement, onDeleteAgreement, onNext, onPrevious }: any) {
+function AgreementStage({ lead, data, setData, quotationData, paymentData, programValidity, opportunityId, onSaveAgreement, onDeleteAgreement, onNext, onPrevious }: any) {
   const { user } = useAuth();
   const canDelete = isCeo(user as any);
   const [saving, setSaving] = useState(false);
@@ -3683,10 +3755,11 @@ function AgreementStage({ lead, data, setData, quotationData, programValidity, o
       const serviceProgram   = (lead as any)?.service_interest_label  || (lead as any)?.service_interest  || data.agreementType || 'Consulting Service';
       const branchDetails = getLeadBranchDetails(lead as any);
 
-      // Pull payment amounts from quotation if available
-      const totalAmount    = quotationData?.total    || data.amount || (lead as any)?.payTotal || (lead as any)?.demandAmt || '0';
-      const initialPayment = quotationData?.subtotal ? String(quotationData.subtotal) : String(Math.round(Number(totalAmount) / 2));
-      const secondPayment  = quotationData?.total    ? String(Math.max(0, Number(quotationData.total) - Number(initialPayment))) : String(Math.round(Number(totalAmount) / 2));
+      const agreementFees = getAgreementFeeSchedule(
+        quotationData,
+        paymentData,
+        data.amount || (lead as any)?.payTotal || (lead as any)?.demandAmt || 0,
+      );
 
       const savedAgreementId = await onSaveAgreement();
 
@@ -3708,9 +3781,9 @@ function AgreementStage({ lead, data, setData, quotationData, programValidity, o
         programCode   : data.agreementType || '',
         programTermSchedule: programValidity || (data.startDate && data.endDate ? `${data.startDate} to ${data.endDate}` : ''),
         destinationCountry,
-        totalAmount   : String(totalAmount),
-        initialPayment,
-        secondPayment,
+        totalAmount   : formatAgreementAmount(agreementFees.totalAmount),
+        initialPayment: formatAgreementAmount(agreementFees.initialPayment),
+        secondPayment : formatAgreementAmount(agreementFees.secondPayment),
         clientId      : String((lead as any)?.id || ''),
         includedDeliverables: data.agreementTitle || '',
         expressExclusions: '',

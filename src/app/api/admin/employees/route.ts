@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
         COALESCE(e.cemail,'') AS cemail,
         COALESCE(e.mobile,'') AS mobile, COALESCE(e.cmobile,'') AS cmobile,
         e.department, d.name AS departmentName,
-        e.role, r.name AS roleName, e.branch, b.branch AS branchName, e.region, rg.name AS regionName, e.status, e.EID,
+        e.role, r.name AS roleName, e.branch, b.name AS branchName, e.region, rg.name AS regionName, e.status, e.EID,
         COALESCE(e.username,'') AS username,
         COALESCE(e.work_location,'Onshore') AS work_location,
         COALESCE(e.work_country,'') AS work_country,

@@ -156,20 +156,25 @@ export async function GET(request: NextRequest) {
   let secondPayment  = '';
   let secondPaymentDue = '';
 
+  const totalFee = String(Number(row.totalAmount || 0));
+  const totalFeeNumber = Math.max(0, Number(totalFee || 0));
+
   if (payments.length >= 1) {
-    initialPayment = String(Number(payments[0].paidAmount || payments[0].totalAmount || 0));
+    initialPayment = String(Math.min(Number(payments[0].paidAmount || payments[0].totalAmount || 0), totalFeeNumber));
   }
   if (payments.length >= 2) {
     secondPayment    = String(Number(payments[1].paidAmount || payments[1].totalAmount || 0));
     secondPaymentDue = payments[1].dueDate
       ? String(payments[1].dueDate).split('T')[0]
       : (payments[1].paymentDate ? String(payments[1].paymentDate).split('T')[0] : '');
-  } else if (payments.length === 1 && Number(payments[0].remainingBalance) > 0) {
-    secondPayment    = String(Number(payments[0].remainingBalance));
+  } else if (payments.length === 1) {
+    const balance = Math.max(0, totalFeeNumber - Number(initialPayment || 0));
+    if (balance > 0) {
+    secondPayment    = String(balance);
     secondPaymentDue = payments[0].dueDate ? String(payments[0].dueDate).split('T')[0] : '';
+    }
   }
 
-  const totalFee = String(Number(row.totalAmount || 0));
   const agreementDate = row.startDate
     ? String(row.startDate).split('T')[0]
     : String(row.createdAt).split('T')[0];
