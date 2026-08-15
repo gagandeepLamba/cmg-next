@@ -146,8 +146,8 @@ export function getLeadBranchDetails(
 // branch/lead the receipt is for (the app operates a single UAE entity) —
 // never the raw dm_branch.name value, which is an internal office label
 // (e.g. "Dubai SZR"), not the company's trading identity.
-const CMG_LEGAL_NAME = '';
-const CMG_DISPLAY_NAME = 'Commonwealth Documents Clearing Services LLC';
+const CMG_LEGAL_NAME = 'Commonwealth Documents Clearing Services LLC';
+const CMG_DISPLAY_NAME = 'Commonwealth Migration Group';
 const CMG_TRADING_AS = 'Commonwealth Migration Group ("CMG")';
 const CMG_ISSUER_EMAIL = 'accounts@cwmigrationgroup.ae';
 

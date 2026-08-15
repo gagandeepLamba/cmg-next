@@ -300,6 +300,25 @@ const textOrBlank = (value: unknown, fallback = '________________') => {
   return result || fallback;
 };
 
+// Per Clause 10.1, this Agreement is valid for 24 months from signing.
+// agreementDate arrives already formatted for display (every caller renders
+// it as DD/MM/YYYY before passing it in), so it's parsed back out here
+// rather than threading a separate Date object through every call site.
+// Falls back to today when the display string can't be parsed (e.g. blank).
+const addMonthsToDisplayDate = (dateStr: string, months: number): string => {
+  const trimmed = String(dateStr ?? '').trim();
+  const dmy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const base = dmy
+    ? new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]))
+    : new Date(trimmed);
+  const start = Number.isNaN(base.getTime()) ? new Date() : base;
+  const expiry = new Date(start);
+  expiry.setMonth(expiry.getMonth() + months);
+  const dd = String(expiry.getDate()).padStart(2, '0');
+  const mm = String(expiry.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${expiry.getFullYear()}`;
+};
+
 // ── Bilingual section header bar (dark navy, EN left / AR right) ──────────
 const sectionHeader = (englishTitle: string, arabicTitle: string) => `<div class="cmg-section-header">
   <span class="en">${esc(englishTitle)}</span>
@@ -329,6 +348,7 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
   const currencyCode = v.currencyCode || COMPANY.currencyCode;
   const agreementNumber = textOrBlank(v.agreementNumber);
   const agreementDate = textOrBlank(v.agreementDate);
+  const agreementExpiryDate = addMonthsToDisplayDate(v.agreementDate, 24);
   const clientName = textOrBlank(v.clientName);
   const nationality = textOrBlank(v.nationality);
   const passportNumber = textOrBlank(v.passportNumber);
@@ -362,7 +382,6 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
       --navy-dark: #0a1e38;
       --border: #9fb0c8;
       --stripe: #eaf0f9;
-      --red: #c1272d;
     }
     html, body {
       margin: 0; padding: 0;
@@ -425,19 +444,6 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
     .cmg-row .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; font-size: 10.3px; line-height: 1.6; }
     .cmg-clause .cmg-row .en, .cmg-clause .cmg-row .ar { padding: 6px 10px; }
 
-    .important-note {
-      border: 1.5px solid var(--red);
-      background: #fdecec;
-      color: var(--red);
-      font-weight: 700;
-      padding: 6px 10px;
-      margin-bottom: 8px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      font-size: 10px;
-    }
-    .important-note .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; }
-
     .preamble p { margin: 0 0 6px; }
     .preamble p:last-child { margin-bottom: 0; }
 
@@ -473,7 +479,7 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
     @media print { .document { padding: 0; } .print-footer { position: fixed; } }
     @media (max-width: 700px) {
       html, body { font-size: 11px; }
-      .letterhead, .title-bar, .cmg-section-header, .cmg-row, .important-note, .annexure-title {
+      .letterhead, .title-bar, .cmg-section-header, .cmg-row, .annexure-title {
         grid-template-columns: 1fr;
       }
       .letterhead .en, .title-bar .en, .cmg-row .en { border-right: 0; border-bottom: 1px solid var(--border); }
@@ -507,6 +513,7 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
     ${section('AGREEMENT DETAILS', 'تفاصيل الاتفاقية', [
       row('Agreement No.', agreementNumber, 'رقم الاتفاقية'),
       row('Date', agreementDate, 'التاريخ'),
+      row('Date of Expiry', agreementExpiryDate, 'تاريخ الانتهاء'),
       row('Service Program', serviceProgram, 'برنامج الخدمة'),
       row('Country', destinationCountry, 'الدولة'),
     ].join(''))}
@@ -533,11 +540,6 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
       row('Government / Authority Fees', 'NOT INCLUDED — paid by Client directly', 'رسوم الحكومة / الجهات المختصة', 'غير مشمولة — يدفعها العميل مباشرة'),
       row('VAT', 'Applicable per UAE VAT Law', 'ضريبة القيمة المضافة', 'مطبقة وفق قانون ضريبة القيمة المضافة الإماراتي'),
     ].join(''))}
-
-    <div class="important-note">
-      <span class="en">IMPORTANT: All retainer fees are strictly non-refundable except as stated in Clause 8. Any approved refund is processed within 90 calendar days (Clause 8.4).</span>
-      <span class="ar" dir="rtl" lang="ar">هام: جميع رسوم الاحتجاز غير قابلة للاسترداد بصورة قاطعة إلا وفق ما هو منصوص عليه في البند 8. ويُعالج أي استرداد معتمد خلال 90 يومًا تقويميًا (البند 8.4).</span>
-    </div>
 
     <section class="cmg-block cmg-clause preamble">
       ${sectionHeader('PREAMBLE', 'تمهيد')}
