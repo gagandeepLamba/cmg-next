@@ -81,9 +81,17 @@ interface PaymentData {
 interface DocumentData {
   idProof: File | null;
   passportCopy: File | null;
+  counsellorSheet?: File | null;
   passportNumber: string;
   additionalInfo: string;
   allMandatoryDocsUploaded: boolean;
+  // Already-uploaded file URLs, restored from the server on remount/reload —
+  // the File objects above only ever exist for the browser session that
+  // picked them, so these are what let the Documents stage show a link to
+  // what's already saved instead of looking blank after a refresh.
+  idProofUrl?: string | null;
+  passportCopyUrl?: string | null;
+  counsellorSheetUrl?: string | null;
 }
 
 interface AgreementData {
@@ -257,9 +265,13 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
   const [documentData, setDocumentData] = useState<DocumentData>({
     idProof: null,
     passportCopy: null,
+    counsellorSheet: null,
     passportNumber: '',
     additionalInfo: '',
-    allMandatoryDocsUploaded: false
+    allMandatoryDocsUploaded: false,
+    idProofUrl: null,
+    passportCopyUrl: null,
+    counsellorSheetUrl: null,
   });
 
   const [agreementData, setAgreementData] = useState<AgreementData>({
@@ -581,10 +593,23 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
         if (!res.ok) return;
         const documents = await res.json();
         const list: any[] = Array.isArray(documents) ? documents : documents?.data || [];
-        const categories = new Set(list.map((doc) => doc.category || doc.documentType));
-        const hasAllMandatory = ['id_proof', 'passport', 'counsellor_sheet'].every((category) => categories.has(category));
-        if (hasAllMandatory && !cancelled) {
-          setDocumentData((prev) => ({ ...prev, allMandatoryDocsUploaded: true }));
+        // Most recent upload per category wins (list is ordered by uploadDate
+        // DESC), matching what a re-upload/replace should show as current.
+        const urlByCategory = new Map<string, string>();
+        for (const doc of list) {
+          const category = doc.category || doc.documentType;
+          const url = doc.filePath || doc.fileUrl;
+          if (category && url && !urlByCategory.has(category)) urlByCategory.set(category, url);
+        }
+        const hasAllMandatory = ['id_proof', 'passport', 'counsellor_sheet'].every((category) => urlByCategory.has(category));
+        if (!cancelled && (hasAllMandatory || urlByCategory.size > 0)) {
+          setDocumentData((prev) => ({
+            ...prev,
+            allMandatoryDocsUploaded: hasAllMandatory || prev.allMandatoryDocsUploaded,
+            idProofUrl: urlByCategory.get('id_proof') || prev.idProofUrl,
+            passportCopyUrl: urlByCategory.get('passport') || prev.passportCopyUrl,
+            counsellorSheetUrl: urlByCategory.get('counsellor_sheet') || prev.counsellorSheetUrl,
+          }));
         }
       } catch (err) {
         console.error('Error fetching existing documents:', err);
@@ -3568,9 +3593,9 @@ function DocumentsStage({ lead, leadId, onLeadUpdated, data, setData, opportunit
   const [uploadProgress, setUploadProgress] = useState<Record<string, 'idle' | 'uploading' | 'done' | 'error'>>({});
 
   const mandatoryDocs = [
-    { key: 'idProof', label: 'ID Proof (Mandatory)', category: 'id_proof' },
-    { key: 'passportCopy', label: 'Passport Copy (Mandatory)', category: 'passport' },
-    { key: 'counsellorSheet', label: 'Counsellor Sheet (Mandatory)', category: 'counsellor_sheet' },
+    { key: 'idProof', label: 'ID Proof (Mandatory)', category: 'id_proof', urlKey: 'idProofUrl' },
+    { key: 'passportCopy', label: 'Passport Copy (Mandatory)', category: 'passport', urlKey: 'passportCopyUrl' },
+    { key: 'counsellorSheet', label: 'Counsellor Sheet (Mandatory)', category: 'counsellor_sheet', urlKey: 'counsellorSheetUrl' },
   ] as const;
 
   const optionalDocs: { key: string; label: string; category: string }[] = [];
@@ -3708,7 +3733,7 @@ function DocumentsStage({ lead, leadId, onLeadUpdated, data, setData, opportunit
           </div>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {mandatoryDocs.map(({ key, label }) => (
+          {mandatoryDocs.map(({ key, label, urlKey }) => (
             <div key={key}>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {label}{' '}
@@ -3717,15 +3742,44 @@ function DocumentsStage({ lead, leadId, onLeadUpdated, data, setData, opportunit
                 {uploadProgress[key] === 'error' && <span className="text-red-600 text-xs">(upload failed)</span>}
                 {!uploadProgress[key] && data[key] instanceof File && <span className="text-green-600 text-xs">(selected)</span>}
               </label>
-              <input
-                type="file"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  setData({ ...data, [key]: file });
-                  setUploadProgress(p => ({ ...p, [key]: 'idle' }));
-                }}
-              />
+              {!(data[key] instanceof File) && data[urlKey] ? (
+                // Already uploaded in an earlier session — the File object
+                // itself can't survive a reload, but the uploaded blob's URL
+                // does, so show that instead of a blank file picker.
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                  <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
+                  <a
+                    href={data[urlKey]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-green-800 underline truncate flex-1"
+                  >
+                    View uploaded document
+                  </a>
+                  <label className="text-blue-600 hover:text-blue-800 text-xs shrink-0 cursor-pointer">
+                    Replace
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setData({ ...data, [key]: file });
+                        setUploadProgress(p => ({ ...p, [key]: 'idle' }));
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <input
+                  type="file"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setData({ ...data, [key]: file });
+                    setUploadProgress(p => ({ ...p, [key]: 'idle' }));
+                  }}
+                />
+              )}
             </div>
           ))}
           {optionalDocs.map(({ key, label }) => (
