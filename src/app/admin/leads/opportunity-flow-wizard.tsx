@@ -1482,7 +1482,6 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
           onNext={moveToNextStage}
           onPrevious={moveToPreviousStage}
           paymentType={paymentType}
-          setPaymentType={setPaymentType}
         />;
       case 'payment':
         return <PaymentStage
@@ -2385,7 +2384,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
   );
 }
 
-function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionData, requestingDiscount, onRequestDiscount, onRefreshDiscount, onDiscountChanged, onNext, onPrevious, paymentType, setPaymentType }: any) {
+function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionData, requestingDiscount, onRequestDiscount, onRefreshDiscount, onDiscountChanged, onNext, onPrevious, paymentType }: any) {
   const [saving, setSaving] = useState(false);
   const [appliedFeeKey, setAppliedFeeKey] = useState<string | null>(null);
   const currencyCode = feeData?.currencyCode || 'AED';
@@ -2524,53 +2523,37 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
         )}
       </div>
 
-      {/* ── Payment Package Type Selector ── */}
-      {feeData && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <span className="text-sm font-semibold text-blue-900">Payment Package</span>
-              <span className="ml-2 text-xs text-blue-600">
-                {feeData.serviceName} · {feeData.countryName}{feeData.branchName ? ` · ${feeData.branchName}` : ''} · {feeData.currencyCode || 'AED'}
+      {/* ── Payment Package (read-only — already chosen on the Prospect tab; see
+           the Fee Package Summary there) — this stage only auto-populates its
+           line items from that choice, it doesn't let it be changed again. ── */}
+      {feeData && (() => {
+        const upfrontBase = Number(feeData.upfront);
+        const stageExtra = Number(feeData.firstStage) + Number(feeData.secondStage) + Number(feeData.thirdStage) + Number(feeData.forthStage) + Number(feeData.fifthStage);
+        const monthlyExtra = Number(feeData.firstMonth) + Number(feeData.secondMonth) + Number(feeData.thirdMonth);
+        const selected = paymentType === 'stage'
+          ? { label: 'Stage-wise', total: stageExtra }
+          : paymentType === 'monthly'
+            ? { label: 'Monthly', total: monthlyExtra }
+            : { label: 'Upfront Only', total: upfrontBase };
+        return (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <span className="text-sm font-semibold text-blue-900">Payment Package: {selected.label}</span>
+                <span className="ml-2 text-xs text-blue-600">
+                  {feeData.serviceName} · {feeData.countryName}{feeData.branchName ? ` · ${feeData.branchName}` : ''} · {feeData.currencyCode || 'AED'}
+                </span>
+              </div>
+              <span className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white shadow">
+                {(feeData.currencyCode || 'AED')} {selected.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
             </div>
-            <div className="flex gap-2">
-              {(() => {
-                const upfrontBase = Number(feeData.upfront);
-                const stageExtra = Number(feeData.firstStage) + Number(feeData.secondStage) + Number(feeData.thirdStage) + Number(feeData.forthStage) + Number(feeData.fifthStage);
-                const monthlyExtra = Number(feeData.firstMonth) + Number(feeData.secondMonth) + Number(feeData.thirdMonth);
-                // Only offer a package when dm_fee actually has data for that
-                // structure — otherwise stage/monthly would just duplicate the
-                // upfront-only total as a fake extra option.
-                return [
-                  { key: 'upfront', label: 'Upfront Only', total: upfrontBase, include: upfrontBase > 0 },
-                  { key: 'stage',   label: 'Stage-wise',   total: stageExtra, include: stageExtra > 0 },
-                  { key: 'monthly', label: 'Monthly',       total: monthlyExtra, include: monthlyExtra > 0 },
-                ] as const;
-              })().filter(p => p.include).map(pkg => (
-                <button
-                  key={pkg.key}
-                  type="button"
-                  onClick={() => setPaymentType(pkg.key)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    paymentType === pkg.key
-                      ? 'bg-blue-600 text-white shadow'
-                      : 'bg-white border border-blue-300 text-blue-700 hover:bg-blue-100'
-                  }`}
-                >
-                  {pkg.label}
-                  <span className="ml-1 opacity-80">
-                    {(feeData.currencyCode || 'AED')} {pkg.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <p className="text-xs text-blue-600 mt-2">
+              Chosen on the Prospect tab. Line items below are auto-populated from it — go back to Prospect to change the package.
+            </p>
           </div>
-          <p className="text-xs text-blue-600 mt-2">
-            Selecting a package type reloads the line items below from dm_fees. You can still edit individual items.
-          </p>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h4 className="font-semibold text-lg mb-4 text-gray-900">Line Items</h4>
@@ -2761,11 +2744,47 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
     remainingBalance: payment.remainingBalance ?? payment.balanceAmount ?? 0,
   });
 
-  const syncPaymentDataFromReceipt = (payment: any) => {
+  // An opportunity can end up with more than one dm_opportunity_payments row —
+  // this flow's own deposit/installments ("PAY-..." numbers) plus, sometimes,
+  // a receipt recorded independently elsewhere (e.g. the Client List/Clients
+  // quick-pay screens, which mint "RC/..." numbers directly). Blindly taking
+  // the most-recently-created row is wrong once one of those exists — it
+  // silently overrides this flow's own receipt/totals every time the stage
+  // remounts. Prefer this flow's own payment records, and the earliest one
+  // among those (the original deposit), so re-opening this stage is stable.
+  const pickPrimaryPayment = (list: any[]) => {
+    if (!Array.isArray(list) || list.length === 0) return null;
+    const ownPayments = list.filter((p) => String(p?.paymentNumber || '').startsWith('PAY-'));
+    const pool = ownPayments.length ? ownPayments : list;
+    return [...pool].sort((a, b) => {
+      const aTime = new Date(a?.paymentDate || a?.createdAt || 0).getTime();
+      const bTime = new Date(b?.paymentDate || b?.createdAt || 0).getTime();
+      return aTime - bTime;
+    })[0];
+  };
+
+  // preferLeadTotals: lead.payTotal/paidYet are running totals the backend
+  // maintains across every payment ever recorded for this opportunity (see
+  // /api/receipts and /api/lead-to-opportunity) — use them, instead of a
+  // single payment row's own totalAmount/paidAmount, whenever `lead` is known
+  // to be freshly loaded (stage remount / manual refresh). Right after this
+  // component's own save, `lead` is still the stale pre-save prop (this stage
+  // isn't wired to onLeadUpdated), so that path keeps reading the
+  // just-created payment record directly instead.
+  const syncPaymentDataFromReceipt = (payment: any, { preferLeadTotals = false }: { preferLeadTotals?: boolean } = {}) => {
     setData((current: PaymentData) => {
-      const totalAmount = Number(payment?.totalAmount || current.totalAmount || quotationTotal || payment?.amount || current.paidAmount || 0);
-      const paidAmount = Number(payment?.paidAmount ?? payment?.amount ?? current.paidAmount ?? 0);
-      const remainingBalance = Number(payment?.remainingBalance ?? payment?.balanceAmount ?? Math.max(totalAmount - paidAmount, 0));
+      const leadTotal = Number(lead?.payTotal || 0);
+      const leadPaid = Number(lead?.paidYet || 0);
+      const useLeadTotals = preferLeadTotals && leadTotal > 0;
+      const totalAmount = useLeadTotals
+        ? leadTotal
+        : Number(payment?.totalAmount || current.totalAmount || quotationTotal || payment?.amount || current.paidAmount || 0);
+      const paidAmount = useLeadTotals
+        ? Math.min(leadPaid, totalAmount)
+        : Number(payment?.paidAmount ?? payment?.amount ?? current.paidAmount ?? 0);
+      const remainingBalance = useLeadTotals
+        ? Math.max(totalAmount - paidAmount, 0)
+        : Number(payment?.remainingBalance ?? payment?.balanceAmount ?? Math.max(totalAmount - paidAmount, 0));
 
       return {
         ...current,
@@ -2801,11 +2820,12 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
         const res = await fetch(`/api/opportunity-payments?opportunityId=${opportunityId}&_=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok) return;
         const payments = await res.json();
-        const latestPayment = Array.isArray(payments) ? payments[0] : payments?.data?.[0];
-        if (latestPayment && !cancelled) {
-          const normalizedPayment = normalizeReceiptForUi(latestPayment);
+        const list = Array.isArray(payments) ? payments : payments?.data || [];
+        const primaryPayment = pickPrimaryPayment(list);
+        if (primaryPayment && !cancelled) {
+          const normalizedPayment = normalizeReceiptForUi(primaryPayment);
           setReceipt(normalizedPayment);
-          syncPaymentDataFromReceipt(normalizedPayment);
+          syncPaymentDataFromReceipt(normalizedPayment, { preferLeadTotals: true });
         }
       } catch (error) {
         console.error('Error re-hydrating receipt:', error);
@@ -2827,13 +2847,14 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
       if (!res.ok) throw new Error('Failed to check verification status');
       const payments = await res.json();
       const list = Array.isArray(payments) ? payments : payments?.data || [];
-      const latestPayment = receipt
-        ? list.find((p: any) => p.id === receipt.id || p.paymentNumber === receipt.paymentNumber) || list[0]
-        : list[0];
-      if (latestPayment) {
-        const normalizedPayment = normalizeReceiptForUi(latestPayment);
+      const matchedPayment = receipt
+        ? list.find((p: any) => p.id === receipt.id || p.paymentNumber === receipt.paymentNumber)
+        : null;
+      const primaryPayment = matchedPayment || pickPrimaryPayment(list);
+      if (primaryPayment) {
+        const normalizedPayment = normalizeReceiptForUi(primaryPayment);
         setReceipt(normalizedPayment);
-        syncPaymentDataFromReceipt(normalizedPayment);
+        syncPaymentDataFromReceipt(normalizedPayment, { preferLeadTotals: true });
       }
     } catch (error) {
       console.error('Error refreshing verification status:', error);
@@ -2898,8 +2919,9 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
         // record back instead of submitting a second, duplicate payment.
         const payRes = await fetch(`/api/opportunity-payments?opportunityId=${ensuredOpportunityId}`);
         const payments = await payRes.json();
-        const latestPayment = Array.isArray(payments) ? payments[0] : null;
-        const normalizedPayment = latestPayment ? normalizeReceiptForUi(latestPayment) : null;
+        const list = Array.isArray(payments) ? payments : payments?.data || [];
+        const primaryPayment = pickPrimaryPayment(list);
+        const normalizedPayment = primaryPayment ? normalizeReceiptForUi(primaryPayment) : null;
         setReceipt(normalizedPayment);
         if (normalizedPayment) syncPaymentDataFromReceipt(normalizedPayment);
         window.toast.success(`Receipt ${normalizedPayment?.paymentNumber || ''} created successfully!`);
@@ -2930,7 +2952,7 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
               receiptType: 'payment',
               taxAmount: Number(quotationTax) || 0,
               discountAmount: Number(quotationDiscount) || 0,
-              notes: receiptAdminFee ? `Includes Dubai admin fee: AED ${receiptAdminFee}` : '',
+              notes: receiptAdminFee ? `Includes admin fee: AED ${receiptAdminFee}` : '',
             },
           }),
         });
