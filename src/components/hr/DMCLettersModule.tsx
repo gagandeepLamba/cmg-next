@@ -58,7 +58,7 @@ function aed(v: string | number, currency = 'AED'): string {
   return `${currency} ${n.toLocaleString()}`;
 }
 
-// ── DMC LOGO SVG (starburst) ───────────────────────────────────────────────
+// ── CMG LOGO SVG (starburst) ───────────────────────────────────────────────
 const LOGO_SVG = `<svg width="54" height="54" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
   <polygon points="27,2 31,10 39,7 38,16 47,18 43,26 50,32 43,36 46,45 37,45 34,53 27,48 20,53 17,45 8,45 11,36 4,32 11,26 7,18 16,16 15,7 23,10" fill="${G2}"/>
   <text x="27" y="28" text-anchor="middle" fill="white" font-family="Arial" font-weight="700" font-size="8">dmc</text>
@@ -130,7 +130,7 @@ function buildLetterHTML(d: LetterData): string {
   <div style="position:absolute;top:14px;right:68pt;">${LOGO_SVG}</div>
   <!-- Company title -->
   <div style="margin-right:70px;">
-    <div style="font-size:14pt;font-weight:700;color:${G2};letter-spacing:0.02em;">DM IMMIGRATION CONSULTANTS DMCC</div>
+    <div style="font-size:14pt;font-weight:700;color:${G2};letter-spacing:0.02em;">CMG IMMIGRATION GROUP</div>
     <div style="font-size:8.5pt;color:${GR};margin-top:2px;">${BRANCH.name} &nbsp;|&nbsp; Ph: ${BRANCH.phone} &nbsp;|&nbsp; ${BRANCH.email} &nbsp;|&nbsp; ${BRANCH.web}</div>
   </div>
   <!-- Green rule -->
@@ -172,13 +172,13 @@ function buildLetterHTML(d: LetterData): string {
   ${buildTable(d.tableRows)}
 
   <!-- Closing paragraph (after table) -->
-  ${d.templateId === 'T-01' ? `<div style="font-size:10pt;text-align:justify;margin-bottom:10px;">All other terms and conditions of your employment contract shall remain unchanged and continue to govern your engagement with DM Consultants.</div>
-  <div style="font-size:10pt;text-align:justify;">We have every confidence in your abilities and look forward to your continued leadership and dedication in this new role. Please accept our warmest congratulations and best wishes for your continued success with DM Consultants.</div>` : ''}
+  ${d.templateId === 'T-01' ? `<div style="font-size:10pt;text-align:justify;margin-bottom:10px;">All other terms and conditions of your employment contract shall remain unchanged and continue to govern your engagement with CMG Immigration Group.</div>
+  <div style="font-size:10pt;text-align:justify;">We have every confidence in your abilities and look forward to your continued leadership and dedication in this new role. Please accept our warmest congratulations and best wishes for your continued success with CMG Immigration Group.</div>` : ''}
 
   ${d.templateId === 'T-02' ? `<div style="font-size:10pt;text-align:justify;">This offer is conditional upon the successful completion of reference checks, submission of original educational and identification documents, and a satisfactory medical examination where required.</div>
   <div style="font-size:10pt;text-align:justify;margin-top:10px;">Kindly sign and return the duplicate copy of this letter as your acceptance of the offer within <strong>five (5) working days</strong> from the date hereof. Failure to do so may result in the withdrawal of this offer.</div>` : ''}
 
-  ${d.templateId === 'T-03' ? `<div style="font-size:10pt;text-align:justify;margin-top:4px;"><strong>No Objection:</strong> DM Immigration Consultants DMCC has no objection to <strong>${d.toName}</strong> seeking employment elsewhere or for any visa/immigration purpose as required.</div>` : ''}
+  ${d.templateId === 'T-03' ? `<div style="font-size:10pt;text-align:justify;margin-top:4px;"><strong>No Objection:</strong> CMG Immigration Group has no objection to <strong>${d.toName}</strong> seeking employment elsewhere or for any visa/immigration purpose as required.</div>` : ''}
 
   ${d.templateId === 'T-05' ? `<div style="font-size:10pt;text-align:justify;margin-top:4px;">This certificate is issued at the request of the employee for <strong>[bank / visa / personal]</strong> purposes and should not be construed as a guarantee of continued employment.</div>` : ''}
 
@@ -188,11 +188,11 @@ function buildLetterHTML(d: LetterData): string {
   <!-- Closing & Signature -->
   <div style="margin-top:28px;">
     <div style="font-size:10pt;">${d.closing}</div>
-    <div style="font-size:10pt;font-weight:700;margin-top:4px;">For DM Immigration Consultants DMCC</div>
+    <div style="font-size:10pt;font-weight:700;margin-top:4px;">For CMG Immigration Group</div>
     <div style="font-size:9.5pt;color:${GR};">Dubai Branch</div>
     <div style="margin-top:44px;width:200px;border-bottom:1px solid ${TX};"></div>
     <div style="font-size:9.5pt;color:${GR};margin-top:3px;">Authorised Signatory</div>
-    ${['T-03','T-05','T-06','T-07'].includes(d.templateId) ? `<div style="font-size:10pt;font-weight:700;">DM Immigration Consultants DMCC</div>` : ''}
+    ${['T-03','T-05','T-06','T-07'].includes(d.templateId) ? `<div style="font-size:10pt;font-weight:700;">CMG Immigration Group</div>` : ''}
   </div>
 </div>
 
@@ -245,7 +245,7 @@ const defaultForm: FormState = {
 
 function buildLetterData(f: FormState, currency = 'AED'): LetterData {
   const year = new Date().getFullYear();
-  const refNo = `DMC/DB/HR/${year}/${f.refSeq.padStart(3,'0')}`;
+  const refNo = `CMG/DB/HR/${year}/${f.refSeq.padStart(3,'0')}`;
   const he   = f.pronoun === 'she' ? 'she' : f.pronoun === 'they' ? 'they' : 'he';
   const him  = f.pronoun === 'she' ? 'her' : f.pronoun === 'they' ? 'them' : 'him';
   const his  = f.pronoun === 'she' ? 'her' : f.pronoun === 'they' ? 'their' : 'his';
@@ -257,7 +257,7 @@ function buildLetterData(f: FormState, currency = 'AED'): LetterData {
       subject: `Promotion to ${f.newDesignation || '[New Designation]'} – ${f.empBranch}`,
       salutation: `Dear ${f.empTitle} ${f.empName},`,
       opening: 'Congratulations!', openingColor: G2,
-      body: `We are delighted to inform you that, in recognition of your outstanding performance, commitment, and valuable contributions to the growth of DM Consultants, you have been promoted to the position of <strong>${f.newDesignation || '[New Designation]'}</strong>.`,
+      body: `We are delighted to inform you that, in recognition of your outstanding performance, commitment, and valuable contributions to the growth of CMG Immigration Group, you have been promoted to the position of <strong>${f.newDesignation || '[New Designation]'}</strong>.`,
       tableRows: [
         { label: 'Effective Date',    value: ordinalPlain(f.effectiveDate) || '[Date]' },
         { label: 'New Designation',   value: f.newDesignation || '[Designation]' },
@@ -270,9 +270,9 @@ function buildLetterData(f: FormState, currency = 'AED'): LetterData {
       refNo, date: f.date, templateId: 'T-02',
       toName: `Mr. / Ms. ${f.empName || '[Full Name]'}`.trim(),
       toTitle: f.empDesignation || '[Designation]',
-      subject: `Letter of Offer – ${f.empDesignation || '[Designation]'}, DM Immigration Consultants DMCC`,
+      subject: `Letter of Offer – ${f.empDesignation || '[Designation]'}, CMG Immigration Group`,
       salutation: `Dear ${f.empName || '[Name]'},`,
-      body: `We are pleased to extend this offer of employment to you for the position of <strong>${f.empDesignation || '[Designation]'}</strong> at DM Immigration Consultants DMCC, Dubai Branch, subject to the terms and conditions set forth below.`,
+      body: `We are pleased to extend this offer of employment to you for the position of <strong>${f.empDesignation || '[Designation]'}</strong> at CMG Immigration Group, Dubai Branch, subject to the terms and conditions set forth below.`,
       tableRows: [
         { label: 'Position',         value: f.empDesignation || '[Designation]' },
         { label: 'Department',       value: f.empDepartment  || '[Department]'  },
@@ -302,8 +302,8 @@ function buildLetterData(f: FormState, currency = 'AED'): LetterData {
         subjectColor: G2,
         salutation: 'To Whom It May Concern,',
         body: isRelieved
-          ? `This is to certify that <strong>${f.empName || '[Full Name]'}</strong>${passportClause} was employed with DM Immigration Consultants DMCC, Dubai Branch, as a <strong>${f.empDesignation || '[Designation]'}</strong> from <strong>${ordinalPlain(f.doj) || '[Start Date]'}</strong> to <strong>${ordinalPlain(f.dol)}</strong>.\n\nThis is further to certify that ${heCap} has been duly relieved of ${his} duties and responsibilities with effect from <strong>${ordinalPlain(f.dol)}</strong>, and all dues payable to ${him} by the Company as on the date of relieving have been settled in full. ${heCap} has no dues outstanding against the Company as of the date of this letter.\n\nDuring the tenure of employment, ${he} ${verb} demonstrated professionalism, dedication, and a high standard of performance. We wish ${him} every success in ${his} future endeavours.`
-          : `This is to certify that <strong>${f.empName || '[Full Name]'}</strong>${passportClause} has been employed with DM Immigration Consultants DMCC, Dubai Branch, as a <strong>${f.empDesignation || '[Designation]'}</strong> since <strong>${ordinalPlain(f.doj) || '[Start Date]'}</strong> and continues to be in active service with the Company.\n\nDuring the tenure of employment, ${he} ${verb} demonstrated professionalism, dedication, and a high standard of performance. We wish ${him} every success in ${his} future endeavours.`,
+          ? `This is to certify that <strong>${f.empName || '[Full Name]'}</strong>${passportClause} was employed with CMG Immigration Group, Dubai Branch, as a <strong>${f.empDesignation || '[Designation]'}</strong> from <strong>${ordinalPlain(f.doj) || '[Start Date]'}</strong> to <strong>${ordinalPlain(f.dol)}</strong>.\n\nThis is further to certify that ${heCap} has been duly relieved of ${his} duties and responsibilities with effect from <strong>${ordinalPlain(f.dol)}</strong>, and all dues payable to ${him} by the Company as on the date of relieving have been settled in full. ${heCap} has no dues outstanding against the Company as of the date of this letter.\n\nDuring the tenure of employment, ${he} ${verb} demonstrated professionalism, dedication, and a high standard of performance. We wish ${him} every success in ${his} future endeavours.`
+          : `This is to certify that <strong>${f.empName || '[Full Name]'}</strong>${passportClause} has been employed with CMG Immigration Group, Dubai Branch, as a <strong>${f.empDesignation || '[Designation]'}</strong> since <strong>${ordinalPlain(f.doj) || '[Start Date]'}</strong> and continues to be in active service with the Company.\n\nDuring the tenure of employment, ${he} ${verb} demonstrated professionalism, dedication, and a high standard of performance. We wish ${him} every success in ${his} future endeavours.`,
         tableRows: [
           { label: 'Employee Name',     value: f.empName        || '[Full Name]'  },
           { label: 'Designation',       value: f.empDesignation || '[Designation]'},
@@ -339,7 +339,7 @@ function buildLetterData(f: FormState, currency = 'AED'): LetterData {
       subject: 'Salary Certificate',
       subjectColor: G2,
       salutation: 'To Whom It May Concern,',
-      body: `This is to certify that <strong>${f.empName || '[Full Name]'}</strong>, holder of Passport No. <strong>${f.passportNo || '[Passport No.]'}</strong> / Emirates ID No. <strong>${f.emiratesId || '[EID No.]'}</strong>, is currently employed with DM Immigration Consultants DMCC as a <strong>${f.empDesignation || '[Designation]'}</strong> and has been in our employment since <strong>${ordinalPlain(f.doj) || '[Start Date]'}</strong>.`,
+      body: `This is to certify that <strong>${f.empName || '[Full Name]'}</strong>, holder of Passport No. <strong>${f.passportNo || '[Passport No.]'}</strong> / Emirates ID No. <strong>${f.emiratesId || '[EID No.]'}</strong>, is currently employed with CMG Immigration Group as a <strong>${f.empDesignation || '[Designation]'}</strong> and has been in our employment since <strong>${ordinalPlain(f.doj) || '[Start Date]'}</strong>.`,
       tableRows: [
         { label: 'Employee Name',        value: f.empName        || '[Full Name]'   },
         { label: 'Designation',          value: f.empDesignation || '[Designation]' },
@@ -358,7 +358,7 @@ function buildLetterData(f: FormState, currency = 'AED'): LetterData {
       subject: 'Termination of Employment',
       subjectColor: RD,
       salutation: `Dear ${f.empName || '[Name]'},`,
-      body: `We regret to inform you that your employment with DM Immigration Consultants DMCC is terminated effective <strong>${ordinalPlain(f.dol) || '[Last Working Day]'}</strong>, in accordance with <strong>${f.terminationClause || 'Federal Decree-Law No. 33 of 2021'}</strong>.\n\nThe reasons for this decision are as follows: ${f.terminationReason || '[State grounds for termination]'}.\n\nYou are entitled to receive your end-of-service gratuity, any accrued but unused annual leave, and any other dues as per your employment contract and applicable law. Please return all company property, access cards, and equipment by your last working day.`,
+      body: `We regret to inform you that your employment with CMG Immigration Group is terminated effective <strong>${ordinalPlain(f.dol) || '[Last Working Day]'}</strong>, in accordance with <strong>${f.terminationClause || 'Federal Decree-Law No. 33 of 2021'}</strong>.\n\nThe reasons for this decision are as follows: ${f.terminationReason || '[State grounds for termination]'}.\n\nYou are entitled to receive your end-of-service gratuity, any accrued but unused annual leave, and any other dues as per your employment contract and applicable law. Please return all company property, access cards, and equipment by your last working day.`,
       tableRows: [
         { label: 'Employee Name',   value: f.empName        || '[Full Name]'    },
         { label: 'Designation',     value: f.empDesignation || '[Designation]'  },
@@ -378,7 +378,7 @@ function buildLetterData(f: FormState, currency = 'AED'): LetterData {
       subject: `Reference Letter – ${f.empName || '[Employee Name]'}`,
       subjectColor: G2,
       salutation: 'To Whom It May Concern,',
-      body: `It is our pleasure to provide this reference letter for <strong>${f.empName || '[Full Name]'}</strong>, who served as <strong>${f.empDesignation || '[Designation]'}</strong> in the <strong>${f.empDepartment || '[Department]'}</strong> Department at DM Immigration Consultants DMCC from <strong>${ordinalPlain(f.doj)||'[Start Date]'}</strong> to <strong>${ordinalPlain(f.dol)||'[End Date]'}</strong>.\n\nDuring ${his} tenure, ${f.empName || '[Name]'} consistently demonstrated professionalism, reliability, and a strong work ethic. ${f.referenceBody || 'We found [him/her] to be a dedicated and valuable team member.'}\n\nWe are confident that ${f.empName || '[Name]'} would be a valuable asset to any organisation and recommend ${him} without reservation.`,
+      body: `It is our pleasure to provide this reference letter for <strong>${f.empName || '[Full Name]'}</strong>, who served as <strong>${f.empDesignation || '[Designation]'}</strong> in the <strong>${f.empDepartment || '[Department]'}</strong> Department at CMG Immigration Group from <strong>${ordinalPlain(f.doj)||'[Start Date]'}</strong> to <strong>${ordinalPlain(f.dol)||'[End Date]'}</strong>.\n\nDuring ${his} tenure, ${f.empName || '[Name]'} consistently demonstrated professionalism, reliability, and a strong work ethic. ${f.referenceBody || 'We found [him/her] to be a dedicated and valuable team member.'}\n\nWe are confident that ${f.empName || '[Name]'} would be a valuable asset to any organisation and recommend ${him} without reservation.`,
       tableRows: [
         { label: 'Employee Name', value: f.empName        || '[Full Name]'    },
         { label: 'Designation',   value: f.empDesignation || '[Designation]'  },
@@ -534,7 +534,7 @@ export default function DMCLettersModule() {
       pdf.addImage(imgData, 'JPEG', 0, pos, W, imgH);
       left -= H;
       while (left > 0) { pos -= H; pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, pos, W, imgH); left -= H; }
-      const filename = `DMC_${form.templateId}_${(form.empName || 'Letter').replace(/\s+/g,'_')}_${form.date}.pdf`;
+      const filename = `CMG_${form.templateId}_${(form.empName || 'Letter').replace(/\s+/g,'_')}_${form.date}.pdf`;
       pdf.save(filename);
       addToHistory();
     } catch (e) {
@@ -562,7 +562,7 @@ export default function DMCLettersModule() {
       pdf.addImage(imgData, 'JPEG', 0, pos, W, imgH);
       left -= H;
       while (left > 0) { pos -= H; pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, pos, W, imgH); left -= H; }
-      const filename = `DMC_${form.templateId}_${(form.empName || 'Letter').replace(/\s+/g,'_')}_${form.date}.pdf`;
+      const filename = `CMG_${form.templateId}_${(form.empName || 'Letter').replace(/\s+/g,'_')}_${form.date}.pdf`;
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
 
       const res = await fetch('/api/admin/hr/letters/send-email', {
@@ -584,7 +584,7 @@ export default function DMCLettersModule() {
   };
 
   const addToHistory = () => {
-    const refNo = `DMC/DB/HR/${new Date().getFullYear()}/${form.refSeq.padStart(3,'0')}`;
+    const refNo = `CMG/DB/HR/${new Date().getFullYear()}/${form.refSeq.padStart(3,'0')}`;
     setHistory(p => [{ id: Date.now(), templateId: form.templateId, name: form.empName || '—', date: form.date, refNo }, ...p.slice(0,49)]);
     fetch('/api/admin/hr/letter-log', {
       method: 'POST',
@@ -609,7 +609,7 @@ export default function DMCLettersModule() {
       {/* ── HEADER ── */}
       <div style={{ background: G2 }} className="px-6 py-3 flex items-center justify-between">
         <div>
-          <div className="text-white font-bold text-base">DM IMMIGRATION CONSULTANTS DMCC</div>
+          <div className="text-white font-bold text-base">CMG IMMIGRATION GROUP</div>
           <div className="text-green-100 text-xs">HR Letters & Correspondence Module</div>
         </div>
         <div className="flex items-center gap-2">
@@ -729,7 +729,7 @@ export default function DMCLettersModule() {
                     </Field>
                   </div>
                   <div className="mt-2 text-[11px] text-gray-500">
-                    Ref: DMC/DB/HR/{new Date().getFullYear()}/{form.refSeq.padStart(3,'0')}
+                    Ref: CMG/DB/HR/{new Date().getFullYear()}/{form.refSeq.padStart(3,'0')}
                   </div>
                 </div>
 
@@ -942,7 +942,7 @@ function LetterPreview({ data }: { data: LetterData }) {
           <span style={{ color:'#fff', fontSize:6, lineHeight:1.1, textAlign:'center' }}>middle east</span>
         </div>
         <div style={{ marginRight:70 }}>
-          <div style={{ fontSize:'13.5pt', fontWeight:700, color:G2 }}>DM IMMIGRATION CONSULTANTS DMCC</div>
+          <div style={{ fontSize:'13.5pt', fontWeight:700, color:G2 }}>CMG IMMIGRATION GROUP</div>
           <div style={{ fontSize:'8pt', color:GR, marginTop:2 }}>{branch.name} &nbsp;|&nbsp; Ph: {branch.phone} &nbsp;|&nbsp; {branch.email} &nbsp;|&nbsp; {branch.web}</div>
         </div>
         <div style={{ borderTop:`1.5pt solid ${G2}`, marginTop:7, marginRight:70 }}/>
@@ -976,14 +976,14 @@ function LetterPreview({ data }: { data: LetterData }) {
 
         {/* Post-table paragraphs */}
         {data.templateId === 'T-01' && <>
-          <div style={{ textAlign:'justify', marginBottom:10 }}>All other terms and conditions of your employment contract shall remain unchanged and continue to govern your engagement with DM Consultants.</div>
-          <div style={{ textAlign:'justify' }}>We have every confidence in your abilities and look forward to your continued leadership and dedication in this new role. Please accept our warmest congratulations and best wishes for your continued success with DM Consultants.</div>
+          <div style={{ textAlign:'justify', marginBottom:10 }}>All other terms and conditions of your employment contract shall remain unchanged and continue to govern your engagement with CMG Immigration Group.</div>
+          <div style={{ textAlign:'justify' }}>We have every confidence in your abilities and look forward to your continued leadership and dedication in this new role. Please accept our warmest congratulations and best wishes for your continued success with CMG Immigration Group.</div>
         </>}
         {data.templateId === 'T-02' && <>
           <div style={{ textAlign:'justify', marginBottom:10 }}>This offer is conditional upon the successful completion of reference checks, submission of original educational and identification documents, and a satisfactory medical examination where required.</div>
           <div style={{ textAlign:'justify' }}>Kindly sign and return the duplicate copy of this letter as your acceptance of the offer within <strong>five (5) working days</strong> from the date hereof. Failure to do so may result in the withdrawal of this offer.</div>
         </>}
-        {data.templateId === 'T-03' && <div style={{ textAlign:'justify', marginTop:4 }}><strong>No Objection:</strong> DM Immigration Consultants DMCC has no objection to <strong>{data.toName}</strong> seeking employment elsewhere or for any visa/immigration purpose as required.</div>}
+        {data.templateId === 'T-03' && <div style={{ textAlign:'justify', marginTop:4 }}><strong>No Objection:</strong> CMG Immigration Group has no objection to <strong>{data.toName}</strong> seeking employment elsewhere or for any visa/immigration purpose as required.</div>}
         {data.templateId === 'T-05' && <div style={{ textAlign:'justify', marginTop:4 }}>This certificate is issued at the request of the employee for <strong>[bank / visa / personal]</strong> purposes and should not be construed as a guarantee of continued employment.</div>}
 
         {/* Acknowledgement */}
@@ -999,11 +999,11 @@ function LetterPreview({ data }: { data: LetterData }) {
         {/* Signature block */}
         <div style={{ marginTop:28 }}>
           <div>{data.closing}</div>
-          <div style={{ fontWeight:700, marginTop:4 }}>For DM Immigration Consultants DMCC</div>
+          <div style={{ fontWeight:700, marginTop:4 }}>For CMG Immigration Group</div>
           <div style={{ color:GR, fontSize:'9.5pt' }}>Dubai Branch</div>
           <div style={{ marginTop:44, width:200, borderBottom:`1px solid ${TX}` }}/>
           <div style={{ color:GR, fontSize:'9.5pt', marginTop:3 }}>Authorised Signatory</div>
-          {['T-03','T-05','T-06','T-07'].includes(data.templateId) && <div style={{ fontWeight:700 }}>DM Immigration Consultants DMCC</div>}
+          {['T-03','T-05','T-06','T-07'].includes(data.templateId) && <div style={{ fontWeight:700 }}>CMG Immigration Group</div>}
         </div>
       </div>
 

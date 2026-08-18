@@ -92,7 +92,7 @@ function renderEmail(input: {
         Total Outstanding: <b>${fmtAed(input.balance.summary.balanceAed)}</b> across ${input.balance.summary.clients} clients
       </p>
       ${balanceTable(input.balance.data)}
-      <p style="color:#999;font-size:12px;margin-top:24px">Automated monthly report from the DMC CRM.</p>
+      <p style="color:#999;font-size:12px;margin-top:24px">Automated monthly report from the CMG CRM.</p>
     </div>`;
 }
 

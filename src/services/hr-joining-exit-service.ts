@@ -125,7 +125,7 @@ export class HRJoiningExitService {
   static async approveOffer(id: string, approverId: string) {
     await this.ensureTables(); const candidate = await this.getCandidate(id); if (!candidate) return null; if (!candidate.offer_designation) throw new Error('Submit offer terms before approval');
     const token = crypto.randomUUID(); await sequelize.query(`UPDATE dm_hr_recruitment_candidates SET status='Offer Sent', dos_approved_by=:approverId, dos_approved_at=NOW(), offer_sent_at=NOW(), acceptance_token=:token WHERE candidate_id=:id`, { replacements: { id, approverId, token } });
-    await this.notify('offer_sent', id, String(candidate.email), 'Your DM Consultants offer is ready'); return { candidate: await this.getCandidate(id), acceptance_token: token };
+    await this.notify('offer_sent', id, String(candidate.email), 'Your CMG Immigration Group offer is ready'); return { candidate: await this.getCandidate(id), acceptance_token: token };
   }
   static async acceptOffer(id: string, token: string) { await this.ensureTables(); const candidate = await this.getCandidate(id); if (!candidate || candidate.acceptance_token !== token) return null; await sequelize.query(`UPDATE dm_hr_recruitment_candidates SET status='Accepted', offer_accepted_at=NOW() WHERE candidate_id=:id`, { replacements: { id } }); await this.notify('offer_accepted', id, 'HR', `${String(candidate.full_name)} accepted the offer`); return this.getCandidate(id); }
   static async onboardCandidate(id: string, input: Record<string, unknown>) {
@@ -147,7 +147,7 @@ export class HRJoiningExitService {
         { replacements: { employeeId, documentUrl: String(candidate.offer_letter_url) } }
       );
     }
-    await this.notify('welcome', id, companyEmail, 'Welcome to DM Consultants - your CRM access is ready'); return this.getCandidate(id);
+    await this.notify('welcome', id, companyEmail, 'Welcome to CMG Immigration Group - your CRM access is ready'); return this.getCandidate(id);
   }
   static async pipeline() { const candidates = await this.listCandidates(); const stages = ['Applied','Interviewed','Selected','Rejected','Offer Sent','Accepted','Joined']; return { total: candidates.length, stages: stages.map(status => ({ status, total: candidates.filter(x => x.status === status).length })) }; }
 

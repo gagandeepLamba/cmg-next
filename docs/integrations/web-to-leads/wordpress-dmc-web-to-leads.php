@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name: DMC CRM Web-to-Leads
- * Description: Sends Contact Form 7 leads to the DMC CRM via curl.
+ * Plugin Name: CMG CRM Web-to-Leads
+ * Description: Sends Contact Form 7 leads to the CMG CRM via curl.
  * Version: 2.1.0
  */
 
@@ -96,11 +96,11 @@ function dmc_crm_save_posted_data($contact_form) {
     $form_title = $contact_form->title();
 
     if ($curl_error) {
-        error_log("DMC CRM curl error [{$form_title}]: {$curl_error}");
+        error_log("CMG CRM curl error [{$form_title}]: {$curl_error}");
         return;
     }
 
     if ($http_code < 200 || $http_code >= 300) {
-        error_log("DMC CRM lead submission failed [{$form_title}]. HTTP {$http_code} Response: {$response}");
+        error_log("CMG CRM lead submission failed [{$form_title}]. HTTP {$http_code} Response: {$response}");
     }
 }

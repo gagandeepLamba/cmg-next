@@ -194,7 +194,7 @@ export default function SettingsPage() {
                   value={preferences.whatsappTemplate}
                   onChange={(e) => setPreferences((prev) => ({ ...prev, whatsappTemplate: e.target.value }))}
                   rows={4}
-                  placeholder="Hi, this is DMC Consultants reaching out regarding your enquiry..."
+                  placeholder="Hi, this is CMG Immigration Group reaching out regarding your enquiry..."
                   className="mt-2 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
                 />
               </div>

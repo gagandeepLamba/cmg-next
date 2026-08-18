@@ -355,7 +355,7 @@ const renderTemplate = (template: string, values: Record<string, string | number
   template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key: string) => String(values[key] ?? ''))
 );
 const referenceNumber = (letterType: HRLetterType, employeeId: string) => (
-  `DM-${letterType.toUpperCase()}-${employeeId}-${Date.now().toString(36).toUpperCase()}`
+  `CMG-${letterType.toUpperCase()}-${employeeId}-${Date.now().toString(36).toUpperCase()}`
 );
 const ratingValue = (value: number) => {
   const parsed = Number(value);
@@ -1308,8 +1308,8 @@ export class HRService {
     const currencyCode = input.currency_code || compensation?.currency_code || await this.resolveDefaultCurrency(employee.branch ?? null);
 
     const document = await DocumentService.generatePayslip({
-      companyName: process.env.COMPANY_NAME || 'DM CONSULTANTS',
-      companyAddress: process.env.COMPANY_ADDRESS || 'DM Consultants, Dubai, UAE',
+      companyName: process.env.COMPANY_NAME || 'CMG IMMIGRATION GROUP',
+      companyAddress: process.env.COMPANY_ADDRESS || 'CMG Immigration Group, Dubai, UAE',
       employeeName: employee.name,
       employeeId: employee.EID || String(employee.id),
       designation: input.designation || 'Employee',
@@ -1868,7 +1868,7 @@ export class HRService {
     const issueDate = input.issue_date || new Date().toISOString().slice(0, 10);
     const refNumber = referenceNumber(input.letter_type, input.employee_id);
     const yearsOfService = yearsOfServiceBetween(employee.doj, input.last_working_day);
-    const companyName = process.env.COMPANY_NAME || 'DM CONSULTANTS';
+    const companyName = process.env.COMPANY_NAME || 'CMG IMMIGRATION GROUP';
     const renderedBody = renderTemplate(template.body_template, {
       employee_name: employee.name,
       employee_id: employee.EID || employee.id,
@@ -3239,7 +3239,7 @@ export class HRService {
       try {
         await sendEmail({
           to: recipient,
-          subject: 'Your DM Consultants CRM password has been reset',
+          subject: 'Your CMG Immigration Group CRM password has been reset',
           html: `
             <p>Hi ${employee.name || ''},</p>
             <p>Your CRM password was reset by HR.</p>
@@ -3337,7 +3337,7 @@ export class HRService {
     const title = type === 'experience' ? 'Experience Letter' : 'Relieving Letter';
     return {
       title,
-      body: `This is to certify that ${employee.name} was employed with DM Immigration${employee.department ? ` in ${employee.department}` : ''}${employee.joiningDate ? ` from ${employee.joiningDate}` : ''}${employee.exitDate ? ` until ${employee.exitDate}` : ''}.`,
+      body: `This is to certify that ${employee.name} was employed with CMG Immigration${employee.department ? ` in ${employee.department}` : ''}${employee.joiningDate ? ` from ${employee.joiningDate}` : ''}${employee.exitDate ? ` until ${employee.exitDate}` : ''}.`,
     };
   }
 

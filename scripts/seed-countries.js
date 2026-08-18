@@ -34,7 +34,7 @@ async function seedCountries(connection) {
 }
 
 // All UN member/observer states (~196), for the "Country of Interest" style
-// dropdowns that should offer every country, not just DMC's stock
+// dropdowns that should offer every country, not just CMG's stock
 // destination-country list above. Names already covered by COUNTRY/NEW_COUNTRIES
 // (or by an obvious alias, e.g. "USA" / "United States of America") are skipped
 // so we never create a duplicate row for the same country.

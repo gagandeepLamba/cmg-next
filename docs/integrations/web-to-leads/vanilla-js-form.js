@@ -1,5 +1,5 @@
 /**
- * DMC CRM website lead integration.
+ * CMG CRM website lead integration.
  *
  * Use this from a JavaScript website when the CRM endpoint is intentionally
  * public and restricted with WEB_TO_LEADS_ALLOWED_ORIGIN. Do not put a secret
