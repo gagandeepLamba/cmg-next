@@ -32,7 +32,7 @@ Creating lead: {
   fname: 'CRM',
   phone: '0500000000',
   email: 'crm.complete.20260621004041215@example.test',
-  address: 'DMC CRM complete-flow test record'
+  address: 'CWG CRM complete-flow test record'
 }
 Executing (default): SELECT COALESCE(MAX(id), 0) + 1 AS nextId FROM dmc_forum_leads
 Executing (default): INSERT INTO dmc_forum_leads (

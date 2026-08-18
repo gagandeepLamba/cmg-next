@@ -4671,11 +4671,11 @@ function ClosedStage({ lead, leadId, prospectData, quotationData, paymentData, c
   const branchDetails = getLeadBranchDetails(lead as any);
   const branchOffice = branchDetails.companyName || 'DMC Immigration Consultants';
   const counselorName = user?.name || '';
-  const emailSubject = `Welcome to DMC Immigration, ${clientName} - Your Client Portal is Ready`;
+  const emailSubject = `Welcome to CWG Immigration, ${clientName} - Your Client Portal is Ready`;
   const emailBody = [
     `Dear ${clientName},`,
     '',
-    "Welcome to DMC Immigration! We're glad to have you on board, and we're committed to making your immigration journey as smooth and transparent as possible.",
+    "Welcome to CWG Immigration! We're glad to have you on board, and we're committed to making your immigration journey as smooth and transparent as possible.",
     '',
     "To help you stay updated at every step, we've set up your Client Portal - a single place to track your case status, view and upload documents, and stay in touch with your counselor.",
     '',
@@ -4687,10 +4687,10 @@ function ClosedStage({ lead, leadId, prospectData, quotationData, paymentData, c
     '',
     "For security, please log in and change your password as soon as possible. If you run into any trouble accessing the portal, just reply to this email and we'll help you right away.",
     '',
-    'Thank you for choosing DMC Immigration. We look forward to supporting you through every stage of your journey.',
+    'Thank you for choosing CWG Immigration. We look forward to supporting you through every stage of your journey.',
     '',
     'Warm regards,',
-    'The DMC Team',
+    'The CWG Team',
   ].join('\n');
   const copyEmail = async () => {
     try {
