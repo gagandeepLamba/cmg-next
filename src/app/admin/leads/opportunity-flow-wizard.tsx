@@ -4671,7 +4671,7 @@ function ClosedStage({ lead, leadId, prospectData, quotationData, paymentData, c
   const branchDetails = getLeadBranchDetails(lead as any);
   const branchOffice = branchDetails.companyName || 'CWG Immigration Consultants';
   const counselorName = user?.name || '';
-  const emailSubject = `Welcome to CWG Immigration, ${clientName} - Your Client Portal is Ready`;
+  const emailSubject = `Welcome to CMG Immigration, ${clientName} - Your Client Portal is Ready`;
   const emailBody = [
     `Dear ${clientName},`,
     '',
