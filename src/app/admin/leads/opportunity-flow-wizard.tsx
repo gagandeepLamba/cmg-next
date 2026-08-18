@@ -4669,7 +4669,7 @@ function ClosedStage({ lead, leadId, prospectData, quotationData, paymentData, c
   const clientName = [lead?.fname, lead?.lname].filter(Boolean).join(' ').trim() || lead?.name || 'Client';
   const clientEmail = lead?.email || portalCredentials?.username || '';
   const branchDetails = getLeadBranchDetails(lead as any);
-  const branchOffice = branchDetails.companyName || 'DMC Immigration Consultants';
+  const branchOffice = branchDetails.companyName || 'CWG Immigration Consultants';
   const counselorName = user?.name || '';
   const emailSubject = `Welcome to CWG Immigration, ${clientName} - Your Client Portal is Ready`;
   const emailBody = [
@@ -4837,7 +4837,7 @@ function ClosedStage({ lead, leadId, prospectData, quotationData, paymentData, c
             <div className="my-4 border-t border-dashed border-gray-300" />
             <div className="space-y-5 whitespace-pre-line text-base leading-8">
               <p>Dear {clientName},</p>
-              <p>{`Welcome to DMC Immigration! We're glad to have you on board, and we're committed to making your immigration journey as smooth and transparent as possible.`}</p>
+              <p>{`Welcome to CWG Immigration! We're glad to have you on board, and we're committed to making your immigration journey as smooth and transparent as possible.`}</p>
               <p>{`To help you stay updated at every step, we've set up your Client Portal - a single place to track your case status, view and upload documents, and stay in touch with your counselor.`}</p>
               <p>Here are your login details:</p>
               <p>
@@ -4846,8 +4846,8 @@ function ClosedStage({ lead, leadId, prospectData, quotationData, paymentData, c
                 Temporary Password: <span className="rounded bg-green-100 px-1 font-semibold text-green-800">{portalCredentials.temporaryPassword}</span>
               </p>
               <p>{`For security, please log in and change your password as soon as possible. If you run into any trouble accessing the portal, just reply to this email and we'll help you right away.`}</p>
-              <p>Thank you for choosing DMC Immigration. We look forward to supporting you through every stage of your journey.</p>
-              <p>Warm regards,<br />The DMC Immigration Consultants Team</p>
+              <p>Thank you for choosing CWG Immigration. We look forward to supporting you through every stage of your journey.</p>
+              <p>Warm regards,<br />The CWG Immigration Consultants Team</p>
             </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
