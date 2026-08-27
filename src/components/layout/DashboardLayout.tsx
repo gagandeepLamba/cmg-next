@@ -44,7 +44,9 @@ import {
   Activity,
   CheckCircle,
   TrendingDown,
-  Upload
+  Upload,
+  Send,
+  ListChecks
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -87,11 +89,34 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [globalSearchResults, setGlobalSearchResults] = useState<GlobalSearchResult[]>([]);
   const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
 
   useEffect(() => {
     if (isLoading || !user || canAccessAdminPath(user, pathname)) return;
     router.replace(getDefaultAdminPathForUser(user));
   }, [isLoading, pathname, router, user]);
+
+  // "My Assignments" sidebar badge — total calls/tasks/appointments assigned
+  // to this user that are still pending. Polled on an interval rather than
+  // just on mount, since assignments can arrive at any point in the session.
+  const canSeeOpsAssignments = hasPermission('operations.view') || hasPermission('operations.manage') || hasPermission('operations.assign_activities');
+  useEffect(() => {
+    if (!canSeeOpsAssignments) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch('/api/admin/ops-assignments?scope=mine&status=pending&limit=500');
+        if (!res.ok) return;
+        const result = await res.json();
+        if (!cancelled) setPendingAssignmentsCount(Number(result.count) || 0);
+      } catch {
+        // Silent — a badge count is a nice-to-have, not worth surfacing an error for.
+      }
+    };
+    load();
+    const interval = setInterval(load, 120_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [canSeeOpsAssignments]);
 
 
   const navigationGroups: Array<{ title: string; items: NavItem[] }> = [
@@ -148,6 +173,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'Ops Dashboard', href: '/admin/ops-dashboard', icon: BarChart3, permissions: ['operations.view', 'operations.manage'] },
         { name: 'Operations Hub', href: '/admin/operations-management', icon: Layers, permission: 'operations.manage' },
         { name: 'Operations Manager Console', href: '/admin/operations-console', icon: Shield, permissions: ['operations.case_transfer', 'operations.case_status_manage', 'operations.access_control'] },
+        { name: 'Team Allocation', href: '/admin/operations-team-allocation', icon: Users, permission: 'operations.team_allocation' },
         { name: 'Visit Visa', href: '/admin/ops-clients/visit-visa', icon: Plane, permission: 'operations.manage' },
         { name: 'Canada Skilled', href: '/admin/ops-clients/skill-canada', icon: Award, permission: 'operations.manage' },
         { name: 'Australia Skilled', href: '/admin/ops-clients/skill-australia', icon: Globe, permission: 'operations.manage' },
@@ -156,6 +182,8 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'Germany Job Seeker', href: '/admin/ops-clients/germany-jobseeker', icon: MapPin, permission: 'operations.manage' },
         { name: 'Ops Follow-ups', href: '/admin/ops-follow-ups', icon: Bell, permission: 'operations.manage' },
         { name: 'Conversations', href: '/admin/ops-conversations', icon: MessageSquare, permission: 'operations.manage' },
+        { name: 'Assign Call/Task/Appointment', href: '/admin/ops-assign', icon: Send, permissions: ['operations.view', 'operations.manage', 'operations.assign_activities'] },
+        { name: 'My Assignments', href: '/admin/ops-my-assignments', icon: ListChecks, permissions: ['operations.view', 'operations.manage', 'operations.assign_activities'], badge: pendingAssignmentsCount || undefined },
       ]
     },
     {
@@ -414,7 +442,12 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
                         `}
                       >
                         <Icon className="w-5 h-5 mr-3" />
-                        {item.name}
+                        <span className="flex-1 text-left">{item.name}</span>
+                        {Boolean(item.badge) && (
+                          <span className="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--cmg-red)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                            {item.badge! > 99 ? '99+' : item.badge}
+                          </span>
+                        )}
                       </button>
                     );
                   })}

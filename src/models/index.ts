@@ -146,6 +146,7 @@ import { DmOpsBusinesCanada } from './DmOpsBusinesCanada';
 import { DmOpsBusinesPoland } from './DmOpsBusinesPoland';
 import { DmOpsBusinesUk } from './DmOpsBusinesUk';
 import { DmOpsBusinesUsa } from './DmOpsBusinesUsa';
+import { DmOpsAssignment } from './DmOpsAssignment';
 import { DmOpsConversation } from './DmOpsConversation';
 import { DmOpsConversationOld } from './DmOpsConversationOld';
 import { DmOpsDocuments } from './DmOpsDocuments';
@@ -452,6 +453,7 @@ const models = {
   DmOpsBusinesPoland: DmOpsBusinesPoland,
   DmOpsBusinesUk: DmOpsBusinesUk,
   DmOpsBusinesUsa: DmOpsBusinesUsa,
+  DmOpsAssignment: DmOpsAssignment,
   DmOpsConversation: DmOpsConversation,
   DmOpsConversationOld: DmOpsConversationOld,
   DmOpsDocuments: DmOpsDocuments,
@@ -791,6 +793,8 @@ export { DmOpsBusinesCanada } from './DmOpsBusinesCanada';
 export { DmOpsBusinesPoland } from './DmOpsBusinesPoland';
 export { DmOpsBusinesUk } from './DmOpsBusinesUk';
 export { DmOpsBusinesUsa } from './DmOpsBusinesUsa';
+export { DmOpsAssignment } from './DmOpsAssignment';
+export type { DmOpsAssignmentAttributes, DmOpsAssignmentCreationAttributes } from './DmOpsAssignment';
 export { DmOpsConversation } from './DmOpsConversation';
 export { DmOpsConversationOld } from './DmOpsConversationOld';
 export { DmOpsDocuments } from './DmOpsDocuments';
