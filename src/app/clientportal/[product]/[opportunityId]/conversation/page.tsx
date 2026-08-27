@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Loader2, Send } from 'lucide-react';
+import { getPusherClient, chatChannelName, type ChatPushMessage } from '@/lib/pusherClient';
 
 interface Message {
   id: number;
@@ -11,6 +12,10 @@ interface Message {
   fromClient: boolean;
   created: string;
 }
+
+// Poll interval mirrors the staff-side chat panel — kept as a fallback/
+// reconciliation path underneath the Pusher push subscribed to below.
+const POLL_INTERVAL_MS = 6000;
 
 export default function ConversationPage() {
   const params = useParams<{ opportunityId: string }>();
@@ -29,6 +34,27 @@ export default function ConversationPage() {
   useEffect(() => {
     setIsLoading(true);
     load().finally(() => setIsLoading(false));
+
+    const interval = window.setInterval(load, POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.opportunityId]);
+
+  useEffect(() => {
+    const pusher = getPusherClient();
+    if (!pusher || !params.opportunityId) return;
+
+    const opportunityId = Number(params.opportunityId);
+    const channel = pusher.subscribe(chatChannelName(opportunityId));
+    const handleNewMessage = (message: ChatPushMessage) => {
+      setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+    };
+    channel.bind('new-message', handleNewMessage);
+
+    return () => {
+      channel.unbind('new-message', handleNewMessage);
+      pusher.unsubscribe(chatChannelName(opportunityId));
+    };
   }, [params.opportunityId]);
 
   useEffect(() => {

@@ -10,8 +10,12 @@ import {
   ChevronLeft, Save, CheckCircle, XCircle, FolderCheck
 } from 'lucide-react';
 import ClientDocumentsPanel from '@/components/operations/ClientDocumentsPanel';
+import { getPusherClient, chatChannelName, type ChatPushMessage } from '@/lib/pusherClient';
 
 const CLIENT_DOCUMENTS_STAGE_ID = 'client-documents';
+// Fallback/reconciliation path underneath the Pusher push subscribed to in
+// ChatStage below - keeps the chat working even when Pusher isn't configured.
+const CHAT_POLL_INTERVAL_MS = 6000;
 
 interface VisitVisaOperationsWizardProps {
   opportunityId: number;
@@ -537,8 +541,8 @@ function ChatStage({ leadId, opportunityId }: { leadId: number; opportunityId: n
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams({ leadId: String(leadId) });
       if (opportunityId) params.set('opportunityId', String(opportunityId));
@@ -547,13 +551,37 @@ function ChatStage({ leadId, opportunityId }: { leadId: number; opportunityId: n
       if (!res.ok || !json.success) throw new Error(json.error);
       setMessages(json.messages || []);
     } catch {
-      window.toast.error('Failed to load client chat');
+      if (!silent) window.toast.error('Failed to load client chat');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, [leadId, opportunityId]);
+  useEffect(() => {
+    load();
+    const interval = window.setInterval(() => load(true), CHAT_POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadId, opportunityId]);
+
+  // Live push on top of the poll above - when configured, new messages
+  // arrive here the instant the other side sends, instead of waiting for
+  // the next poll tick.
+  useEffect(() => {
+    const pusher = getPusherClient();
+    if (!pusher || !opportunityId) return;
+
+    const channel = pusher.subscribe(chatChannelName(opportunityId));
+    const handleNewMessage = (message: ChatPushMessage) => {
+      setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+    };
+    channel.bind('new-message', handleNewMessage);
+
+    return () => {
+      channel.unbind('new-message', handleNewMessage);
+      pusher.unsubscribe(chatChannelName(opportunityId));
+    };
+  }, [opportunityId]);
 
   const send = async () => {
     if (!draft.trim()) return;
@@ -566,7 +594,7 @@ function ChatStage({ leadId, opportunityId }: { leadId: number; opportunityId: n
       });
       if (!res.ok) throw new Error();
       setDraft('');
-      await load();
+      await load(true);
     } catch {
       window.toast.error('Failed to send message');
     } finally {

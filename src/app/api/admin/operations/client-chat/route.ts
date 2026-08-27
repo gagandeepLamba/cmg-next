@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
 import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { pushChatMessage } from '@/lib/pusherServer';
 
 let dbReady = false;
 const ensureDB = async () => { if (!dbReady) { await connectDB(); dbReady = true; } };
@@ -60,11 +61,21 @@ export async function POST(request: NextRequest) {
     if (!leadId) return NextResponse.json({ success: false, error: 'leadId is required' }, { status: 400 });
     if (!text) return NextResponse.json({ success: false, error: 'text is required' }, { status: 400 });
 
-    await sequelize.query(
+    const [result] = await sequelize.query(
       `INSERT INTO dm_client_conversations (leadId, opportunity_id, case_manager, chat_from_client, client_id, text, file, status, read_msg)
        VALUES (:leadId, :opportunityId, :caseManager, 0, :leadId, :text, '', 1, 0)`,
       { replacements: { leadId, opportunityId, caseManager: auth.id, text } },
     );
+
+    if (opportunityId) {
+      await pushChatMessage(opportunityId, {
+        id: Number((result as { insertId?: number })?.insertId || 0),
+        text,
+        file: null,
+        fromClient: false,
+        created: new Date().toISOString(),
+      });
+    }
 
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (error: unknown) {
