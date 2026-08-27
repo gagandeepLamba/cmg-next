@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser } from '@/lib/auth';
+import { checkRateLimit, recordFailedAttempt, clearRateLimit, getClientIp } from '@/lib/rateLimiter';
 
 export async function POST(request: NextRequest) {
   try {
     const { username, password } = await request.json();
-    
+
     if (!username || !password) {
       return NextResponse.json(
         { message: 'Email and password are required' },
@@ -12,15 +13,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Keyed on IP + username so one attacker spamming a username from
+    // elsewhere can't lock out the legitimate user, and a legitimate user's
+    // own mistyped attempts don't affect other accounts.
+    const rateLimitKey = `${getClientIp(request)}:${String(username).toLowerCase().trim()}`;
+    const rateLimit = checkRateLimit(rateLimitKey);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { message: 'Too many login attempts. Please try again in a few minutes.' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+      );
+    }
+
     // Authenticate user using our auth system
     const authUser = await authenticateUser(username, password);
-    
+
     if (!authUser) {
+      recordFailedAttempt(rateLimitKey);
       return NextResponse.json(
         { message: 'Invalid email or password' },
         { status: 401 }
       );
     }
+    clearRateLimit(rateLimitKey);
 
     // Set HTTP-only cookie with token
     const response = NextResponse.json({

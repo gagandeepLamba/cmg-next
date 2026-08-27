@@ -1,12 +1,12 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import crypto from 'crypto'
 import { QueryTypes } from 'sequelize'
 import { DmEmployee, DmRole } from '../models'
 import { sequelize } from './sequelize'
 import { getModulePermissionsForRole } from './modulePermissions'
+import { getJwtSecret } from './jwtSecret'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
+const JWT_SECRET = getJwtSecret()
 
 export interface User {
   id: number
@@ -157,13 +157,13 @@ export async function authenticateUser(username: string, password: string): Prom
       return null;
     }
 
-    // Verify password — support plain text, MD5 (legacy PHP), and bcrypt
+    // Verify password — bcrypt only. All active cmg-next employee accounts
+    // were confirmed bcrypt-hashed by a production audit before this was
+    // tightened (see the DM-next → CMG-next sync plan); the previous
+    // plaintext/MD5 fallback is no longer needed and was a weaker attack
+    // surface than a single hashing scheme.
     const stored = user.password ?? '';
-    const md5Input = crypto.createHash('md5').update(password).digest('hex');
-    let passwordOk = stored === password || stored === md5Input;
-    if (!passwordOk && stored.startsWith('$2')) {
-      try { passwordOk = await bcrypt.compare(password, stored); } catch { passwordOk = false; }
-    }
+    const passwordOk = stored ? await bcrypt.compare(password, stored).catch(() => false) : false;
     if (!passwordOk) {
       return null;
     }
