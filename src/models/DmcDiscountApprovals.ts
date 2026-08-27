@@ -23,9 +23,14 @@ interface DmcDiscountApprovalsAttributes {
   createdBy: number;
   createdAt: Date;
   updatedAt: Date;
+  // Set when a counselor re-applies to correct a wrong amount/approval - the
+  // old row is soft-deleted (is_deleted=1, superseded_by pointing at the
+  // replacement) immediately on re-apply, never shown in any active list.
+  isDeleted: boolean;
+  supersededBy: number | null;
 }
 
-interface DmcDiscountApprovalsCreationAttributes extends Optional<DmcDiscountApprovalsAttributes, 'id' | 'approvedBy' | 'approvedDate' | 'rejectedDate' | 'expiryDate' | 'notes' | 'approvedAt'> {}
+interface DmcDiscountApprovalsCreationAttributes extends Optional<DmcDiscountApprovalsAttributes, 'id' | 'approvedBy' | 'approvedDate' | 'rejectedDate' | 'expiryDate' | 'notes' | 'approvedAt' | 'isDeleted' | 'supersededBy'> {}
 
 class DmcDiscountApprovals extends Model<DmcDiscountApprovalsAttributes, DmcDiscountApprovalsCreationAttributes> implements DmcDiscountApprovalsAttributes {
   declare id: number;
@@ -49,6 +54,8 @@ class DmcDiscountApprovals extends Model<DmcDiscountApprovalsAttributes, DmcDisc
   declare createdBy: number;
   declare createdAt: Date;
   declare updatedAt: Date;
+  declare isDeleted: boolean;
+  declare supersededBy: number | null;
 
   public static associate(models: any) {
     DmcDiscountApprovals.belongsTo(models.DmcForumLeads, { foreignKey: 'leadId', targetKey: 'id', as: 'dmcForumLead' });
@@ -175,7 +182,18 @@ DmcDiscountApprovals.init(
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW
-    }
+    },
+    isDeleted: {
+      type: DataTypes.TINYINT,
+      allowNull: false,
+      defaultValue: 0,
+      field: 'is_deleted',
+    },
+    supersededBy: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: 'superseded_by',
+    },
   },
   {
     sequelize,

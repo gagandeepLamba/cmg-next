@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
 import { QueryTypes } from 'sequelize';
 import { verifyToken } from '@/lib/auth';
-import { isCeo } from '@/lib/roleChecks';
+import { isCeo, isBranchManagerOrCeo } from '@/lib/roleChecks';
 import { getDiscountTier, canApproveDiscountTier, discountTierLabel } from '@/lib/discountApproval';
 import { getDiscountTierThresholds } from '@/lib/discountTierConfig';
 import { notifyUser } from '@/lib/notify';
@@ -86,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const [existingResult] = await sequelize.query(`
-      SELECT id, leadId, opportunityId, discountedAmount, discountAmount, originalAmount, requestedBy FROM dm_discount_approvals WHERE id = ?
+      SELECT id, leadId, opportunityId, discountedAmount, discountAmount, originalAmount, requestedBy, is_deleted FROM dm_discount_approvals WHERE id = ?
     `, {
       replacements: [discountId]
     });
@@ -103,6 +103,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       updatedAt: new Date()
     };
 
+    if (['approved', 'rejected'].includes(body.status) && existingForAuth.is_deleted) {
+      return NextResponse.json(
+        { success: false, error: 'This discount request was replaced by a correction and can no longer be approved or rejected.' },
+        { status: 409 }
+      );
+    }
+
     if (['approved', 'rejected'].includes(body.status)) {
       const reviewer = getAuthenticatedUser(request);
       const thresholds = await getDiscountTierThresholds();
@@ -113,6 +120,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           { status: 403 }
         );
       }
+
+      // canApproveDiscountTier() gives Branch Manager the same tier rights as
+      // CEO, but that was never meant to cross branches - restrict Branch
+      // Manager to discount requests on their own branch's lead.
+      if (existingForAuth.leadId && isBranchManagerOrCeo(reviewer) && !isCeo(reviewer)) {
+        const [leadBranchRows] = await sequelize.query(
+          'SELECT branch FROM dmc_forum_leads WHERE id = ? LIMIT 1',
+          { replacements: [existingForAuth.leadId] },
+        );
+        const leadBranch = (leadBranchRows as any[])[0]?.branch;
+        if (leadBranch !== undefined && leadBranch !== null && Number(leadBranch) !== Number((reviewer as any).branch || 0)) {
+          return NextResponse.json(
+            { success: false, error: 'You can only approve or reject a discount request for a lead in your own branch' },
+            { status: 403 },
+          );
+        }
+      }
+
       updateData.approvedBy = reviewer.id;
     }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
 import { QueryTypes } from 'sequelize';
 import { verifyToken } from '@/lib/auth';
+import { isBranchManagerOrCeo, isCeo } from '@/lib/roleChecks';
 import { branchCurrencyError, resolveBranchCurrency } from '@/lib/branchCurrency';
 import { notifyUser, notifyRole } from '@/lib/notify';
 import { getDiscountTier, canApproveDiscountTier, discountTierLabel } from '@/lib/discountApproval';
@@ -24,23 +25,40 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const discountType = searchParams.get('discountType');
 
-    // Build WHERE conditions
-    let whereConditions = [];
-    let replacements = [];
+    // Build WHERE conditions. Superseded (re-applied-over) requests are never
+    // shown in any list - they're replaced by a fresh row the moment a
+    // counselor corrects a wrong amount/approval (see POST's supersedesId
+    // handling below).
+    let whereConditions = ['da.is_deleted = 0'];
+    let replacements: unknown[] = [];
 
     if (leadId) {
       whereConditions.push('da.leadId = ?');
       replacements.push(leadId);
     }
-    
+
     if (status) {
       whereConditions.push('da.status = ?');
       replacements.push(status);
     }
-    
+
     if (discountType) {
       whereConditions.push('da.discountType = ?');
       replacements.push(discountType);
+    }
+
+    // Visibility: CEO sees every request, Branch Manager sees their own
+    // branch's, everyone else (a counselor requesting their own discounts)
+    // sees only requests they personally made - this endpoint is reachable
+    // by any sales.update holder, which is most sales staff, not just approvers.
+    if (!isCeo(requester)) {
+      if (isBranchManagerOrCeo(requester)) {
+        whereConditions.push('COALESCE(l.branch, o.branchId) = ?');
+        replacements.push(Number((requester as any).branch || 0));
+      } else {
+        whereConditions.push('da.requestedBy = ?');
+        replacements.push(Number((requester as any).id));
+      }
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -110,6 +128,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'discountAmount must be between zero and originalAmount' }, { status: 422 });
     }
     const discountedAmount = originalAmount - discountAmount;
+
+    // Re-apply flow: correcting a wrong amount or a wrongly-approved/rejected
+    // discount. The old row is validated (must belong to the same lead - a
+    // guessed/unrelated id can't be superseded) and soft-deleted immediately,
+    // before the new row is even created, so there's never a moment where
+    // both the old and new entries read as "active" at once.
+    let supersedesId: number | null = null;
+    if (body.supersedesId) {
+      const [oldRow] = await sequelize.query<{ id: number; leadId: number; is_deleted: number }>(
+        `SELECT id, leadId, is_deleted FROM dm_discount_approvals WHERE id = ? LIMIT 1`,
+        { replacements: [body.supersedesId], type: QueryTypes.SELECT },
+      );
+      if (!oldRow || Number(oldRow.leadId) !== Number(body.leadId)) {
+        return NextResponse.json({ success: false, error: 'The discount request being replaced was not found for this lead.' }, { status: 404 });
+      }
+      if (oldRow.is_deleted) {
+        return NextResponse.json({ success: false, error: 'That discount request was already replaced by another correction.' }, { status: 409 });
+      }
+      supersedesId = Number(body.supersedesId);
+    }
 
     // Duplicate-submission guard: a resubmit of the same request would create
     // a second approval row (and, for an auto-approved 0-20% discount, apply
@@ -182,6 +220,14 @@ export async function POST(request: NextRequest) {
         type: QueryTypes.SELECT,
       }
     );
+    const newDiscountId = Number(createdRows[0]?.id || 0);
+
+    if (supersedesId && newDiscountId) {
+      await sequelize.query(
+        `UPDATE dm_discount_approvals SET is_deleted = 1, superseded_by = ?, updatedAt = ? WHERE id = ?`,
+        { replacements: [newDiscountId, now, supersedesId] },
+      );
+    }
 
     // A 0-20% discount is applied immediately — the lead/opportunity value
     // must reflect it right away rather than waiting on an approval that
@@ -229,7 +275,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: isAutoApproved ? `Discount applied — no approval required (0-${thresholds.autoMaxPercent}%)` : 'Discount approval created successfully',
-      data: { id: Number(createdRows[0]?.id || 0), status: isAutoApproved ? 'approved' : 'pending', tier }
+      data: { id: newDiscountId, status: isAutoApproved ? 'approved' : 'pending', tier }
     }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating discount approval:', error);
@@ -258,11 +304,17 @@ export async function PUT(request: NextRequest) {
     };
 
     if (['approved', 'rejected'].includes(body.status)) {
-      const rows = await sequelize.query<{ discountAmount: number; originalAmount: number }>(
-        `SELECT discountAmount, originalAmount FROM dm_discount_approvals WHERE id = ?`,
+      const rows = await sequelize.query<{ discountAmount: number; originalAmount: number; is_deleted: number }>(
+        `SELECT discountAmount, originalAmount, is_deleted FROM dm_discount_approvals WHERE id = ?`,
         { replacements: [id], type: QueryTypes.SELECT }
       );
       const row = rows[0];
+      if (row?.is_deleted) {
+        return NextResponse.json(
+          { success: false, error: 'This discount request was replaced by a correction and can no longer be approved or rejected.' },
+          { status: 409 }
+        );
+      }
       const thresholds = await getDiscountTierThresholds();
       const tier = getDiscountTier(Number(row?.discountAmount || 0), Number(row?.originalAmount || 0), thresholds);
       const reviewer = getAuthenticatedUser(request);
