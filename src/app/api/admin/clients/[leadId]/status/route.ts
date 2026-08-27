@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, isAuthError } from '@/lib/apiAuth';
 import { ClientPortalService } from '@/services/client-portal-service';
+import { checkLeadBranchScope } from '@/lib/branchScopeGuard';
 
 type Context = { params: Promise<{ leadId: string }> };
 
@@ -27,6 +28,9 @@ export async function POST(request: NextRequest, { params }: Context) {
   try {
     const leadId = Number((await params).leadId);
     if (!Number.isFinite(leadId)) return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
+
+    const scopeError = await checkLeadBranchScope(auth, leadId);
+    if (scopeError) return scopeError;
 
     const body = await request.json() as Record<string, unknown>;
     const message = String(body.message || '').trim();
