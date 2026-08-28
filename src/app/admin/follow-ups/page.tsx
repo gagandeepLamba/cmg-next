@@ -1,8 +1,10 @@
 'use client';
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Clock, CheckCircle, XCircle, AlertCircle, RefreshCw,
@@ -255,70 +257,72 @@ export default function FollowUpsPage() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableTh label="Lead" sortKey="lead" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
-                <SortableTh label="Counselor" sortKey="counselor" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
-                <SortableTh label="Due Date" sortKey="dueDate" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
-                <SortableTh label="Priority" sortKey="priority" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
-                <SortableTh label="Status" sortKey="status" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
-                <SortableTh label="Message" sortKey="message" activeKey={followUpSortKey} direction={followUpSortDirection} onSort={toggleFollowUpSort} />
-                {['Actions', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedFollowUps.map(fu => {
-                const leadName = `${fu.fname || ''} ${fu.lname || ''}`.trim() || `Lead #${fu.lead_id}`;
-                const displayStatus = getDisplayStatus(fu);
-                const isExpanded = expandedId === fu.id;
-                const isPending = fu.status === 'pending';
-                const dueDate = new Date(fu.reminder_date);
-                const isOverdue = displayStatus === 'overdue';
+      {/* List */}
+      <div className="bg-white rounded-lg shadow p-3">
+        <SortButtonRow
+          options={[
+            ['lead', 'Lead'],
+            ['counselor', 'Counselor'],
+            ['dueDate', 'Due Date'],
+            ['priority', 'Priority'],
+            ['status', 'Status'],
+            ['message', 'Message'],
+          ] as const}
+          activeKey={followUpSortKey}
+          direction={followUpSortDirection}
+          onSort={toggleFollowUpSort}
+        />
 
-                return (
-                  <tr key={fu.id} className={`hover:bg-gray-50 ${isOverdue ? 'bg-red-50' : ''}`}>
-                    <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-gray-900">{leadName}</div>
-                      <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                        {fu.email && <><Mail className="w-3 h-3" />{fu.email}</>}
-                      </div>
-                      <div className="text-xs text-gray-500 flex items-center gap-1">
-                        {fu.phone && <><Phone className="w-3 h-3" />{fu.phone}</>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-gray-900 flex items-center gap-1">
-                        <User className="w-3 h-3 text-gray-400" />
-                        {fu.employeeName || `Employee #${fu.user_id}`}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className={`text-sm font-medium ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
-                        {dueDate.toLocaleDateString()}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[fu.priority] || 'bg-gray-100 text-gray-700'}`}>
-                        {fu.priority}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[displayStatus] || 'bg-gray-100 text-gray-700'}`}>
-                        {displayStatus}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 max-w-xs">
+        <RecordList
+          isEmpty={filtered.length === 0}
+          emptyIcon={Clock}
+          emptyTitle="No follow-ups found"
+          emptyDescription="Try changing filters or search terms."
+        >
+          {sortedFollowUps.map(fu => {
+            const leadName = `${fu.fname || ''} ${fu.lname || ''}`.trim() || `Lead #${fu.lead_id}`;
+            const displayStatus = getDisplayStatus(fu);
+            const isExpanded = expandedId === fu.id;
+            const isPending = fu.status === 'pending';
+            const dueDate = new Date(fu.reminder_date);
+            const isOverdue = displayStatus === 'overdue';
+
+            return (
+              <RecordCard
+                key={fu.id}
+                className={isOverdue ? 'border-red-200 bg-red-50/40' : ''}
+                avatar={<User className="h-4 w-4" />}
+                avatarColorClass={isOverdue ? 'from-red-600 to-orange-400' : 'from-blue-600 to-cyan-400'}
+                title={
+                  fu.lead_id ? (
+                    <Link href={`/admin/leads/${fu.lead_id}/edit`} className="min-w-0 break-words text-base font-bold text-blue-700 hover:text-blue-900 hover:underline">
+                      {leadName}
+                    </Link>
+                  ) : (
+                    <span className="min-w-0 break-words text-base font-bold text-gray-950">{leadName}</span>
+                  )
+                }
+                titleBadges={
+                  <>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[fu.priority] || 'bg-gray-100 text-gray-700'}`}>
+                      {fu.priority}
+                    </span>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[displayStatus] || 'bg-gray-100 text-gray-700'}`}>
+                      {displayStatus}
+                    </span>
+                  </>
+                }
+                metaItems={[
+                  fu.email ? { icon: Mail, text: fu.email, key: 'email' } : null,
+                  fu.phone ? { icon: Phone, text: fu.phone, key: 'phone' } : null,
+                  { icon: User, text: fu.employeeName || `Employee #${fu.user_id}`, key: 'counselor' },
+                ].filter((item): item is { icon: typeof Mail; text: string; key: string } => item !== null)}
+                stats={[
+                  { label: 'Due Date', value: dueDate.toLocaleDateString(), sub: dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+                ]}
+                extra={
+                  <>
+                    <div className="mt-3">
                       <div className={`text-sm text-gray-700 ${isExpanded ? '' : 'truncate'}`}>
                         {fu.message}
                       </div>
@@ -330,107 +334,90 @@ export default function FollowUpsPage() {
                           {isExpanded ? <><ChevronUp className="w-3 h-3" />Less</> : <><ChevronDown className="w-3 h-3" />More</>}
                         </button>
                       )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {fu.lead_id ? (
-                        <button
-                          onClick={() => router.push(`/admin/leads/${fu.lead_id}/edit`)}
-                          title="View lead"
-                          className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs hover:bg-blue-100 whitespace-nowrap"
-                        >
-                          <Eye className="w-3 h-3" />
-                          View Lead
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1 min-w-max">
-                        {isPending && (
-                          <>
-                            <textarea
-                              value={remarksById[fu.id] || ''}
-                              onChange={(e) => setRemarksById((prev) => ({ ...prev, [fu.id]: e.target.value }))}
-                              placeholder="Remarks (optional)"
-                              rows={2}
-                              className="w-40 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-blue-500"
-                            />
-                            <button
-                              onClick={() => handleAction(fu.id, 'complete')}
-                              disabled={actionLoading === fu.id}
-                              className="flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
-                            >
-                              <CheckCircle className="w-3 h-3" />
-                              Complete
-                            </button>
-                            {rescheduleId === fu.id ? (
-                              <div className="flex flex-col gap-1">
-                                <input
-                                  type="datetime-local"
-                                  value={rescheduleDate}
-                                  onChange={e => setRescheduleDate(e.target.value)}
-                                  className="px-2 py-1 border border-gray-300 rounded text-xs"
-                                />
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={() => rescheduleDate && handleAction(fu.id, 'complete', rescheduleDate)}
-                                    disabled={!rescheduleDate || actionLoading === fu.id}
-                                    className="flex-1 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    onClick={() => { setRescheduleId(null); setRescheduleDate(''); }}
-                                    className="flex-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
+                    </div>
+
+                    {isPending && (
+                      <div className="mt-3 flex flex-wrap items-start gap-2">
+                        <textarea
+                          value={remarksById[fu.id] || ''}
+                          onChange={(e) => setRemarksById((prev) => ({ ...prev, [fu.id]: e.target.value }))}
+                          placeholder="Remarks (optional)"
+                          rows={2}
+                          className="w-full max-w-xs px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-blue-500"
+                        />
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            onClick={() => handleAction(fu.id, 'complete')}
+                            disabled={actionLoading === fu.id}
+                            className="flex items-center gap-1 px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50"
+                          >
+                            <CheckCircle className="w-3 h-3" />
+                            Complete
+                          </button>
+                          {rescheduleId === fu.id ? (
+                            <div className="flex flex-col gap-1">
+                              <input
+                                type="datetime-local"
+                                value={rescheduleDate}
+                                onChange={e => setRescheduleDate(e.target.value)}
+                                className="px-2 py-1 border border-gray-300 rounded text-xs"
+                              />
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => rescheduleDate && handleAction(fu.id, 'complete', rescheduleDate)}
+                                  disabled={!rescheduleDate || actionLoading === fu.id}
+                                  className="flex-1 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => { setRescheduleId(null); setRescheduleDate(''); }}
+                                  className="flex-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"
+                                >
+                                  Cancel
+                                </button>
                               </div>
-                            ) : (
-                              <button
-                                onClick={() => setRescheduleId(fu.id)}
-                                className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                                Reschedule
-                              </button>
-                            )}
+                            </div>
+                          ) : (
                             <button
-                              onClick={() => handleAction(fu.id, 'cancel')}
-                              disabled={actionLoading === fu.id}
-                              className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200 disabled:opacity-50"
+                              onClick={() => setRescheduleId(fu.id)}
+                              className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
                             >
-                              <XCircle className="w-3 h-3" />
-                              Cancel
+                              <RefreshCw className="w-3 h-3" />
+                              Reschedule
                             </button>
-                          </>
-                        )}
-                        {!isPending && (
-                          <div className="text-xs text-gray-400 italic">
-                            <div>{fu.completed_at ? `Done ${new Date(fu.completed_at).toLocaleDateString()}` : fu.status}</div>
-                            {fu.message && <div className="mt-0.5 not-italic text-gray-600">{fu.message}</div>}
-                          </div>
-                        )}
+                          )}
+                          <button
+                            onClick={() => handleAction(fu.id, 'cancel')}
+                            disabled={actionLoading === fu.id}
+                            className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200 disabled:opacity-50"
+                          >
+                            <XCircle className="w-3 h-3" />
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    )}
+                    {!isPending && (
+                      <div className="mt-3 text-xs text-gray-400 italic">
+                        <div>{fu.completed_at ? `Done ${new Date(fu.completed_at).toLocaleDateString()}` : fu.status}</div>
+                        {fu.message && <div className="mt-0.5 not-italic text-gray-600">{fu.message}</div>}
+                      </div>
+                    )}
+                  </>
+                }
+                actions={[
+                  { key: 'viewLead', icon: Eye, label: 'View lead', onClick: () => router.push(`/admin/leads/${fu.lead_id}/edit`), colorClass: 'bg-blue-50 text-blue-700 hover:bg-blue-100', hidden: !fu.lead_id },
+                ]}
+              />
+            );
+          })}
+        </RecordList>
 
-        {filtered.length === 0 && (
-          <div className="text-center py-16">
-            <Clock className="mx-auto h-10 w-10 text-gray-300 mb-3" />
-            <p className="text-gray-500 text-sm">No follow-ups found</p>
-          </div>
-        )}
-
-        <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">
-          Showing {filtered.length} of {followUps.length} follow-ups
+        <div className="flex items-center justify-between px-1 py-3 mt-3 border-t border-gray-200">
+          <p className="text-xs text-gray-500">
+            Showing {filtered.length} of {followUps.length} follow-ups
+          </p>
         </div>
       </div>
     </div>

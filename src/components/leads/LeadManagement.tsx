@@ -1,7 +1,7 @@
 'use client';
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -10,7 +10,7 @@ import {
   Filter, Calendar, Phone, Mail, MapPin, DollarSign, MessageCircle,
   Eye, CheckCircle, XCircle, Clock,
   Target, X, Save, LayoutList, LayoutGrid, Briefcase, MessageSquare, Settings,
-  Receipt, AlertCircle, Printer, Loader2, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight
+  Receipt, AlertCircle, Printer, Loader2, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, ExternalLink
 } from 'lucide-react';
 import LeadKanbanSimple from './LeadKanbanSimple';
 import ConversationHistoryModal from '@/components/shared/ConversationHistoryModal';
@@ -151,16 +151,7 @@ function getPageWindow(current: number, total: number): Array<number | '...'> {
 export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, showActions = true }: LeadManagementProps) {
   const router = useRouter();
   const { token, isLoading: authLoading, currencyCode } = useAuth();
-  // Wide table + the browser's native horizontal scrollbar sitting at the very
-  // bottom means reaching the Actions column requires scrolling all the way
-  // down first. This mirrors a slim scrollbar above the table (synced both
-  // ways) so the table can be scrolled sideways without leaving the top.
-  const topScrollRef = useRef<HTMLDivElement>(null);
-  const tableScrollRef = useRef<HTMLDivElement>(null);
-  const [tableScrollWidth, setTableScrollWidth] = useState(0);
-  const syncingScrollRef = useRef<'top' | 'table' | null>(null);
   const tabBarRef = useRef<HTMLDivElement>(null);
-  const [tabBarHeight, setTabBarHeight] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -502,39 +493,6 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     setSelectedLeads((current) => current.filter((id) => selectableLeadIds.includes(id)));
   }, [selectableLeadIds]);
 
-  // Re-measure how far the table overflows whenever the rendered rows/columns
-  // change, so the top scrollbar's draggable width always matches the table.
-  useEffect(() => {
-    if (viewMode !== 'list') return;
-    const measure = () => setTableScrollWidth(tableScrollRef.current?.scrollWidth || 0);
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [viewMode, leads, activeTab]);
-
-  // Re-measure the sticky tab bar's height so the table header (also sticky)
-  // can be offset below it instead of overlapping it - the tab row wraps
-  // (flex-wrap) on narrow screens, which changes its height at runtime.
-  useEffect(() => {
-    const measure = () => setTabBarHeight(tabBarRef.current?.offsetHeight || 0);
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [showMyLeadsTab]);
-
-  const handleTopScroll = () => {
-    if (syncingScrollRef.current === 'table') { syncingScrollRef.current = null; return; }
-    if (!topScrollRef.current || !tableScrollRef.current) return;
-    syncingScrollRef.current = 'top';
-    tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
-  };
-
-  const handleTableScroll = () => {
-    if (syncingScrollRef.current === 'top') { syncingScrollRef.current = null; return; }
-    if (!topScrollRef.current || !tableScrollRef.current) return;
-    syncingScrollRef.current = 'table';
-    topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
-  };
 
   useEffect(() => {
     const fetchFilterOptions = async () => {
@@ -1929,406 +1887,265 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       {/* Leads Display - List or Kanban View */}
       {viewMode === 'list' ? (
         <div className="bg-white rounded-lg shadow">
-          {tableScrollWidth > 0 && (
-            <div
-              ref={topScrollRef}
-              onScroll={handleTopScroll}
-              className="overflow-x-auto overflow-y-hidden border-b border-gray-200"
-              style={{ height: 14 }}
-            >
-              <div style={{ width: tableScrollWidth, height: 1 }} />
-            </div>
-          )}
-          {/* overflow-x-auto only (not overflow-hidden on the card above) so
-              the sticky thead below can actually stick as the page scrolls -
-              an ancestor with overflow-hidden on both axes would otherwise
-              become the thead's sticky containing block instead of <main>. */}
-          <div ref={tableScrollRef} onScroll={handleTableScroll} className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="sticky z-10 bg-gray-50 shadow-sm" style={{ top: tabBarHeight }}>
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {activeTab === 'leads' && (
-                      <input
-                        type="checkbox"
-                        checked={selectableLeadIds.length > 0 && selectedLeads.length === selectableLeadIds.length}
-                        onChange={(e) => handleSelectAll(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    )}
-                  </th>
-                  <SortableTh label="Lead ID" sortKey="id" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
-                  <SortableTh
-                    label={activeTab === 'clients' ? 'Client Information' : activeTab === 'opportunities' ? 'Opportunity Draft' : 'Lead Information'}
-                    sortKey="name" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort}
+          <div className="border-b border-gray-200 bg-white px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-600">
+                <button onClick={() => toggleLeadSort('name')} className={`rounded-md border px-2.5 py-1.5 hover:bg-gray-50 ${leadSortKey === 'name' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white'}`}>Name</button>
+                <button onClick={() => toggleLeadSort('stage')} className={`rounded-md border px-2.5 py-1.5 hover:bg-gray-50 ${leadSortKey === 'stage' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white'}`}>Stage</button>
+                <button onClick={() => toggleLeadSort('registered')} className={`rounded-md border px-2.5 py-1.5 hover:bg-gray-50 ${leadSortKey === 'registered' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white'}`}>Newest</button>
+                <button onClick={() => toggleLeadSort('assignedTo')} className={`rounded-md border px-2.5 py-1.5 hover:bg-gray-50 ${leadSortKey === 'assignedTo' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white'}`}>Counselor</button>
+              </div>
+              {activeTab === 'leads' && (
+                <label className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectableLeadIds.length > 0 && selectedLeads.length === selectableLeadIds.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <SortableTh label="Contact" sortKey="contact" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
-                  <SortableTh label="Interest / Source" sortKey="interest" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
-                  <SortableTh label="Latest Remark" sortKey="remark" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
-                  <SortableTh label="Pipeline Stage" sortKey="stage" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
-                  <SortableTh label="Status" sortKey="status" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
-                  {activeTab === 'clients' && (
-                    <SortableTh label="Balance Due" sortKey="balanceDue" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
-                  )}
-                  <SortableTh label="Registered" sortKey="registered" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
-                  {isBranchManagerOrCeo(user) && (
-                    <SortableTh label="Branch" sortKey="branch" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
-                  )}
-                  <SortableTh label="Assigned To" sortKey="assignedTo" activeKey={leadSortKey} direction={leadSortDirection} onSort={toggleLeadSort} />
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+                  Select visible
+                </label>
+              )}
+            </div>
+          </div>
+          <div className="p-3">
+            {sortedLeadRows.length === 0 ? (
+              <div className="flex h-full min-h-[280px] items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white text-center">
+                <div>
+                  <Users className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+                  <h3 className="text-sm font-bold text-gray-900">No leads found</h3>
+                  <p className="mt-1 text-sm text-gray-500">Try changing filters or search terms.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
                 {sortedLeadRows.map((lead: Lead, index) => {
                   const leadId = getSelectableLeadId(lead);
+                  const stage = getPipelineStage(lead);
+                  const totalStages = PIPELINE_STAGES.length;
+                  const progressPct = Math.round((stage.stepIndex / (totalStages - 1)) * 100);
+                  const waNumber = lead.whatsapp_number || lead.mobile;
+                  const waLink = getWhatsAppLink(waNumber);
+                  const name = [lead.fname, lead.mname, lead.lname].filter(Boolean).join(' ') || `Lead #${lead.id}`;
+                  const initials = `${lead.fname?.[0] || ''}${lead.lname?.[0] || ''}`.toUpperCase() || 'LD';
 
                   return (
-                  <tr key={leadId ?? `${lead.email || 'lead'}-${index}`} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {activeTab === 'leads' && (
-                        <input
-                          type="checkbox"
-                          checked={leadId !== null && selectedLeads.includes(leadId)}
-                          disabled={leadId === null}
-                          onChange={(e) => leadId !== null && handleSelectLead(leadId, e.target.checked)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <Link
-                        href={`/admin/leads/${lead.id}/edit`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="font-semibold text-blue-700 hover:text-blue-900 hover:underline"
-                        title={`Open lead #${lead.id} in a new tab`}
-                      >
-                        #{lead.id}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        {activeTab === 'leads' || activeTab === 'opportunities' ? (
-                          <Link
-                            href={activeTab === 'leads' ? `/admin/leads/${lead.id}/edit` : `/admin/leads/opportunity-flow?leadId=${lead.id}`}
-                            className="text-sm font-semibold text-blue-700 hover:text-blue-900 hover:underline text-left"
-                          >
-                            {lead.fname} {lead.mname} {lead.lname}
-                          </Link>
-                        ) : (
-                          <button
-                            onClick={() => handleOpenOperations(lead)}
-                            className="text-sm font-semibold text-blue-700 hover:text-blue-900 hover:underline text-left"
-                          >
-                            {lead.fname} {lead.mname} {lead.lname}
-                          </button>
-                        )}
-                        <div className="text-sm text-gray-500">
-                          {[
-                            lead.gender,
-                            lead.dob && !String(lead.dob).startsWith('1970-01-01') ? formatDate(lead.dob) : null,
-                          ]
-                            .filter(Boolean)
-                            .join(' • ') || '—'}
-                        </div>
-                        <div className="flex items-center mt-1">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getQualityColor(lead.lead_quality || 'Unknown')}`}>
-                            {lead.lead_quality || 'No Quality'}
-                          </span>
-                        </div>
-                        {(activeTab === 'opportunities' || activeTab === 'clients') && (
-                          <div className="text-xs text-green-700 mt-1">
-                            Opp #{(lead as any).resolved_opportunity_id || (lead as any).opportunity_id || '—'}
+                    <article
+                      key={leadId ?? `${lead.email || 'lead'}-${index}`}
+                      className="min-w-0 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-md lg:p-4"
+                    >
+                      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+                        <div className="flex min-w-0 gap-3">
+                          {activeTab === 'leads' && (
+                            <input
+                              type="checkbox"
+                              checked={leadId !== null && selectedLeads.includes(leadId)}
+                              disabled={leadId === null}
+                              onChange={(e) => leadId !== null && handleSelectLead(leadId, e.target.checked)}
+                              className="mt-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          )}
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-700 to-indigo-400 text-sm font-black text-white shadow-sm">
+                            {initials}
                           </div>
-                        )}
-                        {activeTab === 'clients' && (lead as any).agreementNumber && (
-                          <div className="text-xs text-violet-700 mt-0.5 font-medium">
-                            {(lead as any).agreementNumber}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 flex items-center">
-                        <Mail className="w-4 h-4 mr-1 text-gray-400" />
-                        {lead.email}
-                      </div>
-                      <div className="text-sm text-gray-500 flex items-center mt-1">
-                        <Phone className="w-4 h-4 mr-1 text-gray-400" />
-                        {lead.phone}
-                      </div>
-                      {(() => {
-                        const waNumber = lead.whatsapp_number || lead.mobile;
-                        const waLink = getWhatsAppLink(waNumber);
-                        if (!waLink) return null;
-                        return (
-                          <a
-                            href={waLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-sm text-green-600 flex items-center mt-1 hover:text-green-700 hover:underline"
-                            title="Chat on WhatsApp"
-                          >
-                            <MessageCircle className="w-4 h-4 mr-1 text-green-500" />
-                            {waNumber}
-                          </a>
-                        );
-                      })()}
-                      <div className="text-sm text-gray-500 flex items-center mt-1" title={lead.address || undefined}>
-                        <MapPin className="w-4 h-4 mr-1 text-gray-400" />
-                        {/* Braanch is the authoritative "where this lead belongs" — lead.address is
-                            free text submitted by external intake forms (web-to-leads, etc.) and can
-                            be wrong/inconsistent with the branch (e.g. a residency-country default
-                            the visitor never changed), so it's shown as a hover tooltip, not the label. */}
-                        {lead.dmBranch?.name || lead.address || '—'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{(lead as any).country_interest_label || lead.country_interest || '—'}</div>
-                      <div className="text-sm text-gray-600">{(lead as any).service_interest_label || lead.service_interest || '—'}</div>
-                      {resolveSourceName(lead) ? (
-                        <div className="text-xs text-indigo-600 mt-1">
-                          Source: {resolveSourceName(lead)}
-                        </div>
-                      ) : null}
-                      {lead.campaign ? (
-                        <div className="text-xs text-purple-600 mt-0.5">
-                          Campaign: {lead.campaign}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-6 py-4 max-w-[180px]">
-                      {/* lead.lead_remark is intentionally excluded here — for
-                          web/pop/live-chat intake it's an auto-generated
-                          Source/Campaign/UTM summary (already shown in the
-                          Interest / Source column), not a real remark. Only
-                          genuine entries from dmc_forum_leads_remarks count. */}
-                      {lead.latest_remark ? (
-                        <div
-                          className="text-xs text-gray-700 line-clamp-3 leading-relaxed"
-                          title={lead.latest_remark}
-                        >
-                          {lead.latest_remark}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">No remarks</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {(() => {
-                        const stage = getPipelineStage(lead);
-                        const totalStages = PIPELINE_STAGES.length;
-                        const progressPct = Math.round(((stage.stepIndex) / (totalStages - 1)) * 100);
-                        return (
-                          <div className="space-y-1.5">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${stage.color}`}>
-                              {stage.label}
-                            </span>
-                            <div className="relative w-full" title={`Stage ${stage.stepIndex + 1} of ${totalStages}: ${PIPELINE_STAGES[stage.stepIndex]?.label || stage.label}`}>
-                              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                <div className={`h-1.5 rounded-full transition-all ${
-                                  stage.stepIndex >= 10 ? 'bg-emerald-500' :
-                                  stage.stepIndex >= 9 ? 'bg-teal-500' :
-                                  stage.stepIndex >= 7 ? 'bg-violet-500' :
-                                  stage.stepIndex >= 5 ? 'bg-blue-500' :
-                                  stage.stepIndex >= 3 ? 'bg-amber-500' :
-                                  'bg-gray-400'
-                                }`} style={{ width: `${progressPct}%` }} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {activeTab === 'leads' || activeTab === 'opportunities' ? (
+                                <Link
+                                  href={activeTab === 'leads' ? `/admin/leads/${lead.id}/edit` : `/admin/leads/opportunity-flow?leadId=${lead.id}`}
+                                  className="min-w-0 break-words text-base font-bold text-gray-950 hover:text-blue-700"
+                                >
+                                  {name}
+                                </Link>
+                              ) : (
+                                <button
+                                  onClick={() => handleOpenOperations(lead)}
+                                  className="min-w-0 break-words text-left text-base font-bold text-gray-950 hover:text-blue-700"
+                                >
+                                  {name}
+                                </button>
+                              )}
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">#{lead.id}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getQualityColor(lead.lead_quality || 'Unknown')}`}>
+                                {lead.lead_quality || 'No Quality'}
+                              </span>
+                            </div>
+
+                            <div className="mt-0.5 text-xs text-gray-500">
+                              {[
+                                lead.gender,
+                                lead.dob && !String(lead.dob).startsWith('1970-01-01') ? formatDate(lead.dob) : null,
+                              ].filter(Boolean).join(' • ')}
+                            </div>
+
+                            {(activeTab === 'opportunities' || activeTab === 'clients') && (
+                              <div className="mt-0.5 text-xs text-green-700">
+                                Opp #{(lead as any).resolved_opportunity_id || (lead as any).opportunity_id || '—'}
                               </div>
-                              <span className="text-[10px] text-gray-400 mt-0.5">{stage.stepIndex + 1}/{totalStages}</span>
+                            )}
+                            {activeTab === 'clients' && (lead as any).agreementNumber && (
+                              <div className="text-xs text-violet-700 font-medium">
+                                {(lead as any).agreementNumber}
+                              </div>
+                            )}
+
+                            <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-gray-600 sm:grid-cols-2 xl:grid-cols-3">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <Mail className="h-4 w-4 shrink-0 text-gray-400" />
+                                <span className="truncate" title={lead.email || undefined}>{lead.email || 'No email'}</span>
+                              </div>
+                              <div className="flex min-w-0 items-center gap-2">
+                                <Phone className="h-4 w-4 shrink-0 text-gray-400" />
+                                <span className="truncate" title={lead.phone || undefined}>{lead.phone || lead.mobile || 'No phone'}</span>
+                              </div>
+                              <div className="flex min-w-0 items-center gap-2">
+                                <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
+                                <span className="truncate" title={lead.address || undefined}>{lead.dmBranch?.name || lead.address || 'No branch'}</span>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col space-y-1">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(lead.status || 'Unknown')}`}>
-                          {lead.status || 'No Status'}
-                        </span>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(lead.priority)}`}>
-                          {lead.priority} Priority
-                        </span>
-                      </div>
-                    </td>
-                    {activeTab === 'clients' && (
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {Number(lead.payTotal) > 0 ? (
-                          <div className="space-y-1">
-                            <div className="text-xs text-gray-500">
-                              Total: <span className="font-medium text-gray-800">AED {Number(lead.payTotal).toLocaleString()}</span>
+
+                            <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
+                              <div className="min-w-0 rounded-md bg-gray-50 p-2">
+                                <div className="font-semibold uppercase text-gray-400">Interest</div>
+                                <div className="mt-0.5 truncate font-semibold text-gray-900" title={(lead as any).country_interest_label || lead.country_interest || undefined}>{(lead as any).country_interest_label || lead.country_interest || '—'}</div>
+                                <div className="truncate text-gray-600" title={(lead as any).service_interest_label || lead.service_interest || undefined}>{(lead as any).service_interest_label || lead.service_interest || '—'}</div>
+                              </div>
+                              <div className="min-w-0 rounded-md bg-gray-50 p-2">
+                                <div className="font-semibold uppercase text-gray-400">Source</div>
+                                <div className="mt-0.5 truncate font-semibold text-gray-900" title={resolveSourceName(lead) || undefined}>{resolveSourceName(lead) || '—'}</div>
+                                <div className="truncate text-gray-600" title={lead.campaign || undefined}>{lead.campaign || 'No campaign'}</div>
+                              </div>
+                              <div className="min-w-0 rounded-md bg-gray-50 p-2">
+                                <div className="font-semibold uppercase text-gray-400">Owner</div>
+                                {canAssignLeads ? (
+                                  <button
+                                    onClick={() => openAssignModal(lead)}
+                                    className="mt-0.5 block max-w-full truncate text-left font-semibold text-blue-700 hover:underline"
+                                    title="Assign or reassign"
+                                  >
+                                    {lead.dmEmployeeByASSIGNTo?.name || 'Unassigned'}
+                                  </button>
+                                ) : (
+                                  <div className="mt-0.5 truncate font-semibold text-gray-900">{lead.dmEmployeeByASSIGNTo?.name || 'Unassigned'}</div>
+                                )}
+                                <div className="text-gray-600">{formatDate(lead.regdate)}</div>
+                              </div>
+                              <div className="min-w-0 rounded-md bg-gray-50 p-2">
+                                <div className="font-semibold uppercase text-gray-400">Status</div>
+                                <button
+                                  type="button"
+                                  onClick={() => openLeadActionModal(lead, 'status')}
+                                  className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(lead.status || 'Unknown')}`}
+                                >
+                                  {lead.status || 'No Status'}
+                                </button>
+                                <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getPriorityColor(lead.priority)}`}>
+                                  {lead.priority || 'No'} Priority
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-500">
-                              Paid: <span className="font-medium text-green-700">AED {Number(lead.paidYet || 0).toLocaleString()}</span>
+
+                            <div className="mt-3">
+                              <div className="mb-1 flex items-center justify-between gap-2">
+                                <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${stage.color}`}>{stage.label}</span>
+                                <span className="text-xs font-semibold text-gray-400">{stage.stepIndex + 1}/{totalStages}</span>
+                              </div>
+                              <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                                <div className="h-full rounded-full bg-gradient-to-r from-blue-700 via-sky-400 to-emerald-500" style={{ width: `${progressPct}%` }} />
+                              </div>
                             </div>
-                            {Number(lead.payBalance) > 0 ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-lg bg-red-100 text-red-700 border border-red-200">
-                                <AlertCircle className="w-3 h-3" />
-                                AED {Number(lead.payBalance).toLocaleString()}
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-green-100 text-green-700">
-                                <CheckCircle className="w-3 h-3" />
-                                Fully Paid
-                              </span>
+
+                            {lead.latest_remark && (
+                              <div className="mt-3 rounded-md border border-amber-100 bg-amber-50/70 p-2 text-xs leading-relaxed text-gray-700">
+                                <span className="font-semibold text-amber-800">Latest remark: </span>
+                                <span className="break-words line-clamp-3">{lead.latest_remark}</span>
+                              </div>
+                            )}
+
+                            {activeTab === 'clients' && Number(lead.payTotal) > 0 && (
+                              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                <span className="rounded-md bg-gray-100 px-2 py-1 font-semibold text-gray-700">Total AED {Number(lead.payTotal).toLocaleString()}</span>
+                                <span className="rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700">Paid AED {Number(lead.paidYet || 0).toLocaleString()}</span>
+                                <span className={`rounded-md px-2 py-1 font-semibold ${Number(lead.payBalance) > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                  {Number(lead.payBalance) > 0 ? `Balance AED ${Number(lead.payBalance).toLocaleString()}` : 'Fully paid'}
+                                </span>
+                              </div>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </td>
-                    )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(lead.regdate)}
-                    </td>
-                    {isBranchManagerOrCeo(user) && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {lead.dmBranch?.name || '—'}
-                      </td>
-                    )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div>
-                        {canAssignLeads ? (
-                          <button
-                            onClick={() => openAssignModal(lead)}
-                            className={lead.dmEmployeeByASSIGNTo?.name
-                              ? 'text-gray-700 hover:text-blue-700 font-medium underline decoration-dotted'
-                              : 'text-red-600 hover:text-red-800 font-medium underline'}
-                            title="Click to assign or reassign this lead"
-                          >
-                            {lead.dmEmployeeByASSIGNTo?.name || 'Unassigned'}
-                          </button>
-                        ) : (
-                          lead.dmEmployeeByASSIGNTo?.name || 'Unassigned'
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-400">{lead.dmBranch?.name}</div>
-                      {lead.appointment && (
-                        <div className="flex items-center text-xs text-blue-600 mt-1">
-                          <Calendar className="w-3 h-3 mr-1" />
-                          {new Date(lead.appointment).toLocaleDateString()}
                         </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="relative flex items-center space-x-2 flex-wrap gap-y-1">
-                        {activeTab === 'clients' && Number(lead.payBalance) > 0 && (
-                          <button
-                            onClick={() => openQuickPayForLead(lead)}
-                            title={`Collect balance AED ${Number(lead.payBalance).toLocaleString()} & generate receipt`}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-orange-500 text-white hover:bg-orange-600"
-                          >
-                            <Receipt className="w-3.5 h-3.5" />
-                            Receipt
+
+                        <div className="flex flex-wrap items-center gap-1.5 xl:max-w-[210px] xl:justify-end">
+                          {activeTab === 'clients' && Number(lead.payBalance) > 0 && (
+                            <button onClick={() => openQuickPayForLead(lead)} title="Collect balance and receipt" className="inline-flex h-9 min-w-9 items-center justify-center rounded-md bg-orange-500 px-2 text-xs font-bold text-white hover:bg-orange-600">
+                              <Receipt className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button onClick={() => handleViewLead(lead)} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100" title="View lead">
+                            <Eye className="h-4 w-4" />
                           </button>
-                        )}
-                        <button
-                          onClick={() => handleViewLead(lead)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="View lead"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openLeadActionModal(lead, 'appointment')}
-                          className="text-indigo-600 hover:text-indigo-900"
-                          title="Book appointment"
-                        >
-                          <Calendar className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openLeadActionModal(lead, 'followup')}
-                          className="text-amber-600 hover:text-amber-900"
-                          title="Add follow-up"
-                        >
-                          <Clock className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openLeadActionModal(lead, 'remark')}
-                          className="text-slate-600 hover:text-slate-900"
-                          title="Add remark"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openLeadActionModal(lead, 'status')}
-                          className="text-emerald-600 hover:text-emerald-900"
-                          title="Update status with remark"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                        </button>
-                        {activeTab === 'leads' && !isFoe(user) && (
-                          <button
-                            onClick={() => handleConvertToOpportunity(Number(lead.id))}
-                            className="text-green-600 hover:text-green-900"
-                            title="Start Opportunity Flow"
-                          >
-                            <Target className="w-4 h-4" />
-                          </button>
-                        )}
-                        {activeTab === 'clients' && isClientLead(lead) && (
-                          <button
-                            onClick={() => handleOpenClientOpportunityFlow(lead)}
-                            className="text-amber-600 hover:text-amber-900"
-                            title="Edit opportunity flow"
-                          >
-                            <Settings className="w-4 h-4" />
-                          </button>
-                        )}
-                        {activeTab === 'clients' && isClientLead(lead) && (
-                          <button
-                            onClick={() => handleOpenOperations(lead)}
-                            className="text-purple-600 hover:text-purple-900"
-                            title="Open Operations"
-                          >
-                            <Briefcase className="w-4 h-4" />
-                          </button>
-                        )}
-                        {activeTab === 'opportunities' && (
                           <Link
-                            href={`/admin/leads/opportunity-flow?leadId=${lead.id}`}
-                            className="text-amber-600 hover:text-amber-900"
-                            title="Edit opportunity flow"
+                            href={`/admin/leads/${lead.id}/edit`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
+                            title="Open lead in new tab"
                           >
-                            <Settings className="w-4 h-4" />
+                            <ExternalLink className="h-4 w-4" />
                           </Link>
-                        )}
-                        {activeTab === 'opportunities' && isCeo(user) && (
-                          <button
-                            onClick={() => handleMoveOpportunityBackToLead(lead)}
-                            className="text-slate-600 hover:text-slate-900"
-                            title="Move back to Leads"
-                          >
-                            <ChevronsLeft className="w-4 h-4" />
+                          <button onClick={() => openLeadActionModal(lead, 'appointment')} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100" title="Book appointment">
+                            <Calendar className="h-4 w-4" />
                           </button>
-                        )}
-                        <Link
-                          href={`/admin/leads/${lead.id}/edit`}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Edit lead"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                        {isCeo(user) && (
-                          <button
-                            onClick={() => handleDeleteLead(lead.id)}
-                            className="text-red-600 hover:text-red-900"
-                            title="Delete lead"
-                          >
-                            <Trash2 className="w-4 h-4" />
+                          <button onClick={() => openLeadActionModal(lead, 'followup')} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100" title="Add follow-up">
+                            <Clock className="h-4 w-4" />
                           </button>
-                        )}
+                          <button onClick={() => openLeadActionModal(lead, 'remark')} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200" title="Add remark">
+                            <MessageSquare className="h-4 w-4" />
+                          </button>
+                          {waLink && (
+                            <a href={waLink} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-green-50 text-green-700 hover:bg-green-100" title="WhatsApp">
+                              <MessageCircle className="h-4 w-4" />
+                            </a>
+                          )}
+                          {activeTab === 'leads' && !isFoe(user) && (
+                            <button onClick={() => handleConvertToOpportunity(Number(lead.id))} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100" title="Start Opportunity Flow">
+                              <Target className="h-4 w-4" />
+                            </button>
+                          )}
+                          {activeTab === 'clients' && isClientLead(lead) && (
+                            <button onClick={() => handleOpenClientOpportunityFlow(lead)} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100" title="Edit opportunity flow">
+                              <Settings className="h-4 w-4" />
+                            </button>
+                          )}
+                          {activeTab === 'clients' && isClientLead(lead) && (
+                            <button onClick={() => handleOpenOperations(lead)} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100" title="Open Operations">
+                              <Briefcase className="h-4 w-4" />
+                            </button>
+                          )}
+                          {activeTab === 'opportunities' && (
+                            <Link href={`/admin/leads/opportunity-flow?leadId=${lead.id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100" title="Edit opportunity flow">
+                              <Settings className="h-4 w-4" />
+                            </Link>
+                          )}
+                          {activeTab === 'opportunities' && isCeo(user) && (
+                            <button onClick={() => handleMoveOpportunityBackToLead(lead)} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200" title="Move back to Leads">
+                              <ChevronsLeft className="h-4 w-4" />
+                            </button>
+                          )}
+                          <Link href={`/admin/leads/${lead.id}/edit`} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200" title="Edit lead">
+                            <Edit className="h-4 w-4" />
+                          </Link>
+                          {isCeo(user) && (
+                            <button onClick={() => handleDeleteLead(lead.id)} className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-red-50 text-red-700 hover:bg-red-100" title="Delete lead">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </td>
-                  </tr>
+                    </article>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
 
           {/* Pagination */}
