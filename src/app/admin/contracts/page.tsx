@@ -1,7 +1,8 @@
 'use client';
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 import { useState, useEffect, useCallback } from 'react';
 import { FileText, CheckCircle, Clock, XCircle, Search, RefreshCw, AlertCircle } from 'lucide-react';
 
@@ -166,55 +167,48 @@ export default function ContractsPage() {
             <span>No contracts found</span>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <tr>
-                  <SortableTh label="Contract #" sortKey="contractNumber" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
-                  <SortableTh label="Client / Lead" sortKey="client" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
-                  <SortableTh label="Counselor" sortKey="counselor" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
-                  <SortableTh label="Branch" sortKey="branch" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
-                  <SortableTh label="Status" sortKey="status" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
-                  <SortableTh label="Created" sortKey="created" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
-                  <SortableTh label="Signed" sortKey="signed" activeKey={contractSortKey} direction={contractSortDirection} onSort={toggleContractSort} className="px-5 py-3 text-left" />
-                  <th className="px-5 py-3 text-left">File</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {sortedContracts.map(c => (
-                  <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3">
-                      <div className="text-sm font-medium text-gray-900">{c.contractNumber}</div>
-                      <div className="text-xs text-gray-400">Lead #{c.leadId}</div>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="text-sm font-medium text-gray-900">{c.leadName}</div>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-600">{c.counsilorName}</td>
-                    <td className="px-5 py-3 text-sm text-gray-500">{c.branchName}</td>
-                    <td className="px-5 py-3">
+          <div className="p-4">
+            <SortButtonRow
+              options={[
+                ['contractNumber', 'Contract #'],
+                ['client', 'Client / Lead'],
+                ['counselor', 'Counselor'],
+                ['branch', 'Branch'],
+                ['status', 'Status'],
+                ['created', 'Created'],
+                ['signed', 'Signed'],
+              ] as const}
+              activeKey={contractSortKey}
+              direction={contractSortDirection}
+              onSort={toggleContractSort}
+            />
+            <RecordList isEmpty={sortedContracts.length === 0}>
+              {sortedContracts.map(c => (
+                <RecordCard
+                  key={c.id}
+                  avatar={<FileText className="h-4 w-4" />}
+                  avatarColorClass="from-emerald-600 to-green-400"
+                  title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{c.leadName}</span>}
+                  titleBadges={
+                    <>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{c.contractNumber}</span>
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[c.status] || 'bg-gray-100 text-gray-600'}`}>
                         {STATUS_ICON[c.status]}
                         {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
                       </span>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-500">
-                      {c.createdDate ? new Date(c.createdDate).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-500">
-                      {c.signedDate ? new Date(c.signedDate).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-5 py-3">
-                      {c.fileName ? (
-                        <span className="text-xs text-[#35AE22] font-medium">{c.fileSize}</span>
-                      ) : (
-                        <span className="text-xs text-gray-400">No file</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </>
+                  }
+                  stats={[
+                    { label: 'Lead', value: `#${c.leadId}` },
+                    { label: 'Counselor', value: c.counsilorName },
+                    { label: 'Branch', value: c.branchName },
+                    { label: 'Created', value: c.createdDate ? new Date(c.createdDate).toLocaleDateString() : '—' },
+                    { label: 'Signed', value: c.signedDate ? new Date(c.signedDate).toLocaleDateString() : '—' },
+                    { label: 'File', value: c.fileName ? <span className="text-[#35AE22]">{c.fileSize}</span> : <span className="text-gray-400">No file</span> },
+                  ]}
+                />
+              ))}
+            </RecordList>
           </div>
         )}
       </div>

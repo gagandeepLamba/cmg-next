@@ -2,10 +2,12 @@
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 import { DmB2b, DmB2bAttributes } from '@/models';
 import { useAuth } from '@/contexts/AuthContext';
 import { isCeo } from '@/lib/roleChecks';
+import { Eye, Pencil, Trash2, Building2 } from 'lucide-react';
 
 export default function B2BManagement() {
   const { user } = useAuth();
@@ -158,73 +160,47 @@ export default function B2BManagement() {
         </div>
       </div>
 
-      {/* B2B Companies Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableTh label="ID" sortKey="id" activeKey={companySortKey} direction={companySortDirection} onSort={toggleCompanySort} />
-                <SortableTh label="Company Name" sortKey="name" activeKey={companySortKey} direction={companySortDirection} onSort={toggleCompanySort} />
-                <SortableTh label="Status" sortKey="status" activeKey={companySortKey} direction={companySortDirection} onSort={toggleCompanySort} />
-                <SortableTh label="Created Date" sortKey="created" activeKey={companySortKey} direction={companySortDirection} onSort={toggleCompanySort} />
-                <SortableTh label="Created By" sortKey="createdBy" activeKey={companySortKey} direction={companySortDirection} onSort={toggleCompanySort} />
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedCompanies.map((company) => (
-                <tr key={company.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      #{company.id}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{company.name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(company.status)}`}>
-                      {getStatusText(company.status)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {company.created.toLocaleDateString()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">User #{company.created_by}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleViewCompany(company)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                    >
-                      View
-                    </button>
-                    <button className="text-indigo-600 hover:text-indigo-900 mr-3">
-                      Edit
-                    </button>
-                    {canDelete && (
-                      <button
-                        onClick={() => {
-                          setSelectedCompany(company);
-                          setShowModal(true);
-                        }}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* B2B Companies List */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <SortButtonRow
+          options={[
+            ['id', 'ID'],
+            ['name', 'Company Name'],
+            ['status', 'Status'],
+            ['created', 'Created Date'],
+            ['createdBy', 'Created By'],
+          ] as const}
+          activeKey={companySortKey}
+          direction={companySortDirection}
+          onSort={toggleCompanySort}
+        />
+        <RecordList isEmpty={sortedCompanies.length === 0}>
+          {sortedCompanies.map((company) => (
+            <RecordCard
+              key={company.id}
+              avatar={<Building2 className="h-4 w-4" />}
+              avatarColorClass="from-blue-600 to-cyan-400"
+              title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{company.name}</span>}
+              titleBadges={
+                <>
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">#{company.id}</span>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(company.status)}`}>
+                    {getStatusText(company.status)}
+                  </span>
+                </>
+              }
+              stats={[
+                { label: 'Created Date', value: company.created.toLocaleDateString() },
+                { label: 'Created By', value: `User #${company.created_by}` },
+              ]}
+              actions={[
+                { key: 'view', icon: Eye, label: 'View', onClick: () => handleViewCompany(company) },
+                { key: 'edit', icon: Pencil, label: 'Edit', onClick: () => {} },
+                { key: 'delete', icon: Trash2, label: 'Delete', onClick: () => { setSelectedCompany(company); setShowModal(true); }, colorClass: 'bg-red-50 text-red-700 hover:bg-red-100', hidden: !canDelete },
+              ]}
+            />
+          ))}
+        </RecordList>
       </div>
 
       {/* Company Details Modal */}

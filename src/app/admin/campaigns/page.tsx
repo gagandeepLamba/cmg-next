@@ -2,10 +2,12 @@
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 import { DmCampaigns, DmCampaignsAttributes } from '@/models/DmCampaigns';
 import { useAuth } from '@/contexts/AuthContext';
 import { isCeo } from '@/lib/roleChecks';
+import { Eye, Pencil, Trash2, Megaphone } from 'lucide-react';
 
 interface Campaign extends DmCampaignsAttributes {}
 
@@ -148,76 +150,47 @@ export default function CampaignsManagement() {
         </div>
       </div>
 
-      {/* Campaigns Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableTh label="ID" sortKey="id" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} />
-                <SortableTh label="Campaign Name" sortKey="name" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} />
-                <SortableTh label="Created Date" sortKey="created" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} />
-                <SortableTh label="Created By" sortKey="createdBy" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} />
-                <SortableTh label="Status" sortKey="status" activeKey={campaignSortKey} direction={campaignSortDirection} onSort={toggleCampaignSort} />
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedCampaigns.map((campaign) => (
-                <tr key={campaign.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      #{campaign.id}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{campaign.campaign}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {campaign.created.toLocaleDateString()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">User #{campaign.created_by}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(campaign.status)}`}>
-                      {getStatusText(campaign.status)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleViewCampaign(campaign)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => handleViewCampaign(campaign)}
-                      className="text-indigo-600 hover:text-indigo-900 mr-3"
-                    >
-                      Edit
-                    </button>
-                    {canDelete && (
-                      <button
-                        onClick={() => {
-                          setSelectedCampaign(campaign);
-                          setShowModal(true);
-                        }}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Campaigns List */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <SortButtonRow
+          options={[
+            ['id', 'ID'],
+            ['name', 'Campaign Name'],
+            ['created', 'Created Date'],
+            ['createdBy', 'Created By'],
+            ['status', 'Status'],
+          ] as const}
+          activeKey={campaignSortKey}
+          direction={campaignSortDirection}
+          onSort={toggleCampaignSort}
+        />
+        <RecordList isEmpty={sortedCampaigns.length === 0}>
+          {sortedCampaigns.map((campaign) => (
+            <RecordCard
+              key={campaign.id}
+              avatar={<Megaphone className="h-4 w-4" />}
+              avatarColorClass="from-indigo-600 to-purple-400"
+              title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{campaign.campaign}</span>}
+              titleBadges={
+                <>
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">#{campaign.id}</span>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(campaign.status)}`}>
+                    {getStatusText(campaign.status)}
+                  </span>
+                </>
+              }
+              stats={[
+                { label: 'Created Date', value: campaign.created.toLocaleDateString() },
+                { label: 'Created By', value: `User #${campaign.created_by}` },
+              ]}
+              actions={[
+                { key: 'view', icon: Eye, label: 'View', onClick: () => handleViewCampaign(campaign) },
+                { key: 'edit', icon: Pencil, label: 'Edit', onClick: () => handleViewCampaign(campaign) },
+                { key: 'delete', icon: Trash2, label: 'Delete', onClick: () => { setSelectedCampaign(campaign); setShowModal(true); }, colorClass: 'bg-red-50 text-red-700 hover:bg-red-100', hidden: !canDelete },
+              ]}
+            />
+          ))}
+        </RecordList>
       </div>
 
       {/* Campaign Details Modal */}
