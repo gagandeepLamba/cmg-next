@@ -1,10 +1,11 @@
 'use client';
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 import { useState, useEffect, useCallback } from 'react';
 import { DmClientsAttributes } from '@/models';
-import { Printer, DollarSign, X, AlertCircle, CheckCircle, Loader2, Receipt, KeyRound, FileCheck2, Send, FileText } from 'lucide-react';
+import { Printer, DollarSign, X, AlertCircle, CheckCircle, Loader2, Receipt, KeyRound, FileCheck2, Send, FileText, Eye } from 'lucide-react';
 import ConversationHistoryModal from '@/components/shared/ConversationHistoryModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { BANK_PAYMENT_OPTIONS, CARD_PAYMENT_OPTIONS } from '@/lib/paymentOptions';
@@ -368,116 +369,68 @@ export default function ClientsManagement() {
         </div>
       </div>
 
-      {/* Clients Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableTh label="Client" sortKey="name" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
-                <SortableTh label="Email" sortKey="email" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
-                <SortableTh label="Nationality" sortKey="nationality" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
-                <SortableTh label="Status" sortKey="status" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
-                <SortableTh label="Total Fee" sortKey="totalFee" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
-                <SortableTh label="Paid" sortKey="paid" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
-                <SortableTh label="Balance Due" sortKey="balanceDue" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
-                <SortableTh label="Receipts" sortKey="receipts" activeKey={clientSortKey} direction={clientSortDirection} onSort={toggleClientSort} />
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedClients.map((client) => {
-                const bal = balances.get(client.id);
-                const hasBalance = bal && Number(bal.payBalance) > 0;
-                return (
-                  <tr key={client.id} className={`hover:bg-gray-50 ${hasBalance ? 'border-l-4 border-l-orange-400' : ''}`}>
-                    {/* Client */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                          <span className="text-sm font-bold text-blue-700">
-                            {client.first_name.charAt(0)}{client.last_name.charAt(0)}
-                          </span>
-                        </div>
-                        <div className="ml-3">
-                          <div className="text-sm font-semibold text-gray-900">{client.first_name} {client.last_name}</div>
-                          <div className="text-xs text-gray-400">#{client.leadId} · {client.city || '—'}</div>
-                        </div>
-                      </div>
-                    </td>
-                    {/* Email */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{client.email}</td>
-                    {/* Nationality */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{client.nationality || '—'}</td>
-                    {/* Status */}
-                    <td className="px-6 py-4 whitespace-nowrap">
+      {/* Clients List */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-4">
+          <SortButtonRow
+            options={[
+              ['name', 'Client'],
+              ['email', 'Email'],
+              ['nationality', 'Nationality'],
+              ['status', 'Status'],
+              ['totalFee', 'Total Fee'],
+              ['paid', 'Paid'],
+              ['balanceDue', 'Balance Due'],
+              ['receipts', 'Receipts'],
+            ] as const}
+            activeKey={clientSortKey}
+            direction={clientSortDirection}
+            onSort={toggleClientSort}
+          />
+          <RecordList isEmpty={sortedClients.length === 0}>
+            {sortedClients.map((client) => {
+              const bal = balances.get(client.id);
+              const hasBalance = bal && Number(bal.payBalance) > 0;
+              return (
+                <RecordCard
+                  key={client.id}
+                  className={hasBalance ? 'border-l-4 border-l-orange-400' : ''}
+                  avatar={<span className="text-sm font-bold">{client.first_name.charAt(0)}{client.last_name.charAt(0)}</span>}
+                  avatarColorClass="from-blue-600 to-cyan-400"
+                  title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{client.first_name} {client.last_name}</span>}
+                  titleBadges={
+                    <>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">#{client.leadId} · {client.city || '—'}</span>
                       <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(client.status)}`}>
                         {client.status === 1 ? 'Active' : 'Inactive'}
                       </span>
-                    </td>
-                    {/* Total Fee */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-800">
-                      {bal ? `AED ${Number(bal.payTotal).toLocaleString()}` : <span className="text-gray-400">—</span>}
-                    </td>
-                    {/* Paid */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {bal ? (
-                        <span className="text-sm font-medium text-green-700">
-                          AED {Number(bal.paidYet).toLocaleString()}
-                        </span>
-                      ) : <span className="text-gray-400 text-sm">—</span>}
-                    </td>
-                    {/* Balance Due */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {bal ? (
+                    </>
+                  }
+                  metaItems={[{ icon: FileCheck2, text: `${client.email} · ${client.nationality || '—'}`, key: 'contact' }]}
+                  stats={[
+                    { label: 'Total Fee', value: bal ? `AED ${Number(bal.payTotal).toLocaleString()}` : '—' },
+                    { label: 'Paid', value: bal ? <span className="text-green-700">AED {Number(bal.paidYet).toLocaleString()}</span> : '—' },
+                    {
+                      label: 'Balance Due',
+                      value: bal ? (
                         hasBalance ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-sm font-bold rounded-lg bg-red-100 text-red-700 border border-red-200">
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            AED {Number(bal.payBalance).toLocaleString()}
-                          </span>
+                          <span className="inline-flex items-center gap-1 font-bold text-red-700"><AlertCircle className="w-3.5 h-3.5" /> AED {Number(bal.payBalance).toLocaleString()}</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-green-100 text-green-700">
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            Fully Paid
-                          </span>
+                          <span className="inline-flex items-center gap-1 text-green-700"><CheckCircle className="w-3.5 h-3.5" /> Fully Paid</span>
                         )
-                      ) : <span className="text-gray-400 text-sm">—</span>}
-                    </td>
-                    {/* Receipts */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {bal ? (
-                        <span className="text-sm text-gray-600">{Number(bal.receiptCount)} receipt{Number(bal.receiptCount) !== 1 ? 's' : ''}</span>
-                      ) : <span className="text-gray-400 text-sm">—</span>}
-                    </td>
-                    {/* Actions */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleViewClient(client)} className="text-xs text-blue-600 hover:text-blue-900 font-medium">View</button>
-                        <button
-                          onClick={() => openOpportunityFlow(client)}
-                          title="Open opportunity flow"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          Opportunity Flow
-                        </button>
-                        {hasBalance && (
-                          <button
-                            onClick={() => openQuickPay(client)}
-                            title={`Collect balance AED ${Number(bal?.payBalance).toLocaleString()} & generate receipt`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-500 text-white hover:bg-orange-600 shadow-sm"
-                          >
-                            <Receipt className="w-3.5 h-3.5" />
-                            Receipt for Balance
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      ) : '—',
+                    },
+                    { label: 'Receipts', value: bal ? `${Number(bal.receiptCount)} receipt${Number(bal.receiptCount) !== 1 ? 's' : ''}` : '—' },
+                  ]}
+                  actions={[
+                    { key: 'view', icon: Eye, label: 'View', onClick: () => handleViewClient(client) },
+                    { key: 'flow', icon: FileText, label: 'Opportunity Flow', onClick: () => openOpportunityFlow(client), colorClass: 'bg-blue-600 text-white hover:bg-blue-700' },
+                    { key: 'pay', icon: Receipt, label: `Collect balance AED ${Number(bal?.payBalance).toLocaleString()} & generate receipt`, onClick: () => openQuickPay(client), colorClass: 'bg-orange-500 text-white hover:bg-orange-600', hidden: !hasBalance },
+                  ]}
+                />
+              );
+            })}
+          </RecordList>
         </div>
       </div>
 
