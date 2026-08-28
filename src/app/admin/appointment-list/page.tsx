@@ -1,7 +1,8 @@
 'use client'
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -213,97 +214,56 @@ export default function AppointmentListPage() {
 
         {/* Appointments List */}
         <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <SortableTh label="Date & Time" sortKey="dateTime" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
-                    <SortableTh label="Lead" sortKey="lead" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
-                    <SortableTh label="Counselor" sortKey="counselor" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
-                    <SortableTh label="Type" sortKey="type" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
-                    <SortableTh label="Status" sortKey="status" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
-                    <SortableTh label="Location" sortKey="location" activeKey={appointmentSortKey} direction={appointmentSortDirection} onSort={toggleAppointmentSort} />
-                    <th className="relative px-6 py-3">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {sortedAppointments.map((appointment) => (
-                    <tr key={appointment.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(appointment.status)}
-                          <div>
-                            <div className="text-sm text-gray-900">
-                              {new Date(appointment.date).toLocaleDateString()}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {appointment.time}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {appointment.leadName}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          ID: {appointment.leadId}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {appointment.counselorName}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          ID: {appointment.counselorId}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {appointment.type}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(appointment.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="text-sm text-gray-900">
-                            {appointment.branch}
-                          </div>
-                          {appointment.crossBranch && (
-                            <Badge className="bg-teal-100 text-teal-800">Cross-Branch</Badge>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {appointment.region}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <Button variant="outline" size="sm">
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              
-              {filteredAppointments.length === 0 && (
-                <div className="text-center py-12">
-                  <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No appointments found</p>
-                </div>
-              )}
-            </div>
+          <CardContent className="p-3">
+            <SortButtonRow
+              options={[
+                ['dateTime', 'Date & Time'],
+                ['lead', 'Lead'],
+                ['counselor', 'Counselor'],
+                ['type', 'Type'],
+                ['status', 'Status'],
+                ['location', 'Location'],
+              ] as const}
+              activeKey={appointmentSortKey}
+              direction={appointmentSortDirection}
+              onSort={toggleAppointmentSort}
+            />
+
+            <RecordList
+              isEmpty={sortedAppointments.length === 0}
+              emptyIcon={Calendar}
+              emptyTitle="No appointments found"
+              emptyDescription="Try changing filters or search terms."
+            >
+              {sortedAppointments.map((appointment) => (
+                <RecordCard
+                  key={appointment.id}
+                  avatar={getStatusIcon(appointment.status)}
+                  avatarColorClass="from-blue-600 to-cyan-400"
+                  title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{appointment.leadName}</span>}
+                  titleBadges={
+                    <>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">ID: {appointment.leadId}</span>
+                      {getStatusBadge(appointment.status)}
+                      {appointment.crossBranch && <Badge className="bg-teal-100 text-teal-800">Cross-Branch</Badge>}
+                    </>
+                  }
+                  metaItems={[
+                    { icon: Calendar, text: new Date(appointment.date).toLocaleDateString() },
+                    { icon: Clock, text: appointment.time || '—' },
+                    { icon: Users, text: `${appointment.counselorName} (ID: ${appointment.counselorId})` },
+                  ]}
+                  stats={[
+                    { label: 'Type', value: appointment.type },
+                    { label: 'Location', value: appointment.branch || '—', sub: appointment.region || undefined },
+                  ]}
+                  actions={[
+                    { key: 'edit', icon: Edit, label: 'Edit', colorClass: 'bg-gray-100 text-gray-700 hover:bg-gray-200' },
+                    { key: 'delete', icon: Trash2, label: 'Delete', colorClass: 'bg-red-50 text-red-700 hover:bg-red-100' },
+                  ]}
+                />
+              ))}
+            </RecordList>
           </CardContent>
         </Card>
       </div>

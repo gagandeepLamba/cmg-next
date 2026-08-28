@@ -2,10 +2,12 @@
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 import { DmEmployerAttributes } from '@/models';
 import { useAuth } from '@/contexts/AuthContext';
 import { isCeo } from '@/lib/roleChecks';
+import { Eye, Pencil, Trash2, Briefcase, Mail } from 'lucide-react';
 
 export default function EmployersManagement() {
   const { user } = useAuth();
@@ -190,86 +192,50 @@ export default function EmployersManagement() {
         </div>
       </div>
 
-      {/* Employers Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableTh label="ID" sortKey="id" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
-                <SortableTh label="Name" sortKey="name" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
-                <SortableTh label="Company" sortKey="company" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
-                <SortableTh label="Email" sortKey="email" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
-                <SortableTh label="Mobile" sortKey="mobile" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
-                <SortableTh label="Website" sortKey="website" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
-                <SortableTh label="Status" sortKey="status" activeKey={employerSortKey} direction={employerSortDirection} onSort={toggleEmployerSort} />
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedEmployers.map((employer) => (
-                <tr key={employer.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      #{employer.id}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{employer.name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{employer.company_name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{employer.email}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{employer.mobile}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <a
-                      href={`http://${employer.website}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 text-sm"
-                    >
-                      {employer.website}
-                    </a>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(employer.status)}`}>
-                      {getStatusText(employer.status)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleViewEmployer(employer)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                    >
-                      View
-                    </button>
-                    <button className="text-indigo-600 hover:text-indigo-900 mr-3">
-                      Edit
-                    </button>
-                    {canDelete && (
-                      <button
-                        onClick={() => {
-                          setSelectedEmployer(employer);
-                          setShowModal(true);
-                        }}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Employers List */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <SortButtonRow
+          options={[
+            ['id', 'ID'],
+            ['name', 'Name'],
+            ['company', 'Company'],
+            ['email', 'Email'],
+            ['mobile', 'Mobile'],
+            ['website', 'Website'],
+            ['status', 'Status'],
+          ] as const}
+          activeKey={employerSortKey}
+          direction={employerSortDirection}
+          onSort={toggleEmployerSort}
+        />
+        <RecordList isEmpty={sortedEmployers.length === 0}>
+          {sortedEmployers.map((employer) => (
+            <RecordCard
+              key={employer.id}
+              avatar={<Briefcase className="h-4 w-4" />}
+              avatarColorClass="from-blue-600 to-cyan-400"
+              title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{employer.name}</span>}
+              titleBadges={
+                <>
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">#{employer.id}</span>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(employer.status)}`}>
+                    {getStatusText(employer.status)}
+                  </span>
+                </>
+              }
+              metaItems={[{ icon: Mail, text: `${employer.email || '—'} · ${employer.mobile || '—'}`, key: 'contact' }]}
+              stats={[
+                { label: 'Company', value: employer.company_name || '—' },
+                { label: 'Website', value: employer.website ? <a href={`http://${employer.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">{employer.website}</a> : '—' },
+              ]}
+              actions={[
+                { key: 'view', icon: Eye, label: 'View', onClick: () => handleViewEmployer(employer) },
+                { key: 'edit', icon: Pencil, label: 'Edit', onClick: () => {} },
+                { key: 'delete', icon: Trash2, label: 'Delete', onClick: () => { setSelectedEmployer(employer); setShowModal(true); }, colorClass: 'bg-red-50 text-red-700 hover:bg-red-100', hidden: !canDelete },
+              ]}
+            />
+          ))}
+        </RecordList>
       </div>
 
       {/* Employer Details Modal */}

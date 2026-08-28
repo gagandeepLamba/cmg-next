@@ -1,7 +1,8 @@
 'use client';
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 import { useState, useEffect } from 'react';
 import { DmEmployeeAttributes } from '@/models';
 import { useBulkSelection } from '@/hooks/useBulkSelection';
@@ -9,6 +10,7 @@ import BulkActionBar from '@/components/admin/BulkActionBar';
 import EmployeeDocumentsPanel from '@/components/admin/EmployeeDocumentsPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { isCeo } from '@/lib/roleChecks';
+import { Building2, Eye, Pencil, Trash2 } from 'lucide-react';
 
 type EmployeeRow = DmEmployeeAttributes & {
   roleName?: string | null;
@@ -334,108 +336,72 @@ export default function EmployeesManagement() {
         </div>
       </div>
 
-      {/* Employees Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={(e) => toggleAll(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                </th>
-                <SortableTh label="Employee" sortKey="name" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
-                <SortableTh label="Email" sortKey="email" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
-                <SortableTh label="Mobile" sortKey="mobile" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
-                <SortableTh label="Department" sortKey="department" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
-                <SortableTh label="Role / Branch" sortKey="role" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
-                <SortableTh label="Status" sortKey="status" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
-                <SortableTh label="Work Mode" sortKey="workMode" activeKey={employeeSortKey} direction={employeeSortDirection} onSort={toggleEmployeeSort} />
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedEmployees.map((employee) => (
-                <tr key={employee.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <input
-                      type="checkbox"
-                      checked={isSelected(employee.id)}
-                      onChange={(e) => toggleOne(employee.id, e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                          <span className="text-sm font-medium text-gray-600">
-                            {employee.name.charAt(0)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{employee.name}</div>
-                        <div className="text-sm text-gray-500">ID: {employee.EID}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{employee.email}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{employee.mobile}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {employee.department === 1 ? 'Sales' : employee.department === 2 ? 'Operations' : 'Admin'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{employee.roleName || 'Unassigned'}</div>
-                    <div className="text-sm text-gray-500">{[employee.branchName, employee.regionName].filter(Boolean).join(' / ')}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(employee.status)}`}>
-                      {employee.status === 1 ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getWorkModeColor(employee.wfh)}`}>
-                      {employee.wfh === 1 ? 'Remote' : 'Office'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleViewEmployee(employee)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => handleEditEmployee(employee)}
-                      className="text-indigo-600 hover:text-indigo-900 mr-3"
-                    >
-                      Edit
-                    </button>
-                    {canDelete && (
-                      <button
-                        onClick={() => handleDeleteEmployee(employee.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Employees List */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm text-gray-600">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={(e) => toggleAll(e.target.checked)}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          Select all
         </div>
+        <SortButtonRow
+          options={[
+            ['name', 'Employee'],
+            ['email', 'Email'],
+            ['mobile', 'Mobile'],
+            ['department', 'Department'],
+            ['role', 'Role / Branch'],
+            ['status', 'Status'],
+            ['workMode', 'Work Mode'],
+          ] as const}
+          activeKey={employeeSortKey}
+          direction={employeeSortDirection}
+          onSort={toggleEmployeeSort}
+        />
+        <RecordList isEmpty={sortedEmployees.length === 0}>
+          {sortedEmployees.map((employee) => (
+            <RecordCard
+              key={employee.id}
+              avatar={
+                <input
+                  type="checkbox"
+                  checked={isSelected(employee.id)}
+                  onChange={(e) => toggleOne(employee.id, e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              }
+              avatarColorClass="from-gray-100 to-gray-100"
+              title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{employee.name}</span>}
+              titleBadges={
+                <>
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">ID: {employee.EID}</span>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(employee.status)}`}>
+                    {employee.status === 1 ? 'Active' : 'Inactive'}
+                  </span>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getWorkModeColor(employee.wfh)}`}>
+                    {employee.wfh === 1 ? 'Remote' : 'Office'}
+                  </span>
+                </>
+              }
+              metaItems={[
+                { icon: Building2, text: `${employee.email || '—'} · ${employee.mobile || '—'}`, key: 'contact' },
+              ]}
+              stats={[
+                { label: 'Department', value: employee.department === 1 ? 'Sales' : employee.department === 2 ? 'Operations' : 'Admin' },
+                { label: 'Role', value: employee.roleName || 'Unassigned' },
+                { label: 'Branch / Region', value: [employee.branchName, employee.regionName].filter(Boolean).join(' / ') || '—' },
+              ]}
+              actions={[
+                { key: 'view', icon: Eye, label: 'View', onClick: () => handleViewEmployee(employee) },
+                { key: 'edit', icon: Pencil, label: 'Edit', onClick: () => handleEditEmployee(employee) },
+                { key: 'delete', icon: Trash2, label: 'Delete', onClick: () => handleDeleteEmployee(employee.id), colorClass: 'bg-red-50 text-red-700 hover:bg-red-100', hidden: !canDelete },
+              ]}
+            />
+          ))}
+        </RecordList>
       </div>
 
       <BulkActionBar

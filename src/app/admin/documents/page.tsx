@@ -7,7 +7,8 @@ import {
 import { uploadFileToBlob } from '@/lib/uploadToBlob';
 import { useAuth } from '@/contexts/AuthContext';
 import { isCeo } from '@/lib/roleChecks';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 
 interface DocumentRow {
   id: number;
@@ -161,58 +162,44 @@ export default function DocumentsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableTh label="Document" sortKey="document" activeKey={documentSortKey} direction={documentSortDirection} onSort={toggleDocumentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
-                <SortableTh label="Client" sortKey="client" activeKey={documentSortKey} direction={documentSortDirection} onSort={toggleDocumentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
-                <SortableTh label="Category" sortKey="category" activeKey={documentSortKey} direction={documentSortDirection} onSort={toggleDocumentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
-                <SortableTh label="Uploaded" sortKey="uploaded" activeKey={documentSortKey} direction={documentSortDirection} onSort={toggleDocumentSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {documents.length === 0 && (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                  {isLoading ? 'Loading...' : 'No documents found.'}
-                </td></tr>
-              )}
-              {sortedDocuments.map((doc) => (
-                <tr key={`${doc.source}-${doc.id}`} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="p-2 bg-gray-100 rounded-lg mr-3"><FileText className="w-5 h-5 text-gray-600" /></div>
-                      <div className="text-sm font-medium text-gray-900">{doc.name}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doc.client || `Lead #${doc.leadId}`}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full capitalize">{doc.category || doc.source}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {doc.created ? new Date(doc.created).toLocaleDateString() : '—'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center space-x-3">
-                      {doc.file && (
-                        <a href={doc.file} target="_blank" rel="noreferrer" className="text-gray-600 hover:text-gray-800">
-                          <Download className="w-4 h-4" />
-                        </a>
-                      )}
-                      {canDelete && (
-                        <button onClick={() => handleDelete(doc)} className="text-red-600 hover:text-red-800">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="bg-white rounded-lg shadow p-4">
+        <SortButtonRow
+          options={[
+            ['document', 'Document'],
+            ['client', 'Client'],
+            ['category', 'Category'],
+            ['uploaded', 'Uploaded'],
+          ] as const}
+          activeKey={documentSortKey}
+          direction={documentSortDirection}
+          onSort={toggleDocumentSort}
+        />
+        <RecordList
+          loading={isLoading}
+          isEmpty={!isLoading && documents.length === 0}
+          emptyIcon={FileText}
+          emptyTitle="No documents found"
+        >
+          {sortedDocuments.map((doc) => (
+            <RecordCard
+              key={`${doc.source}-${doc.id}`}
+              avatar={<FileText className="h-4 w-4" />}
+              avatarColorClass="from-gray-600 to-gray-400"
+              title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{doc.name}</span>}
+              titleBadges={
+                <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full capitalize">{doc.category || doc.source}</span>
+              }
+              stats={[
+                { label: 'Client', value: doc.client || `Lead #${doc.leadId}` },
+                { label: 'Uploaded', value: doc.created ? new Date(doc.created).toLocaleDateString() : '—' },
+              ]}
+              actions={[
+                { key: 'download', icon: Download, label: doc.file ? 'Download' : 'No file', href: doc.file || undefined, target: '_blank', disabled: !doc.file },
+                { key: 'delete', icon: Trash2, label: 'Delete', onClick: () => handleDelete(doc), colorClass: 'bg-red-50 text-red-700 hover:bg-red-100', hidden: !canDelete },
+              ]}
+            />
+          ))}
+        </RecordList>
       </div>
 
       {showUpload && (
