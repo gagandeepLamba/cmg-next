@@ -1,6 +1,7 @@
 'use client'
 
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th'
+import { useSortableData } from '@/components/ui/sortable-th'
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList'
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -202,74 +203,58 @@ export default function CrossBranchAppointmentsPage() {
       </Card>
 
       <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <SortableTh label="Date & Time" sortKey="dateTime" activeKey={sortKey} direction={sortDirection} onSort={toggleSort} />
-                  <SortableTh label="Lead" sortKey="lead" activeKey={sortKey} direction={sortDirection} onSort={toggleSort} />
-                  <SortableTh label="Counselor" sortKey="counselor" activeKey={sortKey} direction={sortDirection} onSort={toggleSort} />
-                  <SortableTh label="Home Branch" sortKey="homeBranch" activeKey={sortKey} direction={sortDirection} onSort={toggleSort} />
-                  <SortableTh label="Assigned Branch" sortKey="assignedBranch" activeKey={sortKey} direction={sortDirection} onSort={toggleSort} />
-                  <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={sortDirection} onSort={toggleSort} />
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acknowledgement</th>
-                  <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sorted.map((a) => (
-                  <tr key={a.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-gray-400" />
-                        <div>
-                          <div className="text-sm text-gray-900">{a.date ? new Date(a.date).toLocaleDateString() : '—'}</div>
-                          <div className="text-sm text-gray-500">{a.time}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{a.leadName}</div>
-                      {a.notes && <div className="text-xs text-gray-500 max-w-[200px] truncate" title={a.notes}>{a.notes}</div>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{a.counselorName}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{a.homeBranch || '—'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{a.assignedBranch || '—'}</div>
-                      {a.assignedByName && <div className="text-xs text-gray-500">by {a.assignedByName}</div>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">{statusBadge(a.status)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {a.acknowledged ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full">
-                          <ShieldCheck className="w-3.5 h-3.5" /> Acknowledged
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
-                          <ShieldAlert className="w-3.5 h-3.5" /> Pending
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                      {!a.acknowledged && (
-                        <Button size="sm" onClick={() => handleAcknowledge(a)} disabled={acknowledgingId === a.id}>
-                          {acknowledgingId === a.id ? 'Acknowledging…' : 'Acknowledge'}
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {filtered.length === 0 && (
-              <div className="text-center py-12">
-                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">No cross-branch appointments found</p>
-              </div>
-            )}
-          </div>
+        <CardContent className="p-4">
+          <SortButtonRow
+            options={[
+              ['dateTime', 'Date & Time'],
+              ['lead', 'Lead'],
+              ['counselor', 'Counselor'],
+              ['homeBranch', 'Home Branch'],
+              ['assignedBranch', 'Assigned Branch'],
+              ['status', 'Status'],
+            ] as const}
+            activeKey={sortKey}
+            direction={sortDirection}
+            onSort={toggleSort}
+          />
+          <RecordList
+            isEmpty={filtered.length === 0}
+            emptyIcon={Calendar}
+            emptyTitle="No cross-branch appointments found"
+          >
+            {sorted.map((a) => (
+              <RecordCard
+                key={a.id}
+                avatar={<Clock className="h-4 w-4" />}
+                avatarColorClass="from-blue-600 to-cyan-400"
+                title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{a.leadName}</span>}
+                titleBadges={
+                  <>
+                    {statusBadge(a.status)}
+                    {a.acknowledged ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Acknowledged
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
+                        <ShieldAlert className="w-3.5 h-3.5" /> Pending
+                      </span>
+                    )}
+                  </>
+                }
+                metaItems={a.notes ? [{ icon: Globe, text: a.notes, key: 'notes' }] : []}
+                stats={[
+                  { label: 'Date & Time', value: a.date ? new Date(a.date).toLocaleDateString() : '—', sub: a.time || undefined },
+                  { label: 'Counselor', value: a.counselorName },
+                  { label: 'Home Branch', value: a.homeBranch || '—' },
+                  { label: 'Assigned Branch', value: a.assignedBranch || '—', sub: a.assignedByName ? `by ${a.assignedByName}` : undefined },
+                ]}
+                actions={[
+                  { key: 'ack', icon: ShieldCheck, label: acknowledgingId === a.id ? 'Acknowledging…' : 'Acknowledge', onClick: () => handleAcknowledge(a), disabled: acknowledgingId === a.id, hidden: a.acknowledged },
+                ]}
+              />
+            ))}
+          </RecordList>
         </CardContent>
       </Card>
     </div>

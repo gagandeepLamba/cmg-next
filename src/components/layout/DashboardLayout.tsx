@@ -135,7 +135,6 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'Clients', href: '/admin/clients', icon: UserCheck, permission: 'clients.view' },
         { name: 'Follow-ups', href: '/admin/follow-ups', icon: Bell, permission: 'leads.view' },
         { name: 'Appointments', href: '/admin/appointments', icon: Calendar, permission: 'appointments.manage' },
-        { name: 'Cross-Branch Appointments', href: '/admin/cross-branch-appointments', icon: Globe, permission: 'appointments.manage' },
         { name: 'Calendar', href: '/admin/calendar', icon: Calendar, permission: 'appointments.view' },
         { name: 'Agreements', href: '/admin/agreements', icon: FileCheck, permission: 'agreements.view' },
         { name: 'Sample Agreement', href: '/admin/sample-agreement', icon: FileText, permission: 'agreements.view' },
