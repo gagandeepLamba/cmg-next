@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { isBranchManagerOrCeo, isCeo, isFoe } from '@/lib/roleChecks';
 import { DollarSign, RefreshCw, AlertCircle, CreditCard, Search } from 'lucide-react';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 
 interface BalanceRow {
   opportunityId: number;
@@ -119,57 +120,52 @@ export default function BalancePaymentsPage() {
       </div>
 
       <div className="overflow-hidden rounded-lg bg-white shadow">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableTh label="Client" sortKey="client" activeKey={balanceSortKey} direction={balanceSortDirection} onSort={toggleBalanceSort} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
-                <SortableTh label="Agreement #" sortKey="agreementNumber" activeKey={balanceSortKey} direction={balanceSortDirection} onSort={toggleBalanceSort} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
-                <SortableTh label="Service" sortKey="service" activeKey={balanceSortKey} direction={balanceSortDirection} onSort={toggleBalanceSort} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
-                <SortableTh label="Branch" sortKey="branch" activeKey={balanceSortKey} direction={balanceSortDirection} onSort={toggleBalanceSort} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
-                <SortableTh label="Counselor" sortKey="counselor" activeKey={balanceSortKey} direction={balanceSortDirection} onSort={toggleBalanceSort} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
-                <SortableTh label="Total" sortKey="total" activeKey={balanceSortKey} direction={balanceSortDirection} onSort={toggleBalanceSort} className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500" />
-                <SortableTh label="Paid" sortKey="paid" activeKey={balanceSortKey} direction={balanceSortDirection} onSort={toggleBalanceSort} className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500" />
-                <SortableTh label="Balance" sortKey="balance" activeKey={balanceSortKey} direction={balanceSortDirection} onSort={toggleBalanceSort} className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500" />
-                <SortableTh label="Due Date" sortKey="dueDate" activeKey={balanceSortKey} direction={balanceSortDirection} onSort={toggleBalanceSort} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500" />
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {sortedRows.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-400">
-                    {loading ? 'Loading…' : rows.length === 0 ? 'No outstanding balances found.' : 'No results match your search.'}
-                  </td>
-                </tr>
-              ) : sortedRows.map((row) => (
-                <tr key={row.opportunityId} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm">
-                    <div className="font-medium text-gray-900">{row.fname} {row.lname}</div>
-                    <div className="text-xs text-gray-500">{row.email}</div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{row.agreementNumber || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{row.serviceName || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{row.branchName || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{row.assignedEmployeeName || '—'}</td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-900">{fmt(row.payTotal)}</td>
-                  <td className="px-4 py-3 text-right text-sm text-green-700">{fmt(row.paidYet)}</td>
-                  <td className="px-4 py-3 text-right text-sm font-semibold text-red-600">{fmt(row.payBalance)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <button
-                      onClick={() => router.push(`/admin/balance-payments/pay?leadId=${row.leadId}&opportunityId=${row.opportunityId}`)}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                    >
-                      <CreditCard className="h-3.5 w-3.5" /> Make Payment
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="p-3">
+          <SortButtonRow
+            options={[
+              ['client', 'Client'],
+              ['agreementNumber', 'Agreement #'],
+              ['service', 'Service'],
+              ['branch', 'Branch'],
+              ['counselor', 'Counselor'],
+              ['total', 'Total'],
+              ['paid', 'Paid'],
+              ['balance', 'Balance'],
+              ['dueDate', 'Due Date'],
+            ] as const}
+            activeKey={balanceSortKey}
+            direction={balanceSortDirection}
+            onSort={toggleBalanceSort}
+          />
+          <RecordList
+            loading={loading}
+            isEmpty={!loading && sortedRows.length === 0}
+            emptyIcon={DollarSign}
+            emptyTitle="No outstanding balances found"
+          >
+            {sortedRows.map((row) => (
+              <RecordCard
+                key={row.opportunityId}
+                avatar={<DollarSign className="h-4 w-4" />}
+                avatarColorClass="from-blue-600 to-cyan-400"
+                title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{row.fname} {row.lname}</span>}
+                titleBadges={row.agreementNumber ? <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{row.agreementNumber}</span> : undefined}
+                metaItems={[{ icon: AlertCircle, text: row.email, key: 'email' }]}
+                stats={[
+                  { label: 'Service', value: row.serviceName || '—' },
+                  { label: 'Branch', value: row.branchName || '—' },
+                  { label: 'Counselor', value: row.assignedEmployeeName || '—' },
+                  { label: 'Total', value: fmt(row.payTotal) },
+                  { label: 'Paid', value: <span className="text-green-700">{fmt(row.paidYet)}</span> },
+                  { label: 'Balance', value: <span className="font-bold text-red-600">{fmt(row.payBalance)}</span> },
+                  { label: 'Due Date', value: row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '—' },
+                ]}
+                actions={[
+                  { key: 'pay', icon: CreditCard, label: 'Make Payment', onClick: () => router.push(`/admin/balance-payments/pay?leadId=${row.leadId}&opportunityId=${row.opportunityId}`), colorClass: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+                ]}
+              />
+            ))}
+          </RecordList>
         </div>
       </div>
     </div>

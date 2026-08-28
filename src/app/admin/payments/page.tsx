@@ -1,10 +1,12 @@
 'use client';
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { Wallet, FileText, User, Receipt } from 'lucide-react';
 
 interface ThirdPartyPayment {
   id: number;
@@ -374,204 +376,139 @@ export default function PaymentsManagement() {
         </div>
       </div>
 
-      {/* Opportunity Payments Table */}
+      {/* Opportunity Payments */}
       {activeTab === 'opportunity' && (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <SortableTh label="Payment" sortKey="payment" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
-                  <SortableTh label="Client" sortKey="client" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
-                  <SortableTh label="Service" sortKey="service" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
-                  <SortableTh label="Amount" sortKey="amount" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
-                  <SortableTh label="Balance" sortKey="balance" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
-                  <SortableTh label="Method" sortKey="method" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
-                  <SortableTh label="Status" sortKey="status" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
-                  <SortableTh label="Verification" sortKey="verification" activeKey={oppPaymentSortKey} direction={oppPaymentSortDirection} onSort={toggleOppPaymentSort} />
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedOpportunityPayments.map((payment) => (
-                  <tr key={payment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{payment.paymentNumber}</div>
-                      <div className="text-sm text-gray-500">{payment.receiptNumber || 'No receipt'}</div>
-                      <div className="text-xs text-gray-400">Opportunity #{payment.opportunityId}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{payment.clientName || 'Client'}</div>
-                      <div className="text-sm text-gray-500">{payment.clientPhone || payment.clientEmail || ''}</div>
-                      <div className="text-xs text-gray-400">{payment.consultantName || payment.createdEmployee?.name || ''}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{getServiceLabel(payment.serviceName) || payment.dmcOpportunity?.opportunityName || 'Service'}</div>
-                      <div className="text-sm text-gray-500">{payment.branchName || ''}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {payment.currency} {payment.paidAmount.toFixed(2)}
-                      </div>
-                      <div className="text-xs text-gray-500">Total {payment.totalAmount.toFixed(2)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {payment.currency} {payment.remainingBalance.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPaymentMethodColor(payment.paymentMethod)}`}>
-                        {payment.paymentMethod || 'N/A'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${payment.status === 'paid' || payment.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                        {payment.status}
-                      </span>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {payment.paymentDate?.toLocaleDateString() || 'No date'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${
-                        payment.accountantStatus === 'verified' ? 'bg-green-100 text-green-800' :
-                        payment.accountantStatus === 'rejected' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {payment.accountantStatus === 'verified' ? 'Approved' : payment.accountantStatus === 'rejected' ? 'Rejected' : 'Pending'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {filteredOpportunityPayments.length === 0 && (
-            <div className="text-center py-12 text-sm text-gray-500">
-              No opportunity payments found.
-            </div>
-          )}
+        <div className="bg-white rounded-lg shadow p-3">
+          <SortButtonRow
+            options={[
+              ['payment', 'Payment'], ['client', 'Client'], ['service', 'Service'],
+              ['amount', 'Amount'], ['balance', 'Balance'], ['method', 'Method'],
+              ['status', 'Status'], ['verification', 'Verification'],
+            ] as const}
+            activeKey={oppPaymentSortKey}
+            direction={oppPaymentSortDirection}
+            onSort={toggleOppPaymentSort}
+          />
+          <RecordList isEmpty={filteredOpportunityPayments.length === 0} emptyTitle="No opportunity payments found">
+            {sortedOpportunityPayments.map((payment) => (
+              <RecordCard
+                key={payment.id}
+                avatar={<Wallet className="h-4 w-4" />}
+                avatarColorClass="from-blue-600 to-cyan-400"
+                title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{payment.paymentNumber}</span>}
+                titleBadges={
+                  <>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{payment.receiptNumber || 'No receipt'}</span>
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getPaymentMethodColor(payment.paymentMethod)}`}>
+                      {payment.paymentMethod || 'N/A'}
+                    </span>
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${payment.status === 'paid' || payment.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                      {payment.status}
+                    </span>
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full capitalize ${
+                      payment.accountantStatus === 'verified' ? 'bg-green-100 text-green-800' :
+                      payment.accountantStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {payment.accountantStatus === 'verified' ? 'Approved' : payment.accountantStatus === 'rejected' ? 'Rejected' : 'Pending'}
+                    </span>
+                  </>
+                }
+                metaItems={[
+                  { icon: FileText, text: `Opportunity #${payment.opportunityId}`, key: 'opp' },
+                  { icon: User, text: `${payment.clientName || 'Client'}${payment.clientPhone || payment.clientEmail ? ` · ${payment.clientPhone || payment.clientEmail}` : ''}`, key: 'client' },
+                  { icon: User, text: payment.consultantName || payment.createdEmployee?.name || '—', key: 'consultant' },
+                ]}
+                stats={[
+                  { label: 'Service', value: getServiceLabel(payment.serviceName) || payment.dmcOpportunity?.opportunityName || 'Service', sub: payment.branchName || undefined },
+                  { label: 'Amount', value: `${payment.currency} ${payment.paidAmount.toFixed(2)}`, sub: `Total ${payment.totalAmount.toFixed(2)}` },
+                  { label: 'Balance', value: `${payment.currency} ${payment.remainingBalance.toFixed(2)}` },
+                  { label: 'Payment Date', value: payment.paymentDate?.toLocaleDateString() || 'No date' },
+                ]}
+              />
+            ))}
+          </RecordList>
         </div>
       )}
 
-      {/* Third Party Payments Table */}
+      {/* Third Party Payments */}
       {activeTab === 'thirdparty' && (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <SortableTh label="Receipt" sortKey="receipt" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
-                  <SortableTh label="Lead ID" sortKey="leadId" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
-                  <SortableTh label="Amount" sortKey="amount" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
-                  <SortableTh label="Tax" sortKey="tax" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
-                  <SortableTh label="Payment Method" sortKey="method" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
-                  <SortableTh label="Date" sortKey="date" activeKey={thirdPartyPaymentSortKey} direction={thirdPartyPaymentSortDirection} onSort={toggleThirdPartyPaymentSort} />
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedThirdPartyPayments.map((payment) => (
-                  <tr key={payment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{payment.receipt}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{payment.leadId}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{currencyCode} {payment.amount.toFixed(2)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{currencyCode} {payment.Tax.toFixed(2)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPaymentMethodColor(payment.payMethod)}`}>
-                        {payment.payMethod}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {payment.date?.toLocaleDateString() || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleViewPayment(payment)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        View
-                      </button>
-                      <button className="text-indigo-600 hover:text-indigo-900 mr-3">
-                        Edit
-                      </button>
-                      <button className="text-red-600 hover:text-red-900">
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {filteredPayments.length === 0 && (
-            <div className="text-center py-12 text-sm text-gray-500">
-              No third party payments found.
-            </div>
-          )}
+        <div className="bg-white rounded-lg shadow p-3">
+          <SortButtonRow
+            options={[
+              ['receipt', 'Receipt'], ['leadId', 'Lead ID'], ['amount', 'Amount'],
+              ['tax', 'Tax'], ['method', 'Payment Method'], ['date', 'Date'],
+            ] as const}
+            activeKey={thirdPartyPaymentSortKey}
+            direction={thirdPartyPaymentSortDirection}
+            onSort={toggleThirdPartyPaymentSort}
+          />
+          <RecordList isEmpty={filteredPayments.length === 0} emptyTitle="No third party payments found">
+            {sortedThirdPartyPayments.map((payment) => (
+              <RecordCard
+                key={payment.id}
+                avatar={<Receipt className="h-4 w-4" />}
+                avatarColorClass="from-purple-600 to-fuchsia-400"
+                title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{payment.receipt}</span>}
+                titleBadges={
+                  <>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">Lead #{payment.leadId}</span>
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getPaymentMethodColor(payment.payMethod)}`}>
+                      {payment.payMethod}
+                    </span>
+                  </>
+                }
+                stats={[
+                  { label: 'Amount', value: `${currencyCode} ${payment.amount.toFixed(2)}` },
+                  { label: 'Tax', value: `${currencyCode} ${payment.Tax.toFixed(2)}` },
+                  { label: 'Date', value: payment.date?.toLocaleDateString() || 'N/A' },
+                ]}
+                actions={[
+                  { key: 'view', icon: FileText, label: 'View', onClick: () => handleViewPayment(payment), colorClass: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+                  { key: 'edit', icon: FileText, label: 'Edit', onClick: () => {}, colorClass: 'bg-gray-100 text-gray-700 hover:bg-gray-200' },
+                  { key: 'delete', icon: FileText, label: 'Delete', onClick: () => {}, colorClass: 'bg-red-50 text-red-700 hover:bg-red-100' },
+                ]}
+              />
+            ))}
+          </RecordList>
         </div>
       )}
 
-      {/* Lead Fees Table */}
+      {/* Lead Fees */}
       {activeTab === 'fees' && (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <SortableTh label="Lead ID" sortKey="leadId" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
-                  <SortableTh label="Total Amount" sortKey="totalAmount" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
-                  <SortableTh label="Tax Amount" sortKey="taxAmount" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
-                  <SortableTh label="Paid Amount" sortKey="paidAmount" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
-                  <SortableTh label="Professional Amount" sortKey="professionalAmount" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
-                  <SortableTh label="Status" sortKey="status" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
-                  <SortableTh label="Payment Date" sortKey="paymentDate" activeKey={feeSortKey} direction={feeSortDirection} onSort={toggleFeeSort} />
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedFees.map((fee) => (
-                  <tr key={fee.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{fee.lead}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{currencyCode} {fee.amount.toFixed(2)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{currencyCode} {fee.taxAmt.toFixed(2)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{currencyCode} {fee.paidAmt.toFixed(2)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{currencyCode} {fee.profAmt.toFixed(2)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(fee.status)}`}>
-                        {fee.status === 1 ? 'Paid' : 'Pending'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(fee.payDate).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {filteredFees.length === 0 && (
-            <div className="text-center py-12 text-sm text-gray-500">
-              No lead fees found.
-            </div>
-          )}
+        <div className="bg-white rounded-lg shadow p-3">
+          <SortButtonRow
+            options={[
+              ['leadId', 'Lead ID'], ['totalAmount', 'Total Amount'], ['taxAmount', 'Tax Amount'],
+              ['paidAmount', 'Paid Amount'], ['professionalAmount', 'Professional Amount'],
+              ['status', 'Status'], ['paymentDate', 'Payment Date'],
+            ] as const}
+            activeKey={feeSortKey}
+            direction={feeSortDirection}
+            onSort={toggleFeeSort}
+          />
+          <RecordList isEmpty={filteredFees.length === 0} emptyTitle="No lead fees found">
+            {sortedFees.map((fee) => (
+              <RecordCard
+                key={fee.id}
+                avatar={<Wallet className="h-4 w-4" />}
+                avatarColorClass="from-emerald-600 to-teal-400"
+                title={<span className="min-w-0 break-words text-base font-bold text-gray-950">Lead #{fee.lead}</span>}
+                titleBadges={
+                  <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(fee.status)}`}>
+                    {fee.status === 1 ? 'Paid' : 'Pending'}
+                  </span>
+                }
+                stats={[
+                  { label: 'Total Amount', value: `${currencyCode} ${fee.amount.toFixed(2)}` },
+                  { label: 'Tax Amount', value: `${currencyCode} ${fee.taxAmt.toFixed(2)}` },
+                  { label: 'Paid Amount', value: `${currencyCode} ${fee.paidAmt.toFixed(2)}` },
+                  { label: 'Professional Amount', value: `${currencyCode} ${fee.profAmt.toFixed(2)}` },
+                ]}
+                metaItems={[{ icon: FileText, text: `Payment date: ${new Date(fee.payDate).toLocaleDateString()}`, key: 'date' }]}
+              />
+            ))}
+          </RecordList>
         </div>
       )}
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 import { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle, XCircle, Clock, FileCheck, User,
@@ -253,180 +254,113 @@ export default function ComplianceApprovalsPage() {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableTh label="#" sortKey="id" activeKey={approvalSortKey} direction={approvalSortDirection} onSort={toggleApprovalSort} />
-                <SortableTh label="Lead / Opportunity" sortKey="lead" activeKey={approvalSortKey} direction={approvalSortDirection} onSort={toggleApprovalSort} />
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Signed Agreement</th>
-                <SortableTh label="Submitted" sortKey="submitted" activeKey={approvalSortKey} direction={approvalSortDirection} onSort={toggleApprovalSort} />
-                <SortableTh label="Status" sortKey="status" activeKey={approvalSortKey} direction={approvalSortDirection} onSort={toggleApprovalSort} />
-                <SortableTh label="Reviewer" sortKey="reviewer" activeKey={approvalSortKey} direction={approvalSortDirection} onSort={toggleApprovalSort} />
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedApprovals.map(a => {
-                const isExpanded = expandedId === a.id;
-                const isPending = a.status === 'pending' || a.status === 'under_review';
-                return (
-                  <>
-                    <tr key={a.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-500">{a.id}</td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm font-medium text-gray-900">{a.clientName?.trim() || `Lead #${a.leadId}`}</div>
-                        <div className="text-xs text-gray-500">Lead #{a.leadId}</div>
-                        {a.opportunityId && (
-                          <div className="text-xs text-blue-600">Opp #{a.opportunityId}</div>
-                        )}
-                        {a.counselorName && (
-                          <div className="text-xs text-indigo-600 mt-0.5">Counselor: {a.counselorName}</div>
-                        )}
-                        {a.signatureDate && (
-                          <div className="text-xs text-gray-400 mt-0.5">
-                            Signed: {new Date(a.signatureDate).toLocaleDateString()}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {a.signedAgreementUrl ? (
-                          <a href={a.signedAgreementUrl} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm">
-                            <ExternalLink className="w-3 h-3" /> View Agreement
-                          </a>
-                        ) : (
-                          <span className="text-gray-400 text-xs italic">No file</span>
-                        )}
-                        {a.clientSignature && (
-                          <div className="text-xs text-gray-500 mt-0.5">Sig: {a.clientSignature}</div>
-                        )}
-                        {a.proofOfPaymentUrl && (
-                          <a href={a.proofOfPaymentUrl} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-green-700 hover:text-green-900 text-xs mt-1">
-                            <ExternalLink className="w-3 h-3" /> View Receipt Proof
-                          </a>
-                        )}
-                        {a.counsellorSheetUrl && (
-                          <a href={a.counsellorSheetUrl} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-indigo-700 hover:text-indigo-900 text-xs mt-1">
+        <div className="p-4">
+          <SortButtonRow
+            options={[
+              ['id', '#'],
+              ['lead', 'Lead / Opportunity'],
+              ['submitted', 'Submitted'],
+              ['status', 'Status'],
+              ['reviewer', 'Reviewer'],
+            ] as const}
+            activeKey={approvalSortKey}
+            direction={approvalSortDirection}
+            onSort={toggleApprovalSort}
+          />
+          <RecordList isEmpty={filtered.length === 0} emptyIcon={ShieldCheck} emptyTitle="No compliance approvals found" emptyDescription="Compliance submissions appear here after counselors submit signed agreements">
+            {sortedApprovals.map(a => {
+              const isExpanded = expandedId === a.id;
+              const isPending = a.status === 'pending' || a.status === 'under_review';
+              return (
+                <RecordCard
+                  key={a.id}
+                  avatar={STATUS_ICONS[a.status]}
+                  avatarColorClass="from-blue-600 to-cyan-400"
+                  title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{a.clientName?.trim() || `Lead #${a.leadId}`}</span>}
+                  titleBadges={
+                    <>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">#{a.id}</span>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[a.status] || 'bg-gray-100 text-gray-700'}`}>
+                        {a.status.replace('_', ' ')}
+                      </span>
+                    </>
+                  }
+                  metaItems={[
+                    { icon: User, text: `Lead #${a.leadId}${a.opportunityId ? ` · Opp #${a.opportunityId}` : ''}${a.counselorName ? ` · Counselor: ${a.counselorName}` : ''}`, key: 'lead' },
+                  ]}
+                  stats={[
+                    {
+                      label: 'Signed Agreement',
+                      value: a.signedAgreementUrl ? (
+                        <a href={a.signedAgreementUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:text-blue-800">
+                          <ExternalLink className="w-3 h-3" /> View
+                        </a>
+                      ) : <span className="italic text-gray-400">No file</span>,
+                      sub: a.signatureDate ? `Signed: ${new Date(a.signatureDate).toLocaleDateString()}` : undefined,
+                    },
+                    { label: 'Submitted', value: new Date(a.submittedAt).toLocaleDateString(), sub: a.submittedBy ? `by #${a.submittedBy}` : undefined },
+                    {
+                      label: 'Reviewer',
+                      value: a.reviewedBy ? a.reviewedBy : <span className="italic text-gray-400">Not reviewed</span>,
+                      sub: a.reviewedBy ? `${a.reviewerRole || ''}${a.reviewedAt ? ' · ' + new Date(a.reviewedAt).toLocaleDateString() : ''}` : undefined,
+                    },
+                  ]}
+                  extra={isExpanded ? (
+                    <div className="mt-3 grid gap-3 rounded-lg bg-gray-50 p-3 text-sm md:grid-cols-4">
+                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                        <div className="font-semibold text-gray-800 mb-1">Receipt Verification</div>
+                        <div className="text-gray-600">Receipt: {a.receiptNumber || a.paymentNumber || 'N/A'}</div>
+                        <div className="text-gray-600">Paid: {a.currency || 'AED'} {Number(a.paidAmount || 0).toLocaleString()}</div>
+                        <div className="text-gray-600 capitalize">Accounts: {a.accountantStatus || 'pending'}</div>
+                        {a.accountantVerifiedAt && <div className="text-xs text-gray-400">Verified: {new Date(a.accountantVerifiedAt).toLocaleString()}</div>}
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                        <div className="font-semibold text-gray-800 mb-1">Counselor Summary</div>
+                        <p className="whitespace-pre-wrap text-gray-600">{a.conversationSummary || 'No counselor summary found.'}</p>
+                        {a.clientCommitments && <p className="mt-2 text-xs text-gray-500"><span className="font-medium">Commitments:</span> {a.clientCommitments}</p>}
+                        {a.nextAction && <p className="mt-1 text-xs text-gray-500"><span className="font-medium">Next:</span> {a.nextAction}</p>}
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                        <div className="font-semibold text-gray-800 mb-1">Review Notes</div>
+                        <p className="whitespace-pre-wrap text-gray-600">{a.reviewNotes || 'No review notes yet.'}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                        <div className="font-semibold text-gray-800 mb-1">Counsellor Sheet</div>
+                        {a.counsellorSheetUrl ? (
+                          <a href={a.counsellorSheetUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-indigo-700 hover:text-indigo-900">
                             <ExternalLink className="w-3 h-3" /> View Counsellor Sheet
                           </a>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{new Date(a.submittedAt).toLocaleDateString()}</div>
-                        <div className="text-xs text-gray-400">{new Date(a.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                        {a.submittedBy && (
-                          <div className="text-xs text-gray-500 flex items-center gap-0.5 mt-0.5">
-                            <User className="w-3 h-3" /> #{a.submittedBy}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          {STATUS_ICONS[a.status]}
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[a.status] || 'bg-gray-100 text-gray-700'}`}>
-                            {a.status.replace('_', ' ')}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {a.reviewedBy ? (
-                          <div>
-                            <div className="text-sm text-gray-900">{a.reviewedBy}</div>
-                            <div className="text-xs text-gray-400">{a.reviewerRole}</div>
-                            {a.reviewedAt && (
-                              <div className="text-xs text-gray-400">{new Date(a.reviewedAt).toLocaleDateString()}</div>
-                            )}
-                          </div>
                         ) : (
-                          <span className="text-gray-400 text-xs italic">Not reviewed</span>
+                          <p className="text-gray-400 italic">Not uploaded.</p>
                         )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col gap-1">
-                          {isPending && canReview && (
-                            <>
-                              <button onClick={() => { setError(''); setModal({ id: a.id, action: 'approve' }); }}
-                                disabled={actionLoading === a.id}
-                                className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 disabled:opacity-50">
-                                <CheckCircle className="w-3 h-3" /> Approve
-                              </button>
-                              {a.status === 'pending' && (
-                                <button onClick={() => { setError(''); setModal({ id: a.id, action: 'under_review' }); }}
-                                  disabled={actionLoading === a.id}
-                                  className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50">
-                                  <AlertCircle className="w-3 h-3" /> Review
-                                </button>
-                              )}
-                              <button onClick={() => { setError(''); setModal({ id: a.id, action: 'reject' }); }}
-                                disabled={actionLoading === a.id}
-                                className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 disabled:opacity-50">
-                                <XCircle className="w-3 h-3" /> Reject
-                              </button>
-                            </>
-                          )}
-                          <button onClick={() => setExpandedId(isExpanded ? null : a.id)}
-                            className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200">
-                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                            Details
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr key={`${a.id}-notes`} className="bg-gray-50">
-                        <td colSpan={7} className="px-6 py-3">
-                          <div className="grid gap-3 md:grid-cols-4 text-sm">
-                            <div className="rounded-lg border border-gray-200 bg-white p-3">
-                              <div className="font-semibold text-gray-800 mb-1">Receipt Verification</div>
-                              <div className="text-gray-600">Receipt: {a.receiptNumber || a.paymentNumber || 'N/A'}</div>
-                              <div className="text-gray-600">Paid: {a.currency || 'AED'} {Number(a.paidAmount || 0).toLocaleString()}</div>
-                              <div className="text-gray-600 capitalize">Accounts: {a.accountantStatus || 'pending'}</div>
-                              {a.accountantVerifiedAt && <div className="text-xs text-gray-400">Verified: {new Date(a.accountantVerifiedAt).toLocaleString()}</div>}
-                            </div>
-                            <div className="rounded-lg border border-gray-200 bg-white p-3">
-                              <div className="font-semibold text-gray-800 mb-1">Counselor Summary</div>
-                              <p className="whitespace-pre-wrap text-gray-600">{a.conversationSummary || 'No counselor summary found.'}</p>
-                              {a.clientCommitments && <p className="mt-2 text-xs text-gray-500"><span className="font-medium">Commitments:</span> {a.clientCommitments}</p>}
-                              {a.nextAction && <p className="mt-1 text-xs text-gray-500"><span className="font-medium">Next:</span> {a.nextAction}</p>}
-                            </div>
-                            <div className="rounded-lg border border-gray-200 bg-white p-3">
-                              <div className="font-semibold text-gray-800 mb-1">Review Notes</div>
-                              <p className="whitespace-pre-wrap text-gray-600">{a.reviewNotes || 'No review notes yet.'}</p>
-                            </div>
-                            <div className="rounded-lg border border-gray-200 bg-white p-3">
-                              <div className="font-semibold text-gray-800 mb-1">Counsellor Sheet</div>
-                              {a.counsellorSheetUrl ? (
-                                <a href={a.counsellorSheetUrl} target="_blank" rel="noopener noreferrer"
-                                  className="flex items-center gap-1 text-indigo-700 hover:text-indigo-900">
-                                  <ExternalLink className="w-3 h-3" /> View Counsellor Sheet
-                                </a>
-                              ) : (
-                                <p className="text-gray-400 italic">Not uploaded.</p>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                );
-              })}
-            </tbody>
-          </table>
+                      </div>
+                    </div>
+                  ) : (a.clientSignature || a.proofOfPaymentUrl || a.counsellorSheetUrl) ? (
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                      {a.clientSignature && <span className="text-gray-500">Sig: {a.clientSignature}</span>}
+                      {a.proofOfPaymentUrl && (
+                        <a href={a.proofOfPaymentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-green-700 hover:text-green-900">
+                          <ExternalLink className="w-3 h-3" /> Receipt Proof
+                        </a>
+                      )}
+                      {a.counsellorSheetUrl && (
+                        <a href={a.counsellorSheetUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-indigo-700 hover:text-indigo-900">
+                          <ExternalLink className="w-3 h-3" /> Counsellor Sheet
+                        </a>
+                      )}
+                    </div>
+                  ) : undefined}
+                  actions={[
+                    { key: 'approve', icon: CheckCircle, label: 'Approve', onClick: () => { setError(''); setModal({ id: a.id, action: 'approve' }); }, disabled: actionLoading === a.id, colorClass: 'bg-green-50 text-green-700 hover:bg-green-100', hidden: !(isPending && canReview) },
+                    { key: 'review', icon: AlertCircle, label: 'Review', onClick: () => { setError(''); setModal({ id: a.id, action: 'under_review' }); }, disabled: actionLoading === a.id, colorClass: 'bg-blue-50 text-blue-700 hover:bg-blue-100', hidden: !(isPending && canReview && a.status === 'pending') },
+                    { key: 'reject', icon: XCircle, label: 'Reject', onClick: () => { setError(''); setModal({ id: a.id, action: 'reject' }); }, disabled: actionLoading === a.id, colorClass: 'bg-red-50 text-red-700 hover:bg-red-100', hidden: !(isPending && canReview) },
+                    { key: 'toggle', icon: isExpanded ? ChevronUp : ChevronDown, label: 'Details', onClick: () => setExpandedId(isExpanded ? null : a.id) },
+                  ]}
+                />
+              );
+            })}
+          </RecordList>
         </div>
-
-        {filtered.length === 0 && (
-          <div className="text-center py-16">
-            <ShieldCheck className="mx-auto h-10 w-10 text-gray-300 mb-3" />
-            <p className="text-gray-500 text-sm">No compliance approvals found</p>
-            <p className="text-gray-400 text-xs mt-1">
-              Compliance submissions appear here after counselors submit signed agreements
-            </p>
-          </div>
-        )}
 
         <div className="px-4 py-3 bg-gray-50 border-t text-xs text-gray-500">
           Showing {filtered.length} of {approvals.length} submissions

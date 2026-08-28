@@ -2,9 +2,10 @@
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
-import { Eye, Printer, Download } from 'lucide-react';
+import { Eye, Printer, Download, FileText, Trash2 } from 'lucide-react';
 import { DmB2bInvoicesAttributes } from '@/models';
-import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { useSortableData } from '@/components/ui/sortable-th';
+import { RecordCard, RecordList, SortButtonRow } from '@/components/shared/ResponsiveRecordList';
 
 interface FilterOption {
   value: string;
@@ -308,103 +309,58 @@ export default function InvoicesManagement() {
         </div>
       </div>
 
-      {/* Invoices Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableTh label="Receipt" sortKey="receipt" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
-                <SortableTh label="Company" sortKey="company" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
-                <SortableTh label="Purpose" sortKey="purpose" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
-                <SortableTh label="Amount" sortKey="amount" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
-                <SortableTh label="Tax Amount" sortKey="taxAmount" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
-                <SortableTh label="Total Amount" sortKey="totalAmount" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
-                <SortableTh label="Balance" sortKey="balance" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
-                <SortableTh label="Payment Mode" sortKey="paymentMode" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
-                <SortableTh label="Status" sortKey="status" activeKey={invoiceSortKey} direction={invoiceSortDirection} onSort={toggleInvoiceSort} />
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedInvoices.map((invoice) => (
-                <tr key={invoice.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {invoice.receipt}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{invoice.company}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{getPurposeLabel(invoice.purpose)}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {invoice.currencyCode || 'AED'} {invoice.amount?.toLocaleString() || '0'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {invoice.currencyCode || 'AED'} {invoice.taxAmt?.toLocaleString() || '0'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {invoice.currencyCode || 'AED'} {invoice.totPayAmt?.toLocaleString() || '0'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {invoice.currencyCode || 'AED'} {invoice.payBalance?.toLocaleString() || '0'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPaymentModeColor(invoice.payment_mode)}`}>
-                      {invoice.payment_mode || 'N/A'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(invoice.status)}`}>
-                      {getStatusText(invoice.status)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleViewInvoice(invoice)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                        title="View details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => openInvoiceDocument(invoice, false)}
-                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded"
-                        title="Open invoice"
-                      >
-                        <Printer className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => openInvoiceDocument(invoice, true)}
-                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded"
-                        title="Download invoice (Print > Save as PDF)"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      <button className="text-red-600 hover:text-red-900 text-sm ml-1">
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Invoices List */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <SortButtonRow
+          options={[
+            ['receipt', 'Receipt'],
+            ['company', 'Company'],
+            ['purpose', 'Purpose'],
+            ['amount', 'Amount'],
+            ['taxAmount', 'Tax Amount'],
+            ['totalAmount', 'Total Amount'],
+            ['balance', 'Balance'],
+            ['paymentMode', 'Payment Mode'],
+            ['status', 'Status'],
+          ] as const}
+          activeKey={invoiceSortKey}
+          direction={invoiceSortDirection}
+          onSort={toggleInvoiceSort}
+        />
+        <RecordList isEmpty={sortedInvoices.length === 0} emptyIcon={FileText} emptyTitle="No invoices found">
+          {sortedInvoices.map((invoice) => (
+            <RecordCard
+              key={invoice.id}
+              avatar={<FileText className="h-4 w-4" />}
+              avatarColorClass="from-blue-600 to-cyan-400"
+              title={<span className="min-w-0 break-words text-base font-bold text-gray-950">{invoice.company}</span>}
+              titleBadges={
+                <>
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{invoice.receipt}</span>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPaymentModeColor(invoice.payment_mode)}`}>
+                    {invoice.payment_mode || 'N/A'}
+                  </span>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(invoice.status)}`}>
+                    {getStatusText(invoice.status)}
+                  </span>
+                </>
+              }
+              stats={[
+                { label: 'Purpose', value: getPurposeLabel(invoice.purpose) },
+                { label: 'Amount', value: `${invoice.currencyCode || 'AED'} ${invoice.amount?.toLocaleString() || '0'}` },
+                { label: 'Tax Amount', value: `${invoice.currencyCode || 'AED'} ${invoice.taxAmt?.toLocaleString() || '0'}` },
+                { label: 'Total Amount', value: `${invoice.currencyCode || 'AED'} ${invoice.totPayAmt?.toLocaleString() || '0'}` },
+                { label: 'Balance', value: `${invoice.currencyCode || 'AED'} ${invoice.payBalance?.toLocaleString() || '0'}` },
+              ]}
+              actions={[
+                { key: 'view', icon: Eye, label: 'View details', onClick: () => handleViewInvoice(invoice) },
+                { key: 'open', icon: Printer, label: 'Open invoice', onClick: () => openInvoiceDocument(invoice, false), colorClass: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+                { key: 'download', icon: Download, label: 'Download invoice (Print > Save as PDF)', onClick: () => openInvoiceDocument(invoice, true), colorClass: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' },
+                { key: 'delete', icon: Trash2, label: 'Delete', onClick: () => {}, colorClass: 'bg-red-50 text-red-700 hover:bg-red-100' },
+              ]}
+            />
+          ))}
+        </RecordList>
       </div>
 
       {/* Invoice Details Modal */}
