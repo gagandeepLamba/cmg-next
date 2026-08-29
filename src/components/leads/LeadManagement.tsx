@@ -253,10 +253,15 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   const showMyLeadsTab = isBranchManagerOrCeo(user);
 
   useEffect(() => {
-    if (!isCeo(user)) return;
+    if (!isFoeOrBranchManagerOrCeo(user)) return;
     (async () => {
       try {
-        const res = await fetch('/api/employees?status=1&limit=200');
+        // FOE/BM can only transfer within their own branch (mirrors the
+        // 'branch_manager' category scoping in /api/admin/lead-pool's POST
+        // handler) - CEO sees every employee.
+        const params = new URLSearchParams({ status: '1', limit: '200' });
+        if (!isCeo(user) && user?.branch) params.set('branch', String(user.branch));
+        const res = await fetch(`/api/employees?${params.toString()}`);
         if (!res.ok) return;
         const data = await res.json();
         const employees: Array<{ id: number; name: string }> = data.employees || [];
@@ -1858,7 +1863,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         </div>
       </div>
 
-      {activeTab === 'leads' && isCeo(user) && selectedLeads.length > 0 && (
+      {activeTab === 'leads' && isFoeOrBranchManagerOrCeo(user) && selectedLeads.length > 0 && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white rounded-lg shadow-xl px-4 py-3 flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium whitespace-nowrap">{selectedLeads.length} selected</span>
           <button
@@ -1868,13 +1873,15 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           >
             Transfer
           </button>
-          <button
-            onClick={handleBulkDelete}
-            disabled={bulkActionSaving}
-            className="px-3 py-1.5 bg-red-600 rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
-          >
-            Delete
-          </button>
+          {isCeo(user) && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkActionSaving}
+              className="px-3 py-1.5 bg-red-600 rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          )}
           <button
             onClick={() => setSelectedLeads([])}
             className="px-2 py-1.5 text-gray-300 hover:text-white text-sm"
