@@ -3273,8 +3273,7 @@ export class HRService {
   static async getEmployeeById(id?: number | null) {
     if (!id) return null;
     await this.ensureEmployeeCoreColumns();
-    const [employee] = await sequelize.query(
-      `
+    const employeeQueryWithPro = `
         SELECT
           e.id, e.name, e.email, e.mobile, e.cemail, e.cmobile, e.username, e.department,
           d.name AS departmentName, e.role, e.branch, e.region, e.status,
@@ -3288,10 +3287,27 @@ export class HRService {
         LEFT JOIN dm_department d ON d.id = e.department
         LEFT JOIN dm_pro_employee_immigration p ON CAST(p.employee_id AS CHAR) COLLATE utf8mb4_general_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_general_ci
         WHERE e.id = :id
-        LIMIT 1
-      `,
-      { replacements: { id }, type: QueryTypes.SELECT }
-    );
+        LIMIT 1`;
+    const employeeQueryNoPro = `
+        SELECT
+          e.id, e.name, e.email, e.mobile, e.cemail, e.cmobile, e.username, e.department,
+          d.name AS departmentName, e.role, e.branch, e.region, e.status,
+          e.EID, e.doj, e.dol, e.nationality, e.gender, e.ppNo, e.visaExp,
+          e.labexp, e.address, e.paddress, e.wfh, e.work_location, e.work_country,
+          e.work_city, e.work_site, e.employment_type, e.must_change_password,
+          NULL AS proEmpId, NULL AS visaUid, NULL AS visaType,
+          NULL AS visaStatus, NULL AS labourCardNo,
+          NULL AS labourCardExpiry, NULL AS insuranceExpiry
+        FROM dm_employee e
+        LEFT JOIN dm_department d ON d.id = e.department
+        WHERE e.id = :id
+        LIMIT 1`;
+    let employee: unknown;
+    try {
+      [employee] = await sequelize.query(employeeQueryWithPro, { replacements: { id }, type: QueryTypes.SELECT });
+    } catch {
+      [employee] = await sequelize.query(employeeQueryNoPro, { replacements: { id }, type: QueryTypes.SELECT });
+    }
     return employee || null;
   }
 
