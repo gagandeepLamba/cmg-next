@@ -38,6 +38,14 @@ const referenceAliases: Partial<Record<string, Record<string, string[]>>> = {
     // the prefixed variants below exist - so it must be aliased or every
     // imported row using it silently fails to resolve and gets dropped.
     whatsapp: ['WhatsApp (Direct)', 'WhatsApp Ads', 'WhatsApp SEO'],
+    // Instagram/Facebook only exist as the combined "Meta" row - lead-gen
+    // exports commonly abbreviate the platform name instead of using it.
+    ig: ['Meta (Facebook/Instagram)'],
+    instagram: ['Meta (Facebook/Instagram)'],
+    insta: ['Meta (Facebook/Instagram)'],
+    fb: ['Meta (Facebook/Instagram)'],
+    facebook: ['Meta (Facebook/Instagram)'],
+    meta: ['Meta (Facebook/Instagram)'],
   },
 };
 

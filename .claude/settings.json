@@ -36,7 +36,11 @@
       "Read(//c/Users/97154/.claude/**)",
       "Bash(curl -s -o /dev/null -w \"create-lead page: %{http_code}\\\\n\" http://localhost:3000/admin/leads/create)",
       "Bash(curl -s -o /dev/null -w \"server: %{http_code}\\\\n\" http://localhost:3000 --max-time 5)",
-      "Bash(git -C \"D:\\\\xampp\\\\htdocs\\\\dm-crm\\\\cmg-next\" log --oneline -- src/lib/discountApproval.ts src/lib/discountTierConfig.ts src/app/api/discount-approvals/tier-config/route.ts src/app/admin/discount-approvals/page.tsx)"
+      "Bash(git -C \"D:\\\\xampp\\\\htdocs\\\\dm-crm\\\\cmg-next\" log --oneline -- src/lib/discountApproval.ts src/lib/discountTierConfig.ts src/app/api/discount-approvals/tier-config/route.ts src/app/admin/discount-approvals/page.tsx)",
+      "Bash(xargs grep -ln -i \"dm one\\\\|dmc immigration\\\\|dmconsultant\\\\|dm consultant\")",
+      "Bash(xargs grep -in \"dmc-logo\\\\|dm-logo\\\\|dmc\\\\.\")",
+      "Bash(xargs grep -ln -i \"hyderabad\\\\|didactic\\\\|\\\\bINR\\\\b\\\\|₹\\\\|dm-consultant\\\\|dm consultant\\\\|dmc immigration\")",
+      "Bash(git reset *)"
     ],
     "additionalDirectories": [
       "d:\\xampp\\htdocs\\dm-next\\src\\app\\api\\admin\\roles\\[id]"

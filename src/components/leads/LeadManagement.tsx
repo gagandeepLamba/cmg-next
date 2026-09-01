@@ -1416,7 +1416,16 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
 
       if (response.ok) {
         const data = await response.json();
-        window.toast.info(data.message);
+        const problems = [
+          ...(data.errors || []).map((e: { row: number; error: string }) => `Row ${e.row}: ${e.error}`),
+          ...(data.warnings || []).map((w: { row: number; warning: string }) => `Row ${w.row}: ${w.warning}`),
+        ];
+        if (problems.length > 0) {
+          const extra = problems.length > 5 ? `\n…and ${problems.length - 5} more` : '';
+          window.toast.warning(`${data.message}\n${problems.slice(0, 5).join('\n')}${extra}`, { durationMs: 12000 });
+        } else {
+          window.toast.info(data.message);
+        }
         fetchLeads();
       } else {
         const data = await response.json().catch(() => null);
@@ -1827,7 +1836,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".xlsx,.xls"
+                accept=".xlsx,.xls,.csv"
                 onChange={handleImportExcel}
                 className="hidden"
               />

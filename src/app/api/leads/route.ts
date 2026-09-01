@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx'
 import { verifyToken } from '@/lib/auth'
 import { isCeo, isFoeOrBranchManagerOrCeo, isBranchManagerOrCeo, isCounsellor } from '@/lib/roleChecks'
 import { checkForDuplicate, findExistingLead, recordDuplicateLeadAttempt, normalizePhone } from '@/lib/duplicateLeadCheck'
-import { resolveLeadReferenceId, resolveLeadReferences } from '@/lib/leadReferenceResolver'
+import { resolveLeadReferenceId } from '@/lib/leadReferenceResolver'
 import { resolveBranchReference } from '@/lib/branchResolver'
 
 interface CountResult {
@@ -495,6 +495,7 @@ export async function POST(request: NextRequest) {
         const createdLeads = []
         const errors = []
         const skipped: Array<{ row: number; reason: string }> = []
+        const warnings: Array<{ row: number; warning: string }> = []
         // Duplicates already inserted from *this same file* aren't in the DB
         // yet when checkForDuplicate runs for a later row, so two rows in one
         // upload sharing an email/phone would otherwise both pass the DB-only check.
@@ -615,7 +616,21 @@ export async function POST(request: NextRequest) {
               status_date: new Date()
             }
 
-            const resolvedLeadData = await resolveLeadReferences(leadData)
+            // A country/service/source value that doesn't match a known
+            // reference (e.g. an ad platform's abbreviated "ig" for a source
+            // not yet aliased) must not sink the whole row - only that one
+            // field is left blank, with a warning, mirroring the same
+            // leave-blank-and-warn behavior /api/leads/bulk-upload uses.
+            const resolvedLeadData = { ...leadData } as typeof leadData & Record<string, unknown>
+            for (const field of ['country_interest', 'service_interest', 'market_source'] as const) {
+              const rawValue = leadData[field]
+              try {
+                resolvedLeadData[field] = await resolveLeadReferenceId(field, rawValue) as any
+              } catch {
+                resolvedLeadData[field] = null as any
+                warnings.push({ row: index + 1, warning: `${field.replace('_', ' ')} "${rawValue}" not found - left blank` })
+              }
+            }
 
             const insertResult = await sequelize.query(`
               INSERT INTO dmc_forum_leads (
@@ -669,10 +684,11 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({
-          message: `Import completed. ${createdLeads.length} leads created, ${skipped.length} duplicates skipped, ${errors.length} errors.`,
+          message: `Import completed. ${createdLeads.length} leads created, ${skipped.length} duplicates skipped, ${errors.length} errors${warnings.length ? `, ${warnings.length} warnings` : ''}.`,
           createdLeads,
           errors,
-          skipped
+          skipped,
+          warnings
         })
       } catch (error) {
         return NextResponse.json(
