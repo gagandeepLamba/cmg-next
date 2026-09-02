@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
 import { verifyToken } from '@/lib/auth';
-import { isCeo } from '@/lib/roleChecks';
+import { isFoeOrBranchManagerOrCeo, isCeo } from '@/lib/roleChecks';
 import { resolveLeadReferenceId } from '@/lib/leadReferenceResolver';
 import { checkForDuplicate, normalizePhone } from '@/lib/duplicateLeadCheck';
 
@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
   const token = request.cookies.get('auth-token')?.value
     || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
   const currentUser = token ? verifyToken(token) : null;
-  if (!currentUser || !isCeo(currentUser)) {
-    return NextResponse.json({ error: 'Only the CEO can bulk-upload leads' }, { status: 403 });
+  if (!currentUser || !isFoeOrBranchManagerOrCeo(currentUser)) {
+    return NextResponse.json({ error: 'Only FOE, Branch Manager, or CEO can bulk-upload leads' }, { status: 403 });
   }
 
   try {
@@ -150,7 +150,12 @@ export async function POST(request: NextRequest) {
             'SELECT id, branch, region FROM dm_employee WHERE LOWER(TRIM(name)) = LOWER(:name) LIMIT 1',
             { replacements: { name: counselorName }, type: QueryTypes.SELECT }
           );
-          if (employee?.id) {
+          // FOE/Branch Manager can only hand an imported lead to a counselor in
+          // their own branch (mirrors the same restriction on manual lead
+          // creation in POST /api/leads) - CEO is unrestricted.
+          if (employee?.id && !isCeo(currentUser) && Number(employee.branch || 0) !== Number(currentUser.branch || 0)) {
+            warnings.push({ row: rowNumber, warning: `Counselor "${counselorName}" is outside your branch - lead left unassigned` });
+          } else if (employee?.id) {
             assignToId = employee.id;
             branchId = Number(employee.branch || 0) || fallbackBranchId;
             regionId = Number(employee.region || 0) || fallbackRegionId;

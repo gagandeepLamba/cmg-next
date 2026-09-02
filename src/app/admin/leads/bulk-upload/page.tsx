@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Upload, Download, ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { isCeo } from '@/lib/roleChecks';
+import { isFoeOrBranchManagerOrCeo } from '@/lib/roleChecks';
 
 interface ImportRowError {
   row: number;
@@ -36,12 +36,12 @@ export default function BulkLeadUploadPage() {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
 
-  if (!isCeo(user as any)) {
+  if (!isFoeOrBranchManagerOrCeo(user as any)) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
         <ShieldAlert className="w-10 h-10 text-red-500 mb-3" />
         <h1 className="text-xl font-semibold text-gray-900">Access restricted</h1>
-        <p className="text-gray-600 mt-1">Only the CEO can bulk-upload leads.</p>
+        <p className="text-gray-600 mt-1">Only FOE, Branch Manager, or CEO can bulk-upload leads.</p>
       </div>
     );
   }
@@ -104,7 +104,7 @@ export default function BulkLeadUploadPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Bulk Lead Upload</h1>
-        <p className="text-gray-600 mt-2">CEO-only. Upload an Excel file to create multiple leads at once.</p>
+        <p className="text-gray-600 mt-2">FOE, Branch Manager, or CEO. Upload an Excel file to create multiple leads at once.</p>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6 space-y-4">

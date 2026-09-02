@@ -69,6 +69,12 @@ export const canAccessAdminPath = (user: AccessUser | null | undefined, pathname
     return ['branch_manager', 'foe', 'director', 'founder', 'super_admin'].includes(roleKey);
   }
 
+  if (path === '/admin/leads/bulk-upload') {
+    // Mirrors isFoeOrBranchManagerOrCeo, the same role set the bulk-upload
+    // API itself now allows (see POST /api/leads/bulk-upload).
+    return ['branch_manager', 'foe', 'director', 'founder', 'super_admin'].includes(roleKey);
+  }
+
   if (path === '/admin/balance-payments' || path.startsWith('/admin/balance-payments/')) {
     return ['branch_manager', 'director', 'founder', 'super_admin'].includes(roleKey)
       || hasAnyPermission(['leads.view', 'finance.view', 'payments.view']);
@@ -90,7 +96,12 @@ export const canAccessAdminPath = (user: AccessUser | null | undefined, pathname
     { test: (value) => value === '/admin/follow-ups' || value.startsWith('/admin/follow-ups/'), permissions: ['leads.view'] },
     { test: (value) => value === '/admin/compliance-approvals' || value.startsWith('/admin/compliance-approvals/'), permissions: ['leads.view', 'admin.access'] },
     { test: (value) => value === '/admin/discount-approvals' || value.startsWith('/admin/discount-approvals/'), permissions: ['sales.update', 'admin.access'] },
-    { test: (value) => value === '/admin/lead-transfers', permissions: ['transfers.manage'] },
+    // FOE and Branch Manager approve these requests (see isFoeOrBranchManagerOrCeo/
+    // isBranchManagerOrCeo in lead-reassignments-working's PUT handler) and
+    // Counsellors file them (the page itself: "Counselor requests for lead
+    // transfers to branch managers") - leads.update covers all three roles,
+    // in addition to transfers.manage (Director of Sales/admin).
+    { test: (value) => value === '/admin/lead-transfers', permissions: ['transfers.manage', 'leads.update'] },
     { test: (value) => value === '/admin/client-recognition', permissions: ['recognition.manage'] },
     { test: (value) => value === '/admin/lead-assignment-availability', permissions: ['sales.view', 'admin.access'] },
     { test: (value) => value === '/admin/immigration-tools' || value.startsWith('/admin/immigration-tools/'), permissions: ['leads.view'] },

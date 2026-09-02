@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { canAccessAdminPath, getDefaultAdminPathForUser } from '@/lib/roleAccess';
-import { isCeo } from '@/lib/roleChecks';
+import { isCeo, isFoeOrBranchManagerOrCeo } from '@/lib/roleChecks';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import ForcePasswordChangeModal from '@/components/auth/ForcePasswordChangeModal';
 import {
@@ -64,6 +64,11 @@ interface NavItem {
   // grants — for pages meant to stay CEO-exclusive even if someone else is
   // later given the permissions this group otherwise checks (e.g. leads.view).
   ceoOnly?: boolean;
+  // Extra role-based gate for pages restricted to a specific role combination
+  // that doesn't map cleanly onto a single permission (e.g. FOE/Branch
+  // Manager/CEO but not a plain Counsellor, who shares most of the same
+  // leads.* permissions). Evaluated in addition to permission/ceoOnly checks.
+  roleGate?: (user: unknown) => boolean;
 }
 
 interface GlobalSearchResult {
@@ -131,7 +136,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
       title: 'Lead Management',
       items: [
         { name: 'Leads', href: '/admin/leads', icon: Users, permission: 'leads.view' },
-        { name: 'Bulk Lead Upload', href: '/admin/leads/bulk-upload', icon: Upload, ceoOnly: true },
+        { name: 'Bulk Lead Upload', href: '/admin/leads/bulk-upload', icon: Upload, roleGate: (u) => isFoeOrBranchManagerOrCeo(u as any) },
         { name: 'Clients', href: '/admin/clients', icon: UserCheck, permission: 'clients.view' },
         { name: 'Follow-ups', href: '/admin/follow-ups', icon: Bell, permission: 'leads.view' },
         { name: 'Appointments', href: '/admin/appointments', icon: Calendar, permission: 'appointments.manage' },
@@ -146,7 +151,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'Compliance Approvals', href: '/admin/compliance-approvals', icon: Shield, permissions: ['leads.view', 'admin.access'] },
         { name: 'Lead Pool', href: '/admin/lead-pool', icon: Users, permissions: ['leads.view', 'transfers.manage'] },
         { name: 'Lead Assignment', href: '/admin/lead-assignment-availability', icon: UserPlus, permissions: ['sales.view', 'sales.update', 'admin.access'] },
-        { name: 'Lead Transfers', href: '/admin/lead-transfers', icon: RefreshCw, permission: 'transfers.manage' },
+        { name: 'Lead Transfers', href: '/admin/lead-transfers', icon: RefreshCw, permissions: ['transfers.manage', 'leads.update'] },
         { name: 'Client Recognition', href: '/admin/client-recognition', icon: Award, permission: 'recognition.manage' },
         { name: 'B2B', href: '/admin/b2b', icon: Briefcase, permission: 'b2b.manage' },
         { name: 'Counselors', href: '/admin/counselors', icon: MessageSquare, permission: 'counselors.manage' },
@@ -301,6 +306,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   const filteredNavigation = allNavigationItems.filter(item => {
     if (item.ceoOnly && !isCeo(user as any)) return false;
+    if (item.roleGate && !item.roleGate(user)) return false;
     if (!canAccessAdminPath(user, item.href)) return false;
 
     const itemPermissions = item.permissions || (item.permission ? [item.permission] : []);
