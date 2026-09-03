@@ -14,8 +14,10 @@ const BASE = 'https://graph.facebook.com';
 
 /** Fetches a single lead record from Meta Graph API */
 export async function fetchLeadFromMeta(leadgenId: string): Promise<MetaRawLead> {
+  // Note: 'page_id' is not a valid field on the leadgen object — the page
+  // context comes from the webhook payload itself, not this fetch.
   const fields = [
-    'id', 'created_time', 'page_id', 'ad_id', 'adset_id', 'campaign_id', 'form_id', 'field_data',
+    'id', 'created_time', 'ad_id', 'adset_id', 'campaign_id', 'form_id', 'field_data',
   ].join(',');
 
   const url = `${BASE}/${apiVersion()}/${leadgenId}?fields=${fields}&access_token=${pageToken()}`;

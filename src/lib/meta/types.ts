@@ -9,7 +9,6 @@ export interface MetaFieldData {
 export interface MetaRawLead {
   id: string;
   created_time: string;
-  page_id?: string;
   ad_id?: string;
   adset_id?: string;
   campaign_id?: string;

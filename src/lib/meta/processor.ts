@@ -71,11 +71,12 @@ export async function processWebhookEvent(eventId: number): Promise<void> {
     const [event] = await sequelize.query<{
       id: number;
       leadgen_id: string;
+      page_id: string | null;
       campaign_id: string | null;
       adset_id: string | null;
       ad_id: string | null;
     }>(
-      `SELECT id, leadgen_id, campaign_id, adset_id, ad_id
+      `SELECT id, leadgen_id, page_id, campaign_id, adset_id, ad_id
        FROM dm_meta_webhook_events
        WHERE id = :id AND processing_status = 'pending'
        LIMIT 1`,
@@ -127,7 +128,7 @@ export async function processWebhookEvent(eventId: number): Promise<void> {
       fullName,
       email: fields['email'] ?? null,
       phone: fields['phone_number'] ?? null,
-      pageId: rawLead.page_id ?? null,
+      pageId: event.page_id ?? null,
       formId: rawLead.form_id ?? null,
       formName,
       campaignId: rawLead.campaign_id ?? event.campaign_id ?? null,
