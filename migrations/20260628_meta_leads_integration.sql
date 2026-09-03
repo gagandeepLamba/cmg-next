@@ -92,21 +92,27 @@ CREATE TABLE IF NOT EXISTS dm_meta_lead_mappings (
   INDEX idx_mlm_enabled (is_enabled)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Default system mappings
-INSERT IGNORE INTO dm_meta_lead_mappings
+-- Default system mappings.
+-- Guarded on table emptiness (not INSERT IGNORE): this file has no unique key
+-- for IGNORE to collide against, and scripts/setup-database.js re-runs every
+-- migrations/*.sql file on each deploy, so INSERT IGNORE silently inserted a
+-- full duplicate set of these 11 rows on every prior run.
+INSERT INTO dm_meta_lead_mappings
   (scope_type, meta_field_key, crm_field_key, fallback_value, is_enabled, sort_order)
-VALUES
-  ('GLOBAL', 'full_name',           'lastName',          NULL,                 1,  1),
-  ('GLOBAL', 'email',               'email',             NULL,                 1,  2),
-  ('GLOBAL', 'phone_number',        'phone',             NULL,                 1,  3),
-  ('GLOBAL', 'age_range',           'AgeRange',          NULL,                 1,  4),
-  ('GLOBAL', 'immigration_type',    'ImmigrationType',   NULL,                 1,  5),
-  ('GLOBAL', 'country',             'ResidentCountry',   NULL,                 1,  6),
-  ('GLOBAL', 'education',           'Education',         NULL,                 1,  7),
-  ('GLOBAL', 'destination_country', 'DestinationCountry',NULL,                 1,  8),
-  ('GLOBAL', '__utm_source',        'UTMSource',         'Facebook Lead Ads',  1,  9),
-  ('GLOBAL', '__lead_source',       'LeadSource',        'Facebook Lead Ads',  1, 10),
-  ('GLOBAL', '__roundrobin',        'roundrobin',        'true',               1, 11);
+SELECT scope_type, meta_field_key, crm_field_key, fallback_value, is_enabled, sort_order FROM (
+  SELECT 'GLOBAL' AS scope_type, 'full_name' AS meta_field_key, 'lastName' AS crm_field_key, NULL AS fallback_value, 1 AS is_enabled, 1 AS sort_order
+  UNION ALL SELECT 'GLOBAL', 'email',               'email',              NULL,                 1,  2
+  UNION ALL SELECT 'GLOBAL', 'phone_number',        'phone',              NULL,                 1,  3
+  UNION ALL SELECT 'GLOBAL', 'age_range',           'AgeRange',           NULL,                 1,  4
+  UNION ALL SELECT 'GLOBAL', 'immigration_type',    'ImmigrationType',    NULL,                 1,  5
+  UNION ALL SELECT 'GLOBAL', 'country',             'ResidentCountry',    NULL,                 1,  6
+  UNION ALL SELECT 'GLOBAL', 'education',           'Education',          NULL,                 1,  7
+  UNION ALL SELECT 'GLOBAL', 'destination_country', 'DestinationCountry', NULL,                 1,  8
+  UNION ALL SELECT 'GLOBAL', '__utm_source',        'UTMSource',          'Facebook Lead Ads',  1,  9
+  UNION ALL SELECT 'GLOBAL', '__lead_source',       'LeadSource',         'Facebook Lead Ads',  1, 10
+  UNION ALL SELECT 'GLOBAL', '__roundrobin',        'roundrobin',         'true',               1, 11
+) AS defaults
+WHERE NOT EXISTS (SELECT 1 FROM dm_meta_lead_mappings LIMIT 1);
 
 -- ── 5. CRM Delivery Attempts ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS dm_meta_lead_deliveries (

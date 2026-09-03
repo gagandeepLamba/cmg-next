@@ -193,6 +193,10 @@ After 5 retries the delivery is marked **failed** (permanent) but remains availa
 
 ## Cron Configuration
 
+**No setup needed for a self-hosted deploy (VPS/PM2/cPanel Node.js app).** `src/instrumentation.ts` starts both jobs in-process via `node-cron` on server boot — the retry job every 5 minutes, campaign sync every 6 hours — the same way the renewal-reminder and monthly-report crons already run. Disable either with `META_LEADS_RETRY_CRON_ENABLED=false` / `META_CAMPAIGN_SYNC_CRON_ENABLED=false` if you'd rather drive them externally.
+
+On Vercel, serverless functions don't stay alive for `node-cron`, so use Vercel's own cron instead:
+
 ### Vercel
 
 Create `vercel.json` at project root:
@@ -316,5 +320,5 @@ curl -X POST http://localhost:3000/api/webhooks/meta \
 - [ ] Test with Meta Lead Ads Testing Tool
 - [ ] Verify lead appears in `/admin/meta-leads/leads`
 - [ ] Verify lead appears in CRM
-- [ ] Set up cron jobs (Vercel cron or VPS crontab)
+- [ ] Confirm retry/campaign-sync cron started (self-hosted: check logs for "Meta lead retry cron scheduled" on boot; Vercel: add `vercel.json` cron entries)
 - [ ] Test CRM delivery from Settings page

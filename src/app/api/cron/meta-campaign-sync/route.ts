@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { QueryTypes } from 'sequelize';
-import { sequelize, connectDB } from '@/lib/sequelize';
-import { fetchCampaigns } from '@/lib/meta/graph-api';
+import { connectDB } from '@/lib/sequelize';
+import { syncCampaigns } from '@/lib/meta/campaign-sync';
 
 let dbReady = false;
 async function ensureDB() {
@@ -26,60 +25,14 @@ export async function POST(request: NextRequest) {
 
   await ensureDB();
 
-  const [settings] = await sequelize.query<{ ad_account_id: string; is_enabled: number }>(
-    `SELECT ad_account_id, is_enabled FROM dm_meta_settings WHERE id = 1 LIMIT 1`,
-    { type: QueryTypes.SELECT }
-  );
-
-  if (!settings?.is_enabled || !settings?.ad_account_id) {
-    return NextResponse.json({ skipped: true, reason: 'Integration disabled or ad account not configured' });
-  }
-
   try {
-    const campaigns = await fetchCampaigns(settings.ad_account_id);
-    for (const c of campaigns) {
-      const insight = c.insights?.data?.[0];
-      await sequelize.query(
-        `INSERT INTO dm_meta_campaign_cache
-           (campaign_id, campaign_name, status, objective, daily_budget, lifetime_budget,
-            spend, impressions, clicks, raw_data, last_synced_at)
-         VALUES (:id, :name, :status, :objective, :daily_budget, :lifetime_budget,
-                 :spend, :impressions, :clicks, :rawData, NOW())
-         ON DUPLICATE KEY UPDATE
-           campaign_name = VALUES(campaign_name), status = VALUES(status),
-           objective = VALUES(objective), daily_budget = VALUES(daily_budget),
-           lifetime_budget = VALUES(lifetime_budget), spend = VALUES(spend),
-           impressions = VALUES(impressions), clicks = VALUES(clicks),
-           raw_data = VALUES(raw_data), last_synced_at = NOW(), updated_at = NOW()`,
-        {
-          replacements: {
-            id: c.id, name: c.name ?? null, status: c.status ?? null,
-            objective: c.objective ?? null,
-            daily_budget: c.daily_budget ? parseFloat(c.daily_budget) / 100 : null,
-            lifetime_budget: c.lifetime_budget ? parseFloat(c.lifetime_budget) / 100 : null,
-            spend: insight?.spend ? parseFloat(insight.spend) : 0,
-            impressions: insight?.impressions ? parseInt(insight.impressions) : 0,
-            clicks: insight?.clicks ? parseInt(insight.clicks) : 0,
-            rawData: JSON.stringify(c),
-          },
-          type: QueryTypes.INSERT,
-        }
-      );
+    const result = await syncCampaigns();
+    if (result.skipped) {
+      return NextResponse.json({ skipped: true, reason: result.reason });
     }
 
-    await sequelize.query(
-      `UPDATE dm_meta_campaign_cache c
-       SET c.leads_count = (SELECT COUNT(*) FROM dm_meta_leads ml WHERE ml.campaign_id = c.campaign_id)`,
-      { type: QueryTypes.UPDATE }
-    );
-
-    await sequelize.query(
-      `UPDATE dm_meta_settings SET last_campaign_sync_at = NOW() WHERE id = 1`,
-      { type: QueryTypes.UPDATE }
-    );
-
-    console.log(`[Cron] meta-campaign-sync: synced ${campaigns.length} campaigns`);
-    return NextResponse.json({ success: true, synced: campaigns.length });
+    console.log(`[Cron] meta-campaign-sync: synced ${result.synced} campaigns`);
+    return NextResponse.json({ success: true, synced: result.synced });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[Cron] meta-campaign-sync failed:', msg);
