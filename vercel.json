@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/meta-leads-retry",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/meta-campaign-sync",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}
