@@ -274,6 +274,17 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
       ]
     },
     {
+      title: 'Google Search Console & Tag Manager',
+      items: [
+        { name: 'Overview', href: '/admin/google-console', icon: Activity, ceoOnly: true },
+        { name: 'Search Performance', href: '/admin/google-console/search-performance', icon: TrendingUp, ceoOnly: true },
+        { name: 'Indexing & Coverage', href: '/admin/google-console/coverage', icon: CheckCircle, ceoOnly: true },
+        { name: 'Tag Manager', href: '/admin/google-console/gtm', icon: Layers, ceoOnly: true },
+        { name: 'Publish History', href: '/admin/google-console/gtm/versions', icon: Clock, ceoOnly: true },
+        { name: 'Settings', href: '/admin/google-console/settings', icon: Settings, ceoOnly: true },
+      ]
+    },
+    {
       title: 'Configuration',
       items: [
         { name: 'Programs', href: '/admin/programs', icon: Target, permission: 'programs.manage' },

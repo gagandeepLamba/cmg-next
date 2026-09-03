@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/meta-campaign-sync",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/gsc-sync",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/gtm-sync",
+      "schedule": "0 */12 * * *"
     }
   ]
 }
