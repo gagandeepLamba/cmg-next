@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import crypto from 'crypto';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
@@ -110,19 +110,19 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Return 200 immediately so Meta doesn't retry
-  // Process leads asynchronously (fire-and-forget with error capture)
+  // Return 200 immediately so Meta doesn't retry, then process leads once the
+  // response has been sent. A bare dangling promise here isn't guaranteed to
+  // run to completion on every host (e.g. process managers that suspend the
+  // worker between requests) — after() is the runtime-guaranteed way to defer
+  // work past the response.
   if (eventIds.length > 0) {
-    // Use setImmediate to avoid blocking the response
-    const processAll = async () => {
+    after(async () => {
       for (const id of eventIds) {
         await processWebhookEvent(id).catch(err =>
           console.error(`[Meta Webhook] Async processing failed for event ${id}:`, err)
         );
       }
-    };
-    // Fire-and-forget; Node.js keeps the event loop alive for in-flight promises
-    processAll().catch(err => console.error('[Meta Webhook] Batch processing error:', err));
+    });
   }
 
   return new NextResponse('OK', { status: 200 });
