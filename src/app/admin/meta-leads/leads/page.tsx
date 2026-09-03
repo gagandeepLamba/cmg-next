@@ -230,7 +230,7 @@ export default function MetaLeadsPage() {
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40" onClick={() => setDetail(null)} />
           <div className="w-full max-w-xl overflow-y-auto bg-white shadow-xl">
-            <div className="sticky top-0 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
+            <div className="flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
               <h2 className="font-semibold text-gray-900">Lead Detail</h2>
               <button onClick={() => setDetail(null)} className="rounded p-1 hover:bg-gray-100">
                 <X className="h-5 w-5" />

@@ -74,7 +74,7 @@ export default function AgreementPage() {
 
   return (
     <div className="min-h-screen bg-neutral-200">
-      <div className="sticky top-0 z-10 bg-white border-b border-neutral-300 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+      <div className="bg-white border-b border-neutral-300 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <button onClick={() => router.back()} className="text-gray-500 hover:text-gray-800">
             <ArrowLeft className="w-5 h-5" />

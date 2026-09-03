@@ -232,7 +232,7 @@ export default function OperationsTeamAllocationPage() {
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="sticky bottom-4 bg-gray-900 text-white rounded-lg shadow-lg px-4 py-3 flex items-center gap-3 flex-wrap">
+        <div className="bg-gray-900 text-white rounded-lg shadow-lg px-4 py-3 flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium whitespace-nowrap">{selectedIds.size} selected</span>
           <SearchableSelect
             value={allocateBranch}

@@ -530,6 +530,11 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
+  const handleStatusTabChange = (status: string) => {
+    setFilters(prev => ({ ...prev, status }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
   const validateLeadForm = (data: Partial<Lead>): string | null => {
     if (!data.fname?.trim() || !data.lname?.trim()) {
       return 'First Name and Last Name are required';
@@ -1546,7 +1551,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           <button onClick={() => fetchLeads()} className="font-medium underline">Retry</button>
         </div>
       )}
-      <div ref={tabBarRef} className="sticky top-0 z-20 bg-white rounded-lg shadow p-2">
+      <div ref={tabBarRef} className="bg-white rounded-lg shadow p-2">
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => handleTabChange('leads')}
@@ -1607,6 +1612,36 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           </button>
         </div>
       </div>
+
+      {(activeTab === 'leads' || activeTab === 'my-leads') && filterOptions.statuses.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => handleStatusTabChange('')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                filters.status === ''
+                  ? 'bg-gray-900 text-white border-gray-900'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              All Statuses
+            </button>
+            {filterOptions.statuses.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleStatusTabChange(option.value)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  filters.status === option.value
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filters and Search */}
       <div className="bg-white rounded-lg shadow p-6">
