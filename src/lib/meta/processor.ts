@@ -23,6 +23,15 @@ import type { MetaLeadMapping, MetaLeadParsed } from './types';
 const CRM_ENDPOINT =
   process.env.META_LEADS_CRM_ENDPOINT || 'https://cmgone.org/api/web-to-leads';
 
+/** Meta returns created_time as ISO 8601 (e.g. "2026-09-03T17:55:23+0000"),
+ * which MySQL's DATETIME columns reject — convert to "YYYY-MM-DD HH:MM:SS". */
+function toMysqlDatetime(isoString: string | null | undefined): string | null {
+  if (!isoString) return null;
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 19).replace('T', ' ');
+}
+
 async function getActiveSettings() {
   const [row] = await sequelize.query<{
     is_enabled: number;
@@ -137,7 +146,7 @@ export async function processWebhookEvent(eventId: number): Promise<void> {
       adsetName: null,
       adId: rawLead.ad_id ?? event.ad_id ?? null,
       adName: null,
-      metaCreatedTime: rawLead.created_time ?? null,
+      metaCreatedTime: toMysqlDatetime(rawLead.created_time),
       rawLeadData: rawLead,
       fields,
     };
