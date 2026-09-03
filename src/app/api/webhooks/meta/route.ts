@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     const hash = webhookEventHash(change.leadgenId + rawBody);
 
     try {
-      const [[insertId]] = await sequelize.query(
+      const [insertId] = await sequelize.query(
         `INSERT IGNORE INTO dm_meta_webhook_events
            (event_hash, leadgen_id, page_id, form_id, campaign_id, adset_id, ad_id,
             raw_payload, signature_validated, processing_status)
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
           },
           type: QueryTypes.INSERT,
         }
-      ) as unknown as [[number, number]];
+      ) as unknown as [number, number];
 
       if (insertId > 0) {
         eventIds.push(insertId);

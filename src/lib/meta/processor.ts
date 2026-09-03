@@ -195,7 +195,7 @@ export async function processWebhookEvent(eventId: number): Promise<void> {
     }
 
     // Create delivery record
-    const [[deliveryResult]] = await sequelize.query(
+    const [deliveryId] = await sequelize.query(
       `INSERT INTO dm_meta_lead_deliveries
          (meta_lead_id, crm_endpoint, request_payload, status)
        VALUES (:metaLeadId, :endpoint, :payload, 'pending')`,
@@ -207,9 +207,7 @@ export async function processWebhookEvent(eventId: number): Promise<void> {
         },
         type: QueryTypes.INSERT,
       }
-    ) as unknown as [[number, number]];
-
-    const deliveryId = deliveryResult;
+    ) as unknown as [number, number];
 
     // Attempt CRM delivery
     const result = await deliverToCrm(crmPayload);
