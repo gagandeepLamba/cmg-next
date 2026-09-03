@@ -276,7 +276,7 @@ export async function retryFailedDeliveries(): Promise<{ processed: number; erro
   const due = await sequelize.query<{
     id: number;
     meta_lead_id: number;
-    request_payload: string;
+    request_payload: string | Record<string, unknown>;
     retry_count: number;
   }>(
     `SELECT id, meta_lead_id, request_payload, retry_count
@@ -299,7 +299,11 @@ export async function retryFailedDeliveries(): Promise<{ processed: number; erro
         { replacements: { id: delivery.id }, type: QueryTypes.UPDATE }
       );
 
-      const payload = JSON.parse(delivery.request_payload);
+      // MySQL2 auto-parses JSON columns into objects, but the column's
+      // declared type here is loosely typed as string — handle both.
+      const payload = typeof delivery.request_payload === 'string'
+        ? JSON.parse(delivery.request_payload)
+        : delivery.request_payload;
       const result = await deliverToCrm(payload);
       const newRetryCount = delivery.retry_count + 1;
 
