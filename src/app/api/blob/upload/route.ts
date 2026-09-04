@@ -7,6 +7,11 @@ const ALLOWED_CONTENT_TYPES = [
   'application/pdf', 'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  // Added for Gmail compose attachments — common non-image office/archive types
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain', 'text/csv',
+  'application/zip', 'application/x-zip-compressed',
 ];
 
 // Shared token-broker route for every direct-to-Blob client upload in the app

@@ -298,6 +298,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
         { name: 'Email Templates', href: '/admin/email-templates', icon: Mail, permission: 'templates.manage' },
         { name: 'Legacy Modules', href: '/admin/legacy-modules', icon: Database, permission: 'settings.manage' },
         { name: 'Settings', href: '/admin/settings', icon: Settings, permission: 'settings.manage' },
+        { name: 'Gmail Sync', href: '/admin/gmail/settings', icon: Mail, permission: 'admin.access' },
       ]
     },
     {
@@ -308,6 +309,7 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
       items: [
         { name: 'My Profile', href: '/admin/profile', icon: User },
         { name: 'My Attendance & Breaks', href: '/admin/my-attendance', icon: Clock },
+        { name: 'Mail', href: '/admin/mail', icon: Mail },
       ]
     },
   ];
