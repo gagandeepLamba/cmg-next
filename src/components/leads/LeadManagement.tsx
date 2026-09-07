@@ -169,7 +169,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     leadQuality: '',
     dateFrom: '',
     dateTo: '',
-    assignTo: ''
+    assignTo: '',
+    todayActivity: ''
   });
   const [filterOptions, setFilterOptions] = useState<LeadFilterOptions>({
     statuses: [],
@@ -532,6 +533,11 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
 
   const handleStatusTabChange = (status: string) => {
     setFilters(prev => ({ ...prev, status }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleTodayActivityToggle = () => {
+    setFilters(prev => ({ ...prev, todayActivity: prev.todayActivity ? '' : '1' }));
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
@@ -1528,6 +1534,19 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     return String(value).slice(0, 5);
   };
 
+  const isLeadNewToday = (lead: Lead) => {
+    const createdRaw = lead.created || lead.regdate;
+    if (!createdRaw) return false;
+    const created = new Date(createdRaw);
+    if (Number.isNaN(created.getTime())) return false;
+    const now = new Date();
+    return (
+      created.getFullYear() === now.getFullYear() &&
+      created.getMonth() === now.getMonth() &&
+      created.getDate() === now.getDate()
+    );
+  };
+
   const getAppointmentLabel = (appointment: LeadActivity['appointments'][number]) => {
     if (Number(appointment.done || 0) === 1) return 'Completed';
     if (Number(appointment.not_done || 0) === 1) return 'Not Done';
@@ -1609,6 +1628,21 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           >
             <AlertCircle className="w-4 h-4 mr-2" />
             Duplicate Leads
+          </button>
+
+          <div className="mx-1 h-6 w-px bg-gray-200" />
+
+          <button
+            onClick={handleTodayActivityToggle}
+            title="Leads with a remark, follow-up, or appointment added today"
+            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              filters.todayActivity
+                ? 'bg-teal-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <Clock className="w-4 h-4 mr-2" />
+            Today&apos;s Activity
           </button>
         </div>
       </div>
@@ -1801,7 +1835,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               leadQuality: '',
               dateFrom: '',
               dateTo: '',
-              assignTo: ''
+              assignTo: '',
+              todayActivity: ''
             })}
             className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
           >
@@ -1979,11 +2014,16 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                   const waLink = getWhatsAppLink(waNumber);
                   const name = [lead.fname, lead.mname, lead.lname].filter(Boolean).join(' ') || `Lead #${lead.id}`;
                   const initials = `${lead.fname?.[0] || ''}${lead.lname?.[0] || ''}`.toUpperCase() || 'LD';
+                  const isNewToday = isLeadNewToday(lead);
 
                   return (
                     <article
                       key={leadId ?? `${lead.email || 'lead'}-${index}`}
-                      className="min-w-0 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-md lg:p-4"
+                      className={`min-w-0 rounded-lg border p-3 shadow-sm transition hover:shadow-md lg:p-4 ${
+                        isNewToday
+                          ? 'border-emerald-200 bg-emerald-50 hover:border-emerald-300'
+                          : 'border-gray-200 bg-white hover:border-blue-200'
+                      }`}
                     >
                       <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
                         <div className="flex min-w-0 gap-3">
@@ -2020,6 +2060,11 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                               <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getQualityColor(lead.lead_quality || 'Unknown')}`}>
                                 {lead.lead_quality || 'No Quality'}
                               </span>
+                              {isNewToday && (
+                                <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">
+                                  New Today
+                                </span>
+                              )}
                             </div>
 
                             <div className="mt-0.5 text-xs text-gray-500">

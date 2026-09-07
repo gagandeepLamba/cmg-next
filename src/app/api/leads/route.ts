@@ -84,6 +84,7 @@ export async function GET(request: NextRequest) {
     const leadQuality = searchParams.get('leadQuality')
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
+    const todayActivity = searchParams.get('todayActivity') === '1' || searchParams.get('todayActivity') === 'true'
     const exportType = searchParams.get('exportType')
     const opportunityView = searchParams.get('opportunityView') || 'leads'
     const kanbanView = searchParams.get('kanban') === 'true'
@@ -169,6 +170,22 @@ export async function GET(request: NextRequest) {
     if (leadQuality) {
       whereConditions.push('l.lead_quality = ?')
       replacements.push(leadQuality)
+    }
+
+    // "Today's Activity": leads with a remark, follow-up, or appointment
+    // logged today. dm_remarks is the unified activity log written by
+    // lead-remarks/route.ts, follow-up-reminders/route.ts and
+    // appointments/route.ts (logLeadRemark) for these exact three actions,
+    // so it's the one place that already carries a true created_at for all
+    // three - the source tables themselves don't (appointments has none at
+    // all; dmc_forum_leads_remarks splits date/time across two columns).
+    if (todayActivity) {
+      whereConditions.push(`EXISTS (
+        SELECT 1 FROM dm_remarks dr
+        WHERE dr.lead_id = l.id
+          AND dr.action IN ('remark_added', 'followup_added', 'appointment_booked')
+          AND DATE(dr.created_at) = CURDATE()
+      )`)
     }
 
     if (dateFrom || dateTo) {

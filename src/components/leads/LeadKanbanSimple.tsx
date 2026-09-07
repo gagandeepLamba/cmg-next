@@ -14,6 +14,19 @@ interface LeadKanbanSimpleProps {
   onStatusChange?: (leadId: number, newStatus: string) => void;
 }
 
+const isLeadNewToday = (lead: Lead) => {
+  const createdRaw = lead.created || lead.regdate;
+  if (!createdRaw) return false;
+  const created = new Date(createdRaw);
+  if (Number.isNaN(created.getTime())) return false;
+  const now = new Date();
+  return (
+    created.getFullYear() === now.getFullYear() &&
+    created.getMonth() === now.getMonth() &&
+    created.getDate() === now.getDate()
+  );
+};
+
 const kanbanColumns = [
   { id: 'New', title: 'New', accent: 'bg-sky-500', tint: 'border-sky-100 bg-sky-50/60' },
   { id: 'Prospect', title: 'Prospect', accent: 'bg-indigo-500', tint: 'border-indigo-100 bg-indigo-50/60' },
@@ -101,20 +114,31 @@ export default function LeadKanbanSimple({
                         snapshot.isDraggingOver ? 'bg-white/70 ring-2 ring-inset ring-blue-500/30' : ''
                       }`}
                     >
-                      {columnLeads.map((lead, index) => (
+                      {columnLeads.map((lead, index) => {
+                        const isNewToday = isLeadNewToday(lead);
+                        return (
                         <Draggable key={lead.id} draggableId={lead.id.toString()} index={index}>
                           {(dragProvided, dragSnapshot) => (
                             <article
                               ref={dragProvided.innerRef}
                               {...dragProvided.draggableProps}
                               {...dragProvided.dragHandleProps}
-                              className={`cursor-grab rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm transition-[box-shadow,transform] duration-200 active:cursor-grabbing ${
+                              className={`cursor-grab rounded-xl border px-4 py-3.5 shadow-sm transition-[box-shadow,transform] duration-200 active:cursor-grabbing ${
                                 dragSnapshot.isDragging
                                   ? 'rotate-[1deg] scale-[1.015] border-blue-200 shadow-xl ring-2 ring-blue-500/20'
-                                  : 'hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md'
+                                  : isNewToday
+                                    ? 'border-emerald-200 bg-emerald-50 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md'
+                                    : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md'
                               }`}
                             >
-                              <p className="truncate text-sm font-semibold text-slate-900">{[lead.fname, lead.mname, lead.lname].filter(Boolean).join(' ')}</p>
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="truncate text-sm font-semibold text-slate-900">{[lead.fname, lead.mname, lead.lname].filter(Boolean).join(' ')}</p>
+                                {isNewToday && (
+                                  <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                    New Today
+                                  </span>
+                                )}
+                              </div>
                               <p className="mt-1 truncate text-xs text-slate-500">{lead.email || 'No email address'}</p>
                               <p className="mt-1 truncate text-xs text-slate-500">{lead.mobile || 'No mobile number'}</p>
                               <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
@@ -157,7 +181,8 @@ export default function LeadKanbanSimple({
                             </article>
                           )}
                         </Draggable>
-                      ))}
+                        );
+                      })}
                       {provided.placeholder}
                       {!columnLeads.length && !snapshot.isUsingPlaceholder && (
                         <div className="flex min-h-44 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/45 px-6 text-center text-sm text-slate-400">
