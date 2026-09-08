@@ -274,10 +274,10 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   }, [user]);
 
   useEffect(() => {
-    if (!isBranchManagerOrCeo(user)) return;
+    if (!isFoeOrBranchManagerOrCeo(user)) return;
     (async () => {
       try {
-        // BM only sees counselors in their own branch; CEO sees everyone -
+        // FOE/BM only see counselors in their own branch; CEO sees everyone -
         // same branch-scoping convention used for lead reassignment (loadCounselors, below).
         const params = new URLSearchParams({ status: '1', limit: '200' });
         if (!isCeo(user) && user?.branch) params.set('branch', String(user.branch));
@@ -1742,7 +1742,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             ))}
           </SearchableSelect>
 
-          {isBranchManagerOrCeo(user) && (
+          {isFoeOrBranchManagerOrCeo(user) && (
             <SearchableSelect
               value={filters.assignTo}
               onChange={(e) => setFilters({...filters, assignTo: e.target.value})}

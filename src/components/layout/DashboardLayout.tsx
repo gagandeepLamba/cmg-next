@@ -5,9 +5,10 @@ import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { canAccessAdminPath, getDefaultAdminPathForUser } from '@/lib/roleAccess';
-import { isCeo, isFoeOrBranchManagerOrCeo } from '@/lib/roleChecks';
+import { isCeo, isFoeOrBranchManagerOrCeo, isFoeOrCeo } from '@/lib/roleChecks';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 import ForcePasswordChangeModal from '@/components/auth/ForcePasswordChangeModal';
+import FoeWorkloadSidebar, { type CounselorWorkload, type WorkloadPeriod } from '@/components/leads/FoeWorkloadSidebar';
 import {
   BarChart3,
   Users,
@@ -95,6 +96,9 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
+  const [foeSidebarOpen, setFoeSidebarOpen] = useState(false);
+  const [foeWorkloadPeriod, setFoeWorkloadPeriod] = useState<WorkloadPeriod>('all');
+  const [counselorWorkload, setCounselorWorkload] = useState<{ counselors: CounselorWorkload[]; unassignedLeads: number }>({ counselors: [], unassignedLeads: 0 });
 
   useEffect(() => {
     if (isLoading || !user || canAccessAdminPath(user, pathname)) return;
@@ -122,6 +126,33 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
     const interval = setInterval(load, 120_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [canSeeOpsAssignments]);
+
+  // FOE/CEO "Counselor Workload" sidebar — real-time assigned-lead counts per
+  // counselor. Polled like the assignments badge above, since counts change
+  // as leads get assigned/transferred throughout the day.
+  const canSeeFoeWorkload = isFoeOrCeo(user);
+  useEffect(() => {
+    if (!canSeeFoeWorkload) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/admin/counselor-workload?period=${foeWorkloadPeriod}`);
+        if (!res.ok) return;
+        const result = await res.json();
+        if (!cancelled) {
+          setCounselorWorkload({
+            counselors: Array.isArray(result.counselors) ? result.counselors : [],
+            unassignedLeads: Number(result.unassignedLeads) || 0,
+          });
+        }
+      } catch {
+        // Silent — same reasoning as the assignments badge above.
+      }
+    };
+    load();
+    const interval = setInterval(load, 120_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [canSeeFoeWorkload, foeWorkloadPeriod]);
 
 
   const navigationGroups: Array<{ title: string; items: NavItem[] }> = [
@@ -556,6 +587,21 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
             </div>
 
             <div className="flex items-center space-x-4">
+              {canSeeFoeWorkload && (
+                <button
+                  type="button"
+                  onClick={() => setFoeSidebarOpen(true)}
+                  aria-label="Counselor workload"
+                  className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <Users className="w-5 h-5 text-gray-600" />
+                  {counselorWorkload.unassignedLeads > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      {counselorWorkload.unassignedLeads > 99 ? '99+' : counselorWorkload.unassignedLeads}
+                    </span>
+                  )}
+                </button>
+              )}
               <NotificationCenter />
 
               {/* Profile dropdown */}
@@ -609,6 +655,19 @@ const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
           {children}
         </main>
       </div>
+
+      {canSeeFoeWorkload && (
+        <FoeWorkloadSidebar
+          currentUser={user}
+          counselors={counselorWorkload.counselors}
+          unassignedLeads={counselorWorkload.unassignedLeads}
+          open={foeSidebarOpen}
+          onOpenChange={setFoeSidebarOpen}
+          period={foeWorkloadPeriod}
+          onPeriodChange={setFoeWorkloadPeriod}
+          hideTrigger
+        />
+      )}
     </div>
   );
 }

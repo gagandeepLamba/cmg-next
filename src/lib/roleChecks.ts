@@ -18,6 +18,11 @@ export function isFoe(user: RoleCheckUser): boolean {
   return text.includes('foe') || text.includes('front office executive');
 }
 
+export function isFoeOrCeo(user: RoleCheckUser): boolean {
+  if (isCeo(user)) return true;
+  return isFoe(user);
+}
+
 export function isFoeOrBranchManagerOrCeo(user: RoleCheckUser): boolean {
   if (isCeo(user)) return true;
   // `type` isn't reliably a short code — it falls back to a verbose role
