@@ -16,11 +16,13 @@ async function ensureDB() {
  */
 export async function POST(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = request.headers.get('authorization') || '';
-    if (auth.replace(/^Bearer\s+/i, '') !== secret) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
+  if (!secret) {
+    console.error('[Cron] gsc-sync: CRON_SECRET is not configured — refusing request');
+    return new NextResponse('CRON_SECRET is not configured', { status: 500 });
+  }
+  const auth = request.headers.get('authorization') || '';
+  if (auth.replace(/^Bearer\s+/i, '') !== secret) {
+    return new NextResponse('Unauthorized', { status: 401 });
   }
 
   await ensureDB();

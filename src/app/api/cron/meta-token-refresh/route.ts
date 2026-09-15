@@ -21,11 +21,16 @@ async function ensureDB() {
  */
 export async function POST(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = request.headers.get('authorization') || '';
-    if (auth.replace(/^Bearer\s+/i, '') !== secret) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
+  if (!secret) {
+    // Fail closed: an unset CRON_SECRET must never mean "no auth required" —
+    // this endpoint can force a token rotation, so leaving it open by default
+    // would let anyone on the internet trigger it.
+    console.error('[Cron] meta-token-refresh: CRON_SECRET is not configured — refusing request');
+    return new NextResponse('CRON_SECRET is not configured', { status: 500 });
+  }
+  const auth = request.headers.get('authorization') || '';
+  if (auth.replace(/^Bearer\s+/i, '') !== secret) {
+    return new NextResponse('Unauthorized', { status: 401 });
   }
 
   await ensureDB();
