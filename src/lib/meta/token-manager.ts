@@ -30,6 +30,14 @@ function toMysqlDatetime(d: Date | null): string | null {
   return d ? d.toISOString().slice(0, 19).replace('T', ' ') : null;
 }
 
+// dm_meta_tokens.expires_at is always written via toMysqlDatetime() above, i.e.
+// a UTC wall-clock value with no timezone marker. `new Date('YYYY-MM-DD HH:MM:SS')`
+// (space, not 'T') is parsed as LOCAL time by JS, which would silently skew this
+// by the server's UTC offset — force UTC interpretation on the way back out.
+function fromMysqlDatetime(s: string | null): Date | null {
+  return s ? new Date(`${s.replace(' ', 'T')}Z`) : null;
+}
+
 interface TokenRow {
   id: number;
   page_access_token_enc: string;
@@ -204,24 +212,46 @@ export async function refreshTokenIfNeeded(opts: { thresholdDays?: number; force
   if (!row || !row.page_access_token_enc) row = await seedFromEnv();
 
   const currentPageToken = decryptToken(row.page_access_token_enc);
-  const info = await debugToken(currentPageToken);
+  const pageInfo = await debugToken(currentPageToken);
+
+  if (!pageInfo.isValid) {
+    const msg = 'Stored Meta Page token is no longer valid (revoked, password change, or expired) — manual re-authentication required';
+    await sequelize.query(
+      `UPDATE dm_meta_tokens SET last_checked_at = NOW(), expires_at = :expiresAt, last_refresh_status = 'failed', last_refresh_error = :msg WHERE id = 1`,
+      { replacements: { expiresAt: toMysqlDatetime(pageInfo.expiresAt), msg }, type: QueryTypes.UPDATE }
+    );
+    await logRefresh('failed', msg, pageInfo.expiresAt, null);
+    return { status: 'failed', message: msg };
+  }
+
+  // A Page token derived from a long-lived User token typically reports
+  // `expires_at: 0` (never expires) on its own — but it dies the moment the
+  // underlying User session lapses. When a User token is on file, that's the
+  // real clock to watch; checking only the Page token's (misleadingly empty)
+  // expiry would mean auto-refresh never fires until the whole thing breaks.
+  let governingExpiresAt = pageInfo.expiresAt;
+  let userInfo: DebugTokenResult | null = null;
+  if (row.user_access_token_enc) {
+    userInfo = await debugToken(decryptToken(row.user_access_token_enc));
+    governingExpiresAt = userInfo.expiresAt;
+  }
 
   await sequelize.query(
     `UPDATE dm_meta_tokens SET last_checked_at = NOW(), expires_at = :expiresAt WHERE id = 1`,
-    { replacements: { expiresAt: toMysqlDatetime(info.expiresAt) }, type: QueryTypes.UPDATE }
+    { replacements: { expiresAt: toMysqlDatetime(governingExpiresAt) }, type: QueryTypes.UPDATE }
   );
 
-  if (!info.isValid) {
-    const msg = 'Stored Meta token is no longer valid (revoked, password change, or expired) — manual re-authentication required';
+  if (userInfo && !userInfo.isValid) {
+    const msg = 'Stored Meta User token is no longer valid (revoked, password change, or expired) — manual re-authentication required. The derived Page token will stop working once its session is dropped.';
     await sequelize.query(
       `UPDATE dm_meta_tokens SET last_refresh_status = 'failed', last_refresh_error = :msg WHERE id = 1`,
       { replacements: { msg }, type: QueryTypes.UPDATE }
     );
-    await logRefresh('failed', msg, info.expiresAt, null);
+    await logRefresh('failed', msg, governingExpiresAt, null);
     return { status: 'failed', message: msg };
   }
 
-  if (info.expiresAt === null) {
+  if (governingExpiresAt === null) {
     await sequelize.query(
       `UPDATE dm_meta_tokens SET last_refresh_status = 'never_expires', last_refresh_error = NULL, last_checked_at = NOW() WHERE id = 1`,
       { type: QueryTypes.UPDATE }
@@ -230,19 +260,20 @@ export async function refreshTokenIfNeeded(opts: { thresholdDays?: number; force
     return { status: 'never_expires', message: 'Token does not expire per Meta debug_token' };
   }
 
-  const daysUntilExpiry = (info.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+  const daysUntilExpiry = (governingExpiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
 
   if (!opts.force && daysUntilExpiry > thresholdDays) {
     return {
       status: 'skipped',
       message: `Token valid for ${daysUntilExpiry.toFixed(1)} more days — refresh not yet due (threshold ${thresholdDays}d)`,
-      expiresAt: info.expiresAt,
+      expiresAt: governingExpiresAt,
     };
   }
 
   try {
     let newPageToken: string;
     let newUserTokenEnc: string | null = null;
+    let newGoverningExpiresAt: Date | null;
 
     if (row.user_access_token_enc) {
       const userToken = decryptToken(row.user_access_token_enc);
@@ -251,11 +282,13 @@ export async function refreshTokenIfNeeded(opts: { thresholdDays?: number; force
       if (!pageId) throw new Error('page_id is not configured — cannot derive a Page token from the refreshed User token');
       newPageToken = await derivePageToken(exchangedUserToken, pageId);
       newUserTokenEnc = encryptToken(exchangedUserToken);
+      // The governing clock is still the (freshly extended) User token, not
+      // the derived Page token — re-check it the same way we did above.
+      newGoverningExpiresAt = (await debugToken(exchangedUserToken)).expiresAt;
     } else {
       newPageToken = await exchangeLongLivedToken(currentPageToken);
+      newGoverningExpiresAt = (await debugToken(newPageToken)).expiresAt;
     }
-
-    const newInfo = await debugToken(newPageToken);
 
     await sequelize.query(
       `UPDATE dm_meta_tokens
@@ -272,26 +305,26 @@ export async function refreshTokenIfNeeded(opts: { thresholdDays?: number; force
         replacements: {
           token: encryptToken(newPageToken),
           userToken: newUserTokenEnc,
-          expiresAt: toMysqlDatetime(newInfo.expiresAt),
+          expiresAt: toMysqlDatetime(newGoverningExpiresAt),
         },
         type: QueryTypes.UPDATE,
       }
     );
 
-    const msg = newInfo.expiresAt
-      ? `Refreshed — new token valid until ${newInfo.expiresAt.toISOString()}`
+    const msg = newGoverningExpiresAt
+      ? `Refreshed — valid until ${newGoverningExpiresAt.toISOString()}`
       : 'Refreshed — new token does not expire';
-    await logRefresh('ok', msg, info.expiresAt, newInfo.expiresAt);
-    return { status: 'ok', message: msg, expiresAt: newInfo.expiresAt };
+    await logRefresh('ok', msg, governingExpiresAt, newGoverningExpiresAt);
+    return { status: 'ok', message: msg, expiresAt: newGoverningExpiresAt };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await sequelize.query(
       `UPDATE dm_meta_tokens SET last_refresh_status = 'failed', last_refresh_error = :msg, last_checked_at = NOW() WHERE id = 1`,
       { replacements: { msg }, type: QueryTypes.UPDATE }
     );
-    await logRefresh('failed', msg, info.expiresAt, null);
+    await logRefresh('failed', msg, governingExpiresAt, null);
     // Keep the old (still-valid-for-now) token active — do not overwrite it on failure.
-    return { status: 'failed', message: msg, expiresAt: info.expiresAt };
+    return { status: 'failed', message: msg, expiresAt: governingExpiresAt };
   }
 }
 
@@ -314,7 +347,7 @@ export async function getTokenStatus(): Promise<TokenStatus> {
       lastRefreshedAt: null, lastRefreshStatus: null, lastRefreshError: null, lastCheckedAt: null,
     };
   }
-  const expiresAt = row.expires_at ? new Date(row.expires_at) : null;
+  const expiresAt = fromMysqlDatetime(row.expires_at);
   return {
     hasToken: true,
     source: row.token_source,
