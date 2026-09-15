@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, CheckCircle, XCircle, Zap, Activity } from 'lucide-react';
+import { Save, CheckCircle, XCircle, Zap, Activity, RefreshCw } from 'lucide-react';
 
 interface Settings {
   id: number;
@@ -23,17 +23,34 @@ interface EnvStatus {
   appSecret: string;
   webhookVerifyToken: string;
   pageAccessToken: string;
+  tokenEncryptionKey: string;
   graphApiVersion: string;
   crmEndpoint: string;
+}
+
+interface TokenStatus {
+  hasToken: boolean;
+  source: string | null;
+  expiresAt: string | null;
+  daysRemaining: number | null;
+  lastRefreshedAt: string | null;
+  lastRefreshStatus: string | null;
+  lastRefreshError: string | null;
+  lastCheckedAt: string | null;
 }
 
 export default function MetaSettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [env, setEnv]           = useState<EnvStatus | null>(null);
+  const [tokenStatus, setTokenStatus] = useState<TokenStatus | null>(null);
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [testingCrm, setTestingCrm]   = useState(false);
   const [testingMeta, setTestingMeta] = useState(false);
+  const [refreshingToken, setRefreshingToken] = useState(false);
+  const [showManualToken, setShowManualToken] = useState(false);
+  const [manualToken, setManualToken] = useState({ pageToken: '', userToken: '', pageId: '' });
+  const [savingManualToken, setSavingManualToken] = useState(false);
   const [msg, setMsg]           = useState('');
   const [form, setForm]         = useState({
     is_enabled: 0,
@@ -52,6 +69,7 @@ export default function MetaSettingsPage() {
       .then(data => {
         setSettings(data.settings);
         setEnv(data.envStatus);
+        setTokenStatus(data.tokenStatus ?? null);
         if (data.settings) {
           setForm({
             is_enabled: data.settings.is_enabled,
@@ -96,6 +114,32 @@ export default function MetaSettingsPage() {
     setTestingMeta(false);
   };
 
+  const reloadTokenStatus = () => {
+    fetch('/api/admin/meta-leads/settings').then(r => r.json()).then(d => setTokenStatus(d.tokenStatus ?? null));
+  };
+
+  const refreshToken = async () => {
+    setRefreshingToken(true); setMsg('');
+    const res = await fetch('/api/admin/meta-leads/refresh-token', { method: 'POST' });
+    const data = await res.json();
+    setMsg(data.success ? `Token refresh: ${data.message}` : `Token refresh failed: ${data.message}`);
+    setRefreshingToken(false);
+    reloadTokenStatus();
+  };
+
+  const saveManualToken = async () => {
+    setSavingManualToken(true); setMsg('');
+    const res = await fetch('/api/admin/meta-leads/refresh-token', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(manualToken),
+    });
+    const data = await res.json();
+    setMsg(data.success ? 'Token updated manually.' : `Failed to update token: ${data.message}`);
+    if (data.success) { setManualToken({ pageToken: '', userToken: '', pageId: '' }); setShowManualToken(false); }
+    setSavingManualToken(false);
+    reloadTokenStatus();
+  };
+
   if (loading) return <div className="p-6 text-gray-400">Loading settings...</div>;
 
   const webhookUrl = typeof window !== 'undefined'
@@ -129,6 +173,81 @@ export default function MetaSettingsPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Token Status */}
+      <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium text-gray-900">Access Token</h2>
+          <button onClick={refreshToken} disabled={refreshingToken}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60">
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshingToken ? 'animate-spin' : ''}`} />
+            Refresh Now
+          </button>
+        </div>
+        <p className="text-xs text-gray-500">
+          Stored encrypted in the database and checked daily by a Vercel cron job, which
+          auto-refreshes it once it is within 10 days of expiring.
+        </p>
+        {tokenStatus?.hasToken ? (
+          <div className="grid grid-cols-1 gap-1.5 text-xs sm:grid-cols-2">
+            <div className="text-gray-600">Source: <span className="font-medium text-gray-900">{tokenStatus.source}</span></div>
+            <div className="text-gray-600">
+              Expires:{' '}
+              <span className={`font-medium ${tokenStatus.daysRemaining !== null && tokenStatus.daysRemaining <= 10 ? 'text-amber-600' : 'text-gray-900'}`}>
+                {tokenStatus.expiresAt
+                  ? `${new Date(tokenStatus.expiresAt).toLocaleString()} (${tokenStatus.daysRemaining?.toFixed(1)}d)`
+                  : 'Never expires'}
+              </span>
+            </div>
+            <div className="text-gray-600">Last refreshed: <span className="font-medium text-gray-900">{tokenStatus.lastRefreshedAt ? new Date(tokenStatus.lastRefreshedAt).toLocaleString() : 'never'}</span></div>
+            <div className="text-gray-600">
+              Last status:{' '}
+              <span className={`font-medium ${tokenStatus.lastRefreshStatus === 'failed' ? 'text-red-600' : 'text-gray-900'}`}>
+                {tokenStatus.lastRefreshStatus ?? 'n/a'}
+              </span>
+            </div>
+            {tokenStatus.lastRefreshError && (
+              <div className="col-span-full text-red-600">Error: {tokenStatus.lastRefreshError}</div>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-red-600">No token on file — set META_PAGE_ACCESS_TOKEN and it will be seeded into the database on first use.</p>
+        )}
+
+        <button onClick={() => setShowManualToken(v => !v)} className="text-xs text-blue-600 hover:underline">
+          {showManualToken ? 'Cancel' : 'Emergency: manually paste a new token'}
+        </button>
+        {showManualToken && (
+          <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs text-amber-800">
+              Use this only if the stored token stops working (e.g. Meta fully revoked it) and
+              auto-refresh can no longer renew it. Paste a freshly generated Page Access Token.
+            </p>
+            <input
+              value={manualToken.pageToken}
+              onChange={e => setManualToken(p => ({ ...p, pageToken: e.target.value }))}
+              placeholder="New Page Access Token"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              value={manualToken.userToken}
+              onChange={e => setManualToken(p => ({ ...p, userToken: e.target.value }))}
+              placeholder="Long-lived User Token (optional — enables full two-step auto-refresh)"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              value={manualToken.pageId}
+              onChange={e => setManualToken(p => ({ ...p, pageId: e.target.value }))}
+              placeholder="Page ID (optional — defaults to META_PAGE_ID)"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+            />
+            <button onClick={saveManualToken} disabled={savingManualToken || !manualToken.pageToken.trim()}
+              className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-60">
+              {savingManualToken ? 'Saving...' : 'Save Token'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Webhook URL */}

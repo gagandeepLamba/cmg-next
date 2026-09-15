@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize, connectDB } from '@/lib/sequelize';
 import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { getTokenStatus } from '@/lib/meta/token-manager';
 
 let dbReady = false;
 async function ensureDB() {
@@ -34,14 +35,20 @@ export async function GET(request: NextRequest) {
     { type: QueryTypes.SELECT }
   );
 
-  // Never expose tokens — return env-configured values as masked status
+  // Never expose the token itself — only masked env presence plus DB-tracked
+  // expiry/refresh status (the token now lives in dm_meta_tokens, auto-refreshed
+  // by /api/cron/meta-token-refresh; see getTokenStatus()).
+  const tokenStatus = await getTokenStatus().catch(() => null);
+
   return NextResponse.json({
     settings: row ?? null,
+    tokenStatus,
     envStatus: {
       appId: process.env.META_APP_ID ? '✓ set' : '✗ missing',
       appSecret: process.env.META_APP_SECRET ? '✓ set' : '✗ missing',
       webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN ? '✓ set' : '✗ missing',
       pageAccessToken: process.env.META_PAGE_ACCESS_TOKEN ? '✓ set' : '✗ missing',
+      tokenEncryptionKey: process.env.META_TOKEN_ENCRYPTION_KEY ? '✓ set' : '✗ missing',
       graphApiVersion: process.env.META_GRAPH_API_VERSION || 'v21.0 (default)',
       crmEndpoint: process.env.META_LEADS_CRM_ENDPOINT || 'https://cmgone.org/api/web-to-leads (default)',
     },

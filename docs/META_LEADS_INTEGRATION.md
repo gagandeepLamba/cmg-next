@@ -96,17 +96,46 @@ curl -X POST "https://graph.facebook.com/v21.0/{PAGE_ID}/subscribed_apps" \
 ```
 
 ### 5. Generate a Long-Lived Page Access Token
-Short-lived user tokens expire in 1 hour. For production you need a never-expiring Page token:
+Short-lived user tokens expire in 1 hour. Get a long-lived Page token to bootstrap the integration with:
 
 ```bash
 # Step 1: Get a long-lived user token (60 days)
 curl "https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id={APP_ID}&client_secret={APP_SECRET}&fb_exchange_token={SHORT_USER_TOKEN}"
 
-# Step 2: Get page tokens (these never expire)
+# Step 2: Get page tokens
 curl "https://graph.facebook.com/me/accounts?access_token={LONG_LIVED_USER_TOKEN}"
 ```
 
-Use the `access_token` from the response for your page as `META_PAGE_ACCESS_TOKEN`.
+Use the `access_token` from the response for your page as `META_PAGE_ACCESS_TOKEN`. This is only
+needed **once**, to seed the database — see "Automatic Token Storage & Refresh" below for how the
+token is kept alive after that without any further manual steps.
+
+### 5b. Automatic Token Storage & Refresh
+
+The Page Access Token is no longer read from `.env` at request time. Instead:
+
+- On first use after deploy, `getActiveAccessToken()` (`src/lib/meta/token-manager.ts`) seeds the
+  token from `META_PAGE_ACCESS_TOKEN` into the `dm_meta_tokens` table, encrypted at rest with
+  `META_TOKEN_ENCRYPTION_KEY` (AES-256-GCM — generate one with `openssl rand -base64 32`).
+- Every Graph API call (`src/lib/meta/graph-api.ts`) reads the current token from that table.
+- A daily Vercel cron, `/api/cron/meta-token-refresh` (`vercel.json`, `0 4 * * *`), calls
+  `refreshTokenIfNeeded({ thresholdDays: 10 })`:
+  - It asks Meta's `debug_token` endpoint for the token's *real* expiry (never trusts a guess).
+  - If the token never expires (`expires_at: 0`), it does nothing and logs `never_expires`.
+  - If expiry is more than 10 days away, it does nothing and logs `skipped`.
+  - If expiry is within 10 days, it exchanges the token via `fb_exchange_token` for a fresh one
+    and stores it — the integration keeps working without anyone touching env vars or redeploying.
+  - On failure, the previous (still-valid-for-now) token is left in place; the failure is recorded
+    in `dm_meta_token_refresh_log` and on the token row (`last_refresh_status`, `last_refresh_error`)
+    so it's visible in **Admin → Meta Lead Ads → Settings**.
+- Admins can also hit **Refresh Now** on that Settings page at any time
+  (`POST /api/admin/meta-leads/refresh-token`), which forces a refresh regardless of the 10-day
+  threshold.
+- If Meta ever fully invalidates the token (password change, revoked access, or the underlying
+  long-lived user session lapses), auto-refresh cannot recover it — `debug_token` will report
+  `is_valid: false`, the cron will log a `failed` status, and you'll need to repeat Step 5 above and
+  either update `META_PAGE_ACCESS_TOKEN` and let it re-seed, or paste the new token directly by
+  calling the token manager's manual path.
 
 ### 6. Assign Page / Ad Account to App
 1. In **Meta Business Manager → Business Settings → Accounts → Pages**
