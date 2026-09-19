@@ -473,7 +473,8 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
   }, [leadId]);
 
   // ── Payment type for package selection ──
-  const [paymentType, setPaymentType] = useState<'upfront' | 'monthly' | 'stage'>('stage');
+  const [paymentType, setPaymentType] = useState<'upfront' | 'monthly' | 'stage' | 'manual'>('stage');
+  const [manualPackageAmount, setManualPackageAmount] = useState<number>(0);
 
   // ── Helper: compute package totals from a fee record ──
   const getFeePackageTotals = (fee: FeeRecord) => {
@@ -1084,6 +1085,8 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
           serviceRequired: prospectData.serviceRequired || (lead as any)?.service_interest || 'Consulting Service',
         },
         paymentData: {
+          packageSource: paymentType === 'manual' ? 'manual' : 'fee',
+          packageType: paymentType,
           totalAmount,
           amount: paidAmount,
           paidAmount,
@@ -1113,6 +1116,7 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
           signatureDate: signedAgreementData.signatureDate
         },
         invoiceData: {
+          packageSource: paymentType === 'manual' ? 'manual' : 'fee',
           purpose: prospectData.serviceRequired || lead?.service_interest || '',
           discount: quotationData.discount || 0,
           amount: paidAmount,
@@ -1490,6 +1494,8 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
           feeLoading={feeLoading}
           paymentType={paymentType}
           setPaymentType={setPaymentType}
+          manualPackageAmount={manualPackageAmount}
+          setManualPackageAmount={setManualPackageAmount}
           getFeePackageTotals={getFeePackageTotals}
         />;
       case 'quotation':
@@ -1507,6 +1513,7 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
           onNext={moveToNextStage}
           onPrevious={moveToPreviousStage}
           paymentType={paymentType}
+          manualPackageAmount={manualPackageAmount}
         />;
       case 'payment':
         return <PaymentStage
@@ -1823,7 +1830,7 @@ function validateStage(
 }
 
 // Stage Components
-function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onNext, feeData, feeLoading, paymentType, setPaymentType, getFeePackageTotals }: any) {
+function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onNext, feeData, feeLoading, paymentType, setPaymentType, manualPackageAmount, setManualPackageAmount, getFeePackageTotals }: any) {
   const { user } = useAuth();
   // Same rule as the Edit Lead page and the PUT /api/leads/[id] server-side
   // check: once a lead is in the CRM, only Branch Manager/CEO may change its
@@ -2364,10 +2371,47 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
                   </button>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentType('manual');
+                  setData({ ...data, estimatedValue: manualPackageAmount ? String(manualPackageAmount) : data.estimatedValue });
+                }}
+                className={`text-left rounded-lg border-2 p-3 transition-all ${
+                  paymentType === 'manual'
+                    ? 'border-emerald-500 bg-white shadow'
+                    : 'border-gray-200 bg-white hover:border-emerald-300'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Manual Package</span>
+                  {paymentType === 'manual' && <span className="text-xs bg-emerald-500 text-white px-1.5 py-0.5 rounded">Selected</span>}
+                </div>
+                <label className="block text-xs text-gray-600 mb-1">Package Amount</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={manualPackageAmount || ''}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => {
+                    const amount = Math.max(0, Number(event.target.value) || 0);
+                    setManualPackageAmount(amount);
+                    setPaymentType('manual');
+                    setData({ ...data, estimatedValue: amount ? String(amount) : '' });
+                  }}
+                  className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500"
+                  placeholder="0.00"
+                />
+                <p className="mt-2 text-xs text-gray-500">Not checked against the fee table.</p>
+                <div className="border-t border-gray-200 pt-1.5 mt-2 flex justify-between font-bold text-sm text-emerald-800">
+                  <span>Total</span>
+                  <span>{cur} {fmt(manualPackageAmount || 0)}</span>
+                </div>
+              </button>
             </div>
 
             {packages.length === 0 && (
-              <p className="text-sm text-emerald-700">No fee package found for this service and country.</p>
+              <p className="mt-3 text-sm text-emerald-700">No fee package found for this service and country. Use Manual Package if needed.</p>
             )}
           </div>
         );
@@ -2375,8 +2419,38 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
 
       {!feeData && !feeLoading && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          <AlertCircle className="inline mr-2" size={16} />
-          No fee package found in CRM for this service &amp; country. Enter the estimated value manually.
+          <div className="mb-3 flex items-center">
+            <AlertCircle className="mr-2" size={16} />
+            No fee package found in CRM for this service &amp; country. Use Manual Package to continue.
+          </div>
+          <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-amber-900">Manual Package Amount</label>
+              <input
+                type="number"
+                min="0"
+                value={manualPackageAmount || ''}
+                onChange={(event) => {
+                  const amount = Math.max(0, Number(event.target.value) || 0);
+                  setManualPackageAmount(amount);
+                  setPaymentType('manual');
+                  setData({ ...data, estimatedValue: amount ? String(amount) : '' });
+                }}
+                className="w-full rounded-lg border border-amber-300 px-3 py-2 text-gray-900 focus:ring-2 focus:ring-amber-500"
+                placeholder="0.00"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPaymentType('manual');
+                setData({ ...data, estimatedValue: manualPackageAmount ? String(manualPackageAmount) : data.estimatedValue });
+              }}
+              className="rounded-lg bg-amber-600 px-4 py-2 font-medium text-white hover:bg-amber-700"
+            >
+              Select Manual
+            </button>
+          </div>
         </div>
       )}
 
@@ -2409,7 +2483,7 @@ function ProspectStage({ lead, data, setData, onLeadUpdated, onSaveProspect, onN
   );
 }
 
-function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionData, requestingDiscount, onRequestDiscount, onRefreshDiscount, onDiscountChanged, onNext, onPrevious, paymentType }: any) {
+function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionData, requestingDiscount, onRequestDiscount, onRefreshDiscount, onDiscountChanged, onNext, onPrevious, paymentType, manualPackageAmount }: any) {
   const [saving, setSaving] = useState(false);
   const [appliedFeeKey, setAppliedFeeKey] = useState<string | null>(null);
   const currencyCode = feeData?.currencyCode || 'AED';
@@ -2456,6 +2530,23 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
 
   // ── Auto-populate line items when fee data or payment type changes ──
   useEffect(() => {
+    if (paymentType === 'manual') {
+      const amount = Number(manualPackageAmount || 0);
+      const key = `manual-${amount}`;
+      if (appliedFeeKey === key || amount <= 0) return;
+
+      const items = [{
+        description: `${lead?.service_interest_label || lead?.service_interest || 'Program'} - Manual Package`,
+        quantity: 1,
+        unitPrice: String(amount),
+        total: String(amount),
+      }];
+      const totals = calculateQuotationTotals(amount, data.discount || 0);
+      setData({ ...data, items, ...totals });
+      setAppliedFeeKey(key);
+      return;
+    }
+
     if (!feeData) return;
     const key = `${feeData.id}-${paymentType}`;
     if (appliedFeeKey === key) return;
@@ -2470,7 +2561,7 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
 
     setData({ ...data, items, ...totals });
     setAppliedFeeKey(key);
-  }, [feeData, paymentType]);
+  }, [feeData, paymentType, manualPackageAmount]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -2551,11 +2642,13 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
       {/* ── Payment Package (read-only — already chosen on the Prospect tab; see
            the Fee Package Summary there) — this stage only auto-populates its
            line items from that choice, it doesn't let it be changed again. ── */}
-      {feeData && (() => {
-        const upfrontBase = Number(feeData.upfront);
-        const stageExtra = Number(feeData.firstStage) + Number(feeData.secondStage) + Number(feeData.thirdStage) + Number(feeData.forthStage) + Number(feeData.fifthStage);
-        const monthlyExtra = Number(feeData.firstMonth) + Number(feeData.secondMonth) + Number(feeData.thirdMonth);
-        const selected = paymentType === 'stage'
+      {(feeData || paymentType === 'manual') && (() => {
+        const upfrontBase = Number(feeData?.upfront || 0);
+        const stageExtra = Number(feeData?.firstStage || 0) + Number(feeData?.secondStage || 0) + Number(feeData?.thirdStage || 0) + Number(feeData?.forthStage || 0) + Number(feeData?.fifthStage || 0);
+        const monthlyExtra = Number(feeData?.firstMonth || 0) + Number(feeData?.secondMonth || 0) + Number(feeData?.thirdMonth || 0);
+        const selected = paymentType === 'manual'
+          ? { label: 'Manual', total: Number(manualPackageAmount || data.subtotal || 0) }
+          : paymentType === 'stage'
           ? { label: 'Stage-wise', total: stageExtra }
           : paymentType === 'monthly'
             ? { label: 'Monthly', total: monthlyExtra }
@@ -2566,11 +2659,13 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
               <div>
                 <span className="text-sm font-semibold text-blue-900">Payment Package: {selected.label}</span>
                 <span className="ml-2 text-xs text-blue-600">
-                  {feeData.serviceName} · {feeData.countryName}{feeData.branchName ? ` · ${feeData.branchName}` : ''} · {feeData.currencyCode || 'AED'}
+                  {paymentType === 'manual'
+                    ? `${lead?.service_interest_label || lead?.service_interest || 'Selected service'} - manual amount`
+                    : `${feeData.serviceName} - ${feeData.countryName}${feeData.branchName ? ` - ${feeData.branchName}` : ''} - ${feeData.currencyCode || 'AED'}`}
                 </span>
               </div>
               <span className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white shadow">
-                {(feeData.currencyCode || 'AED')} {selected.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                {currencyCode} {selected.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
             </div>
             <p className="text-xs text-blue-600 mt-2">

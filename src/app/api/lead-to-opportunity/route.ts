@@ -323,6 +323,8 @@ export async function POST(request: NextRequest) {
     const productType = deriveProductTypeFromLabel(serviceName);
     const clientName = `${lead.fname || ''} ${lead.lname || ''}`.trim() || 'Client';
     let totalAmount = Number(paymentData.totalAmount || agreementData.totalAmount || opportunityData.estimatedValue || lead.payTotal || 0);
+    const isManualPackage = String(paymentData.packageSource || invoiceData.packageSource || opportunityData.packageSource || '').toLowerCase() === 'manual'
+      || String(paymentData.packageType || opportunityData.packageType || '').toLowerCase() === 'manual';
 
     // Package amount must be sourced from dm_fee for the lead's program, not an
     // arbitrary number — validate (and correct) it against the fee packages on
@@ -333,7 +335,7 @@ export async function POST(request: NextRequest) {
       branchId,
       transaction
     );
-    if (feePackages) {
+    if (feePackages && !isManualPackage) {
       // totalAmount is the quotation's tax-inclusive, post-discount total
       // (the wizard sends (subtotal - discount) * (1 + vatRate)), while
       // feePackages holds the raw undiscounted, tax-exclusive list prices —
