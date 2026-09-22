@@ -70,6 +70,7 @@ export async function GET() {
       ResidentCountry: 'Stored as nationality/address text',
       message: "Visitor's free-text enquiry; stored as the lead's enquiry and folded into lead_remark",
       preferredTime: "Visitor's preferred callback window; folded into lead_remark",
+      CampaignName: 'Specific ad campaign name; stored in campaign_group (campaign holds the broader UTM source)',
     },
     storesReferenceIds: {
       country_interest: 'dm_country_proces.id',
@@ -110,6 +111,7 @@ export async function POST(request: NextRequest) {
     const leadSource = readField(data, ['LeadSource', 'leadSource'], 'SEO Leads (English)');
     const message = readField(data, ['message']);
     const preferredTime = readField(data, ['preferredTime']);
+    const campaignName = readField(data, ['CampaignName']);
     // Branch wins if the form sent one we recognize. Otherwise, prefer the
     // visitor's own resident country when it matches a branch we operate in
     // (Qatar/Kuwait/India each have exactly one) instead of silently dropping
@@ -234,7 +236,7 @@ export async function POST(request: NextRequest) {
       discount_by: 1,
       discount_date: now,
       campaign: utmSource,
-      campaign_group: '',
+      campaign_group: campaignName,
       pa_fname: '',
       pa_lname: '',
       lead_remark: buildRemark({

@@ -44,6 +44,15 @@ async function getActiveSettings() {
   return row ?? { is_enabled: 0, default_branch: null };
 }
 
+async function getCampaignName(campaignId: string | null): Promise<string | null> {
+  if (!campaignId) return null;
+  const [row] = await sequelize.query<{ campaign_name: string | null }>(
+    `SELECT campaign_name FROM dm_meta_campaign_cache WHERE campaign_id = :campaignId LIMIT 1`,
+    { replacements: { campaignId }, type: QueryTypes.SELECT }
+  );
+  return row?.campaign_name ?? null;
+}
+
 async function getActiveMappings(): Promise<MetaLeadMapping[]> {
   return sequelize.query<MetaLeadMapping>(
     `SELECT id, scope_type, campaign_id, form_id, meta_field_key, crm_field_key,
@@ -132,6 +141,10 @@ export async function processWebhookEvent(eventId: number): Promise<void> {
 
     // Fetch form name (best-effort)
     const formName = rawLead.form_id ? await fetchFormName(rawLead.form_id) : null;
+    const campaignId = rawLead.campaign_id ?? event.campaign_id ?? null;
+    // Pulled from dm_meta_campaign_cache (kept fresh by the campaign-sync
+    // cron), not a Graph API call — avoids an extra round-trip per lead.
+    const campaignName = await getCampaignName(campaignId);
 
     const parsed: MetaLeadParsed = {
       metaLeadId: rawLead.id,
@@ -141,8 +154,8 @@ export async function processWebhookEvent(eventId: number): Promise<void> {
       pageId: event.page_id ?? null,
       formId: rawLead.form_id ?? null,
       formName,
-      campaignId: rawLead.campaign_id ?? event.campaign_id ?? null,
-      campaignName: null,
+      campaignId,
+      campaignName,
       adsetId: rawLead.adset_id ?? event.adset_id ?? null,
       adsetName: null,
       adId: rawLead.ad_id ?? event.ad_id ?? null,

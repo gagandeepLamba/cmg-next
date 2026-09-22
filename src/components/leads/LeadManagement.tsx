@@ -2109,7 +2109,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                               <div className="min-w-0 rounded-md bg-gray-50 p-2">
                                 <div className="font-semibold uppercase text-gray-400">Source</div>
                                 <div className="mt-0.5 truncate font-semibold text-gray-900" title={resolveSourceName(lead) || undefined}>{resolveSourceName(lead) || '—'}</div>
-                                <div className="truncate text-gray-600" title={lead.campaign || undefined}>{lead.campaign || 'No campaign'}</div>
+                                <div className="truncate text-gray-600" title={lead.campaign_group || undefined}>{lead.campaign_group || 'No campaign'}</div>
                               </div>
                               <div className="min-w-0 rounded-md bg-gray-50 p-2">
                                 <div className="font-semibold uppercase text-gray-400">Owner</div>

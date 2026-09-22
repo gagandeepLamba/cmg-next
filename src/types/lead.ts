@@ -38,6 +38,7 @@ export interface Lead {
   created: string;
   lead_quality: string;
   campaign?: string;
+  campaign_group?: string;
   latest_remark?: string;
   agreementNumber?: string;
   dmEmployeeByASSIGNTo?: { id: number; name: string };
