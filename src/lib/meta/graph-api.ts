@@ -32,6 +32,52 @@ export async function fetchLeadFromMeta(leadgenId: string): Promise<MetaRawLead>
   return res.json() as Promise<MetaRawLead>;
 }
 
+export interface MetaFormQuestion {
+  id?: string;
+  key: string;
+  label?: string;
+  type?: string;
+}
+
+export interface MetaFormDetails {
+  id: string;
+  name: string | null;
+  status: string | null;
+  locale: string | null;
+  questions: MetaFormQuestion[];
+}
+
+/** Fetches a lead form's full schema (name, status, questions) — used for form auto-discovery. */
+export async function fetchFormDetails(formId: string): Promise<MetaFormDetails> {
+  const fields = ['id', 'name', 'status', 'locale', 'questions'].join(',');
+  const token = await getActiveAccessToken();
+  const url = `${BASE}/${apiVersion()}/${formId}?fields=${fields}&access_token=${token}`;
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Meta Graph API error ${res.status}: ${errText}`);
+  }
+
+  const data = await res.json() as {
+    id: string; name?: string; status?: string; locale?: string;
+    questions?: MetaFormQuestion[];
+  };
+
+  return {
+    id: data.id,
+    name: data.name ?? null,
+    status: data.status ?? null,
+    locale: data.locale ?? null,
+    questions: data.questions ?? [],
+  };
+}
+
 /** Fetches lead form details (name) from Meta Graph API */
 export async function fetchFormName(formId: string): Promise<string | null> {
   try {

@@ -18,6 +18,7 @@ import { sequelize } from '@/lib/sequelize';
 import { fetchLeadFromMeta, fetchFormName } from './graph-api';
 import { parseFieldData, buildCrmPayload } from './mapping-engine';
 import { deliverToCrm, nextRetryAt } from './crm-delivery';
+import { ensureFormRegistered } from './form-registry';
 import type { MetaLeadMapping, MetaLeadParsed } from './types';
 
 const CRM_ENDPOINT =
@@ -152,7 +153,36 @@ export async function processWebhookEvent(eventId: number): Promise<void> {
     };
 
     const mappings = await getActiveMappings();
+
+    // Auto-discover new forms: registers form_id + its question schema on
+    // first sight, flagging PENDING_REVIEW when a question isn't covered by
+    // any GLOBAL/CAMPAIGN mapping. Best-effort — a discovery failure (Graph
+    // API hiccup, rate limit) must never block lead delivery.
+    let unmappedKeys: string[] = [];
+    if (parsed.formId) {
+      const registry = await ensureFormRegistered({
+        formId: parsed.formId,
+        pageId: parsed.pageId,
+        campaignId: parsed.campaignId,
+        mappings,
+      }).catch(err => {
+        console.warn(
+          `[Meta Processor] Form auto-discovery failed for form ${parsed.formId}:`,
+          err instanceof Error ? err.message : err
+        );
+        return null;
+      });
+      unmappedKeys = registry?.unmappedKeys ?? [];
+    }
+
     const crmPayload = buildCrmPayload(parsed, mappings, settingsGate.default_branch);
+
+    // Capture answers for any question key no mapping covered, so schema
+    // drift never silently loses data even before an admin reviews the form.
+    const unmappedFieldData: Record<string, string> = {};
+    for (const key of unmappedKeys) {
+      if (fields[key] !== undefined) unmappedFieldData[key] = fields[key];
+    }
 
     // Upsert meta lead
     await sequelize.query(
@@ -160,14 +190,15 @@ export async function processWebhookEvent(eventId: number): Promise<void> {
          (meta_lead_id, webhook_event_id, page_id, form_id, form_name,
           campaign_id, campaign_name, adset_id, adset_name, ad_id, ad_name,
           full_name, email, phone,
-          raw_lead_data, normalized_lead_data, meta_created_time)
+          raw_lead_data, normalized_lead_data, unmapped_field_data, meta_created_time)
        VALUES
          (:metaLeadId, :eventId, :pageId, :formId, :formName,
           :campaignId, :campaignName, :adsetId, :adsetName, :adId, :adName,
           :fullName, :email, :phone,
-          :rawLeadData, :normalizedLeadData, :metaCreatedTime)
+          :rawLeadData, :normalizedLeadData, :unmappedFieldData, :metaCreatedTime)
        ON DUPLICATE KEY UPDATE
          normalized_lead_data = VALUES(normalized_lead_data),
+         unmapped_field_data = VALUES(unmapped_field_data),
          updated_at = NOW()`,
       {
         replacements: {
@@ -187,6 +218,7 @@ export async function processWebhookEvent(eventId: number): Promise<void> {
           phone: parsed.phone,
           rawLeadData: JSON.stringify(rawLead),
           normalizedLeadData: JSON.stringify(crmPayload),
+          unmappedFieldData: Object.keys(unmappedFieldData).length ? JSON.stringify(unmappedFieldData) : null,
           metaCreatedTime: parsed.metaCreatedTime,
         },
         type: QueryTypes.INSERT,

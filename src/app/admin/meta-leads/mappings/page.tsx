@@ -3,9 +3,17 @@
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useCallback } from 'react';
 import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
-import { Plus, Trash2, Edit2, Check, X, Info } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Info, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { isCeo } from '@/lib/roleChecks';
+
+interface PendingForm {
+  id: number;
+  form_id: string;
+  form_name: string | null;
+  campaign_id: string | null;
+  unmapped_field_keys: string[] | string | null;
+}
 
 interface Mapping {
   id: number;
@@ -79,6 +87,7 @@ export default function MetaMappingsPage() {
   const [saving, setSaving]   = useState(false);
   const [msg, setMsg]         = useState('');
   const [scopeFilter, setScope] = useState('');
+  const [pendingForms, setPendingForms] = useState<PendingForm[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,7 +99,32 @@ export default function MetaMappingsPage() {
     } finally { setLoading(false); }
   }, [scopeFilter]);
 
+  const loadPendingForms = useCallback(async () => {
+    const res = await fetch('/api/admin/meta-leads/forms?status=PENDING_REVIEW');
+    const data = await res.json();
+    setPendingForms(data.data ?? []);
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadPendingForms(); }, [loadPendingForms]);
+
+  // Prefills the Add Mapping form for one unmapped question on a
+  // newly-discovered form — auto-discovery found the key, the admin just
+  // picks which CRM field it should land in.
+  const startMapFromDiscovery = (formId: string, metaFieldKey: string) => {
+    setForm({ ...emptyForm, scope_type: 'FORM', form_id: formId, meta_field_key: metaFieldKey });
+    setEditId(null);
+    setShowAdd(true);
+  };
+
+  const dismissPendingForm = async (formId: string) => {
+    await fetch('/api/admin/meta-leads/forms', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ form_id: formId, mapping_status: 'ACTIVE' }),
+    });
+    loadPendingForms();
+  };
 
   const handleSave = async () => {
     if (!form.meta_field_key.trim() || !form.crm_field_key.trim()) {
@@ -159,6 +193,47 @@ export default function MetaMappingsPage() {
         <Info className="mt-0.5 h-4 w-4 shrink-0" />
         <span>Priority: <strong>Form</strong> &gt; <strong>Campaign</strong> &gt; <strong>Global</strong>. Form and campaign mappings override global defaults for the same CRM field.</span>
       </div>
+
+      {/* Auto-discovered forms awaiting review — schema drift shows up here first */}
+      {pendingForms.length > 0 && (
+        <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-2 text-sm text-amber-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              <strong>{pendingForms.length}</strong> newly-seen form{pendingForms.length === 1 ? '' : 's'} {pendingForms.length === 1 ? 'has' : 'have'} questions
+              with no mapping yet. Answers are still captured (nothing is lost), but they won&apos;t reach the CRM until mapped below.
+            </span>
+          </div>
+          <div className="space-y-2">
+            {pendingForms.map(f => {
+              const keys = Array.isArray(f.unmapped_field_keys)
+                ? f.unmapped_field_keys
+                : (f.unmapped_field_keys ? JSON.parse(f.unmapped_field_keys) as string[] : []);
+              return (
+                <div key={f.id} className="rounded-lg border border-amber-200 bg-white p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-gray-900">
+                      {f.form_name || 'Unnamed form'} <span className="font-mono text-xs text-gray-400">({f.form_id})</span>
+                    </div>
+                    <button onClick={() => dismissPendingForm(f.form_id)}
+                      className="text-xs text-gray-500 hover:text-gray-800">
+                      Mark reviewed
+                    </button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {keys.map(key => (
+                      <button key={key} onClick={() => startMapFromDiscovery(f.form_id, key)}
+                        className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-mono text-xs text-amber-800 hover:bg-amber-200">
+                        {key} <Plus className="h-3 w-3" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {msg && (
         <div className={`rounded-lg px-4 py-2 text-sm ${msg.includes('Failed') || msg.includes('required') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{msg}</div>

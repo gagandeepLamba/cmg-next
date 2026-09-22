@@ -14,6 +14,11 @@ function applyTransform(value: string, transformType: string | null): string {
   }
 }
 
+/** Normalizes a Meta field name / question key into the canonical lookup key. */
+export function normalizeFieldKey(name: string): string {
+  return name.toLowerCase().replace(/[\s-]/g, '_');
+}
+
 /**
  * Parses Meta field_data array into a flat map.
  * field_data: [{name: "email", values: ["a@b.com"]}, ...]
@@ -22,9 +27,7 @@ export function parseFieldData(fieldData: Array<{ name: string; values: string[]
   const map: Record<string, string> = {};
   for (const f of fieldData) {
     const value = f.values?.[0] ?? '';
-    // Store by canonical name AND by label (lowercase normalized)
-    const key = f.name.toLowerCase().replace(/[\s-]/g, '_');
-    map[key] = value;
+    map[normalizeFieldKey(f.name)] = value;
   }
   return map;
 }

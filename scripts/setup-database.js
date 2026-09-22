@@ -683,6 +683,7 @@ const columnMigrations = [
   ['dm_opportunity_payments', 'accountantId', 'INT NULL'],
   ['dm_opportunity_payments', 'accountantVerifiedAt', 'DATETIME NULL'],
   ['dm_opportunity_payments', 'leadId', 'INT NULL'],
+  ['dm_meta_leads', 'unmapped_field_data', "JSON NULL COMMENT 'Answers for question keys not covered by any mapping at processing time'"],
 ];
 
 async function ensureColumn(connection, tableName, columnName, definition) {
