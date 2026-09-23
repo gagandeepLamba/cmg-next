@@ -662,7 +662,7 @@ DmcForumLeads.init(
       allowNull: false
     },
     campaign_group: {
-      type: DataTypes.STRING(50),
+      type: DataTypes.STRING(255),
       allowNull: false
     },
     pa_fname: {
