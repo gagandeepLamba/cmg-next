@@ -196,6 +196,7 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '8.5 Any approved refund will be issued only by bank transfer or company cheque, in the Client’s name exclusively, to the account/address on file. No refund will be issued to a third party, nominee, or any person other than the Client named in this Agreement.',
     '8.6 The cooling-off period, if any, does not apply once any assessment, advice, document review, or file registration has been provided.',
     '8.7 Nothing in this Clause obliges CMG to review the merits of a refusal; however, CMG will, on request, provide a written summary of the work performed on a file that did not result in approval.',
+    '8.8 Notwithstanding Clauses 2.3 and 8.2, where the Services fail due to an error, omission, or deficiency solely attributable to CMG (and not to the Client or any Authority), CMG shall, at its option, either: (a) correct the issue and re-apply on the Client’s behalf without any additional professional fee; or (b) where the Client has paid the Retainer Fee in full as a one-time payment, refund the Retainer Fee after deducting the percentage of work completed by CMG up to that date. Any such refund shall be processed within ninety (90) calendar days in the manner set out in Clause 8.5. Government / Authority fees remain the Client’s responsibility.',
   ], '8. سياسة الاسترداد', [
     '8.1 جميع الرسوم غير قابلة للاسترداد بصورة قاطعة، إلا وفق ما هو منصوص عليه صراحة وبشكل ضيق في هذا البند 8.',
     '8.2 يقر العميل ويوافق على أنه لن تُصدر CMG، تحت أي ظرف من الظروف، أي استرداد إذا انطبقت أي من الحالات التالية (هذه القائمة توضيحية وليست حصرية):',
@@ -222,6 +223,7 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '8.5 لن يُصدر أي استرداد معتمد إلا عن طريق التحويل البنكي أو شيك الشركة، باسم العميل حصرًا، إلى الحساب/العنوان المسجل. ولن يُصدر أي استرداد لطرف ثالث أو مرشح أو أي شخص بخلاف العميل المذكور في هذه الاتفاقية.',
     '8.6 لا تسري فترة التراجع، إن وجدت، بعد تقديم أي تقييم أو مشورة أو مراجعة مستندات أو تسجيل ملف.',
     '8.7 لا يُلزم أي نص في هذا البند CMG بمراجعة أسباب الرفض؛ ومع ذلك، ستقدم CMG، عند الطلب، ملخصًا كتابيًا بالعمل المنجز على الملف الذي لم يُفضِ إلى الموافقة.',
+    '8.8 على الرغم مما ورد في البندين 2.3 و8.2، في حال إخفاق الخدمات بسبب خطأ أو سهو أو قصور يعود حصرًا إلى CMG (وليس إلى العميل أو أي جهة مختصة)، تلتزم CMG، وفق اختيارها، بما يلي: (أ) تصحيح الخطأ وإعادة التقديم نيابةً عن العميل دون أي أتعاب مهنية إضافية؛ أو (ب) في حال سداد العميل رسوم الاحتجاز كاملةً دفعةً واحدة، رد رسوم الاحتجاز بعد خصم نسبة العمل الذي أنجزته CMG حتى تاريخه. ويُعالج أي استرداد من هذا النوع خلال تسعين (90) يومًا تقويميًا وفق الطريقة المنصوص عليها في البند 8.5. وتظل رسوم الحكومة / الجهات المختصة على عاتق العميل وحده.',
   ]],
   ['9. CONFIDENTIALITY AND DATA PROTECTION', [
     '9.1 Both parties agree to maintain the confidentiality of all information received under this Agreement. Confidential Information shall not be disclosed without prior written consent, except as required by law.',
@@ -360,7 +362,14 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
   const totalAmount = textOrBlank(v.totalAmount);
   const initialPayment = textOrBlank(v.initialPayment);
   const secondPayment = textOrBlank(v.secondPayment);
-  const secondPaymentDue = textOrBlank(v.secondPaymentDue, 'As per Annexure A');
+  // The Fee Summary points at Annexure A for the instalment date, so Annexure A
+  // itself must never fall back to "As per Annexure A" — with no date on file
+  // it refers to the agreed payment plan (Clause 5.7) instead.
+  const secondPaymentDue = String(v.secondPaymentDue ?? '').trim();
+  const secondPaymentSummaryEn = secondPaymentDue ? `Due: ${secondPaymentDue}` : 'As per Annexure A';
+  const secondPaymentSummaryAr = secondPaymentDue ? `تستحق: ${secondPaymentDue}` : 'وفق الملحق أ';
+  const secondPaymentAnnexEn = secondPaymentDue || 'As per the payment plan agreed with CMG (Clause 5.7)';
+  const secondPaymentAnnexAr = secondPaymentDue || 'وفق خطة السداد المتفق عليها مع CMG (البند 5.7)';
   const includedDeliverables = textOrBlank(v.includedDeliverables, 'Eligibility assessment, document review, application preparation and submission, liaison with the Authority, as per Clause 2');
   const expressExclusions = textOrBlank(v.expressExclusions, 'Legal representation; job placement guarantee; services not listed above');
   const specialTerms = textOrBlank(v.specialTerms, 'Standard Client Advisory Agreement terms apply as set out in the body of this Agreement');
@@ -375,7 +384,20 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Client Advisory Agreement ${esc(agreementNumber)}</title>
   <style>
-    @page { size: A4; margin: 10mm 8mm 14mm; }
+    /* "Page X of Y" lives in the page margin box: counter(page) only resolves
+       there — inside normal (even position: fixed) content Chrome prints "0". */
+    @page {
+      size: A4;
+      margin: 10mm 8mm 14mm;
+      @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        color: #667;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 8px;
+        vertical-align: bottom;
+        padding-bottom: 4mm;
+      }
+    }
     * { box-sizing: border-box; }
     :root {
       --navy: #0f2a4a;
@@ -469,7 +491,6 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
       display: flex; justify-content: space-between;
       color: #667; font-size: 8px;
     }
-    .page-number::after { content: counter(page); }
 
     @media screen {
       body { background: #eef0f3; padding: 14px 0; }
@@ -536,7 +557,7 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
     ${section('FEE SUMMARY', 'ملخص الرسوم', [
       row('Total Retainer Fee', `${currencyCode} ${totalAmount}`, 'إجمالي رسوم الاحتجاز'),
       row('Initial Payment', `${currencyCode} ${initialPayment}`, 'الدفعة الأولى'),
-      row('Second / Instalment Payment', `${currencyCode} ${secondPayment} (${secondPaymentDue})`, 'الدفعة الثانية / القسط', `${currencyCode} ${secondPayment} (${secondPaymentDue})`),
+      row('Second / Instalment Payment', `${currencyCode} ${secondPayment} (${secondPaymentSummaryEn})`, 'الدفعة الثانية / القسط', `${currencyCode} ${secondPayment} (${secondPaymentSummaryAr})`),
       row('Government / Authority Fees', 'NOT INCLUDED — paid by Client directly', 'رسوم الحكومة / الجهات المختصة', 'غير مشمولة — يدفعها العميل مباشرة'),
       row('VAT', 'Applicable per UAE VAT Law', 'ضريبة القيمة المضافة', 'مطبقة وفق قانون ضريبة القيمة المضافة الإماراتي'),
     ].join(''))}
@@ -566,7 +587,7 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
     ${section('FEE SCHEDULE', 'جدول الرسوم', [
       row('Total Retainer Fee', `${currencyCode} ${totalAmount}`, 'إجمالي رسوم الاحتجاز'),
       row('Initial Payment', `${currencyCode} ${initialPayment} — Due upon signing`, 'الدفعة الأولى', `${currencyCode} ${initialPayment} — تستحق عند التوقيع`),
-      row('Second Payment', `${currencyCode} ${secondPayment} — Due: ${secondPaymentDue}`, 'الدفعة الثانية', `${currencyCode} ${secondPayment} — تستحق: ${secondPaymentDue}`),
+      row('Second Payment', `${currencyCode} ${secondPayment} — Due: ${secondPaymentAnnexEn}`, 'الدفعة الثانية', `${currencyCode} ${secondPayment} — تستحق: ${secondPaymentAnnexAr}`),
       row('Government Fees', 'NOT INCLUDED — paid directly by Client', 'رسوم الحكومة', 'غير مشمولة — يدفعها العميل مباشرة'),
       row('VAT', 'Applicable per UAE VAT Law', 'ضريبة القيمة المضافة', 'مطبقة وفق قانون ضريبة القيمة المضافة الإماراتي'),
       row('Refund (if approved under Clause 8)', 'Processed within 90 calendar days of written approval, less applicable deductions per Clause 8.4', 'الاسترداد (إن ووفق عليه بموجب البند 8)', 'يُعالج خلال 90 يومًا تقويميًا من تاريخ الموافقة الكتابية، بعد خصم المبالغ المطبقة وفقًا للبند 8.4'),
@@ -588,7 +609,6 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
 
     <footer class="print-footer">
       <span>${esc(COMPANY.nameEn)} — ${esc(COMPANY.addressEn)}</span>
-      <span>Page <span class="page-number"></span></span>
     </footer>
   </main>
 </body>

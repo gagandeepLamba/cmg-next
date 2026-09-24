@@ -636,6 +636,8 @@ export async function POST(request: NextRequest) {
     let agreementNumber = `AGR-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     const clientPortalId = `CMG-${String(lead.id).padStart(6, '0')}-${String(opportunityId).padStart(6, '0')}`;
     const clientPortalToken = crypto.randomBytes(32).toString('hex');
+    // Only the counsellor-entered "Balance Due Date" — not the 7-day fallback the payment row gets above.
+    const balanceDueDate = paymentData.dueDate ? new Date(`${String(paymentData.dueDate).split('T')[0]}T00:00:00`) : null;
     // id omitted below - see the opportunity creation above for why (dm_opportunity_agreements.id is AUTO_INCREMENT).
     const agreementContent = agreementData.content || renderAgreementForBranch(branchCurrency.branchAbbrv, {
       agreementNumber,
@@ -656,6 +658,9 @@ export async function POST(request: NextRequest) {
       totalAmount: totalAmount.toLocaleString(),
       initialPayment: advisoryPaidAmount.toLocaleString(),
       secondPayment: Math.max(totalAmount - advisoryPaidAmount, 0).toLocaleString(),
+      secondPaymentDue: totalAmount - advisoryPaidAmount > 0 && balanceDueDate && !Number.isNaN(balanceDueDate.getTime())
+        ? balanceDueDate.toLocaleDateString('en-GB')
+        : '',
       includedDeliverables: agreementData.includedDeliverables || agreementData.agreementTitle || agreementData.title || '',
       expressExclusions: agreementData.expressExclusions || '',
       specialTerms: agreementData.specialTerms || agreementData.specialConditions || agreementData.terms || agreementData.termsAndConditions || '',

@@ -257,6 +257,7 @@ function generateAgreementContent(opportunity: any, agreementData: any, agreemen
     totalAmount: Number(agreementData?.totalAmount ?? opportunity.estimatedValue ?? 0).toLocaleString(),
     initialPayment: Number(agreementData?.initialPayment || agreementData?.firstPayment || 0).toLocaleString(),
     secondPayment: Number(agreementData?.secondPayment || 0).toLocaleString(),
+    secondPaymentDue: agreementData?.secondPaymentDue || '',
     clientId: String(opportunity.leadId || opportunity.id || ''),
     includedDeliverables: agreementData?.includedDeliverables || agreementData?.title || agreementData?.agreementTitle || '',
     expressExclusions: agreementData?.expressExclusions || '',

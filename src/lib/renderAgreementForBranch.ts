@@ -39,6 +39,20 @@ export interface AgreementLeadData {
   specialTerms?: string;
 }
 
+// Callers feed the Annexure A "Scope Includes" / "Special Terms" rows from CRM
+// fields that are pre-filled with placeholder text, not real Annexure content:
+// the agreement title ("Service Agreement - <client>"), the wizard's default
+// "Standard service agreement terms apply.", and the legacy "1. SERVICE
+// PROVISION ..." terms block (which even contradicts the signed clauses, e.g.
+// 30 days' notice vs. Clause 10.2's 15). Printed as-is they show up as
+// "Scope Includes: Service Agreement - <client>", so treat them as blank and
+// let the template's own defaults apply.
+const isPlaceholderScope = (value?: string) => /^service agreement\s*-/i.test((value ?? '').trim());
+const isPlaceholderTerms = (value?: string) => {
+  const text = (value ?? '').trim();
+  return /^standard service agreement terms apply\.?$/i.test(text) || /^1\.\s*service provision\b/i.test(text);
+};
+
 export function renderAgreementForBranch(_branchAbbrv: string | null | undefined, data: AgreementLeadData): string {
   return renderDubaiAgreement({
     agreementNumber: data.agreementNumber,
@@ -60,9 +74,9 @@ export function renderAgreementForBranch(_branchAbbrv: string | null | undefined
     secondPayment: data.secondPayment,
     secondPaymentDue: data.secondPaymentDue,
     clientId: data.clientId || '',
-    includedDeliverables: data.includedDeliverables,
+    includedDeliverables: isPlaceholderScope(data.includedDeliverables) ? undefined : data.includedDeliverables,
     expressExclusions: data.expressExclusions,
-    specialTerms: data.specialTerms,
+    specialTerms: isPlaceholderTerms(data.specialTerms) ? undefined : data.specialTerms,
     currencyCode: 'AED',
   });
 }

@@ -168,10 +168,17 @@ const getAgreementFeeSchedule = (
   const totalAmount = Math.max(0, Number.isFinite(finalAmount) ? finalAmount : 0);
   const paidRaw = Number(paymentData?.paidAmount ?? 0);
   const initialPayment = Math.min(Math.max(0, Number.isFinite(paidRaw) ? paidRaw : 0), totalAmount);
+  const secondPayment = Math.max(0, totalAmount - initialPayment);
+  // "Balance Due Date" from the Payment stage — without it the agreement can
+  // only say the instalment is due "as per Annexure A".
+  const dueDate = paymentData?.dueDate ? new Date(`${String(paymentData.dueDate).split('T')[0]}T00:00:00`) : null;
   return {
     totalAmount,
     initialPayment,
-    secondPayment: Math.max(0, totalAmount - initialPayment),
+    secondPayment,
+    secondPaymentDue: secondPayment > 0 && dueDate && !Number.isNaN(dueDate.getTime())
+      ? dueDate.toLocaleDateString('en-GB')
+      : '',
   };
 };
 
@@ -1284,6 +1291,7 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
               totalAmount: formatAgreementAmount(agreementFees.totalAmount),
               initialPayment: formatAgreementAmount(agreementFees.initialPayment),
               secondPayment: formatAgreementAmount(agreementFees.secondPayment),
+              secondPaymentDue: agreementFees.secondPaymentDue,
               clientId: String((lead as any)?.id || ''),
               includedDeliverables: agreementData.agreementTitle || '',
               expressExclusions: '',
@@ -1346,6 +1354,7 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
             totalAmount: agreementFees.totalAmount,
             initialPayment: agreementFees.initialPayment,
             secondPayment: agreementFees.secondPayment,
+            secondPaymentDue: agreementFees.secondPaymentDue,
           },
           clientData: {
             companyName: agreementData.companyName || branchDetails.companyName,
@@ -3995,6 +4004,7 @@ function AgreementStage({ lead, data, setData, quotationData, paymentData, progr
         totalAmount   : formatAgreementAmount(agreementFees.totalAmount),
         initialPayment: formatAgreementAmount(agreementFees.initialPayment),
         secondPayment : formatAgreementAmount(agreementFees.secondPayment),
+        secondPaymentDue: agreementFees.secondPaymentDue,
         clientId      : String((lead as any)?.id || ''),
         includedDeliverables: data.agreementTitle || '',
         expressExclusions: '',
