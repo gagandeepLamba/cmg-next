@@ -85,6 +85,8 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     const todayActivity = searchParams.get('todayActivity') === '1' || searchParams.get('todayActivity') === 'true'
+    const todayFollowup = searchParams.get('todayFollowup') === '1'
+    const todayNew = searchParams.get('todayNew') === '1'
     const exportType = searchParams.get('exportType')
     const opportunityView = searchParams.get('opportunityView') || 'leads'
     const kanbanView = searchParams.get('kanban') === 'true'
@@ -186,6 +188,21 @@ export async function GET(request: NextRequest) {
           AND dr.action IN ('remark_added', 'followup_added', 'appointment_booked')
           AND DATE(dr.created_at) = CURDATE()
       )`)
+    }
+
+    // "Today's Follow-up Leads": a pending follow-up reminder is due today.
+    if (todayFollowup) {
+      whereConditions.push(`EXISTS (
+        SELECT 1 FROM dmc_follow_up_reminders fr
+        WHERE fr.lead_id = l.id
+          AND fr.status = 'pending'
+          AND DATE(fr.reminder_date) = CURDATE()
+      )`)
+    }
+
+    // "Today's New Leads": leads registered today.
+    if (todayNew) {
+      whereConditions.push('DATE(l.regdate) = CURDATE()')
     }
 
     if (dateFrom || dateTo) {

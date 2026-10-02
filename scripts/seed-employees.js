@@ -57,6 +57,10 @@ const newEmployees = [
   { branch: 'DXB', dept: 'Admin', doj: null, name: 'Accounts', username: 'Accounts', role: 'Accountant' },
   { branch: 'DXB', dept: 'Admin', doj: null, name: 'HR', username: 'HR', role: 'HR' },
   { branch: 'DXB', dept: 'Admin', doj: null, name: 'PRO', username: 'PRO', role: 'PRO' },
+  { branch: 'DXB', dept: 'Sales', doj: null, name: 'Sounderraj', username: 'Sounderraj', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Sales', doj: null, name: 'Haritha', username: 'Haritha', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Sales', doj: null, name: 'Shaffi', username: 'Shaffi', role: 'Counsellor' },
+  { branch: 'DXB', dept: 'Sales', doj: null, name: 'Yohan', username: 'Yohan', role: 'Counsellor' },
 ];
 
 async function resolveLookups(connection) {

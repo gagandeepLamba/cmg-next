@@ -170,7 +170,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     dateFrom: '',
     dateTo: '',
     assignTo: '',
-    todayActivity: ''
+    todayActivity: '',
+    todayFollowup: '',
+    todayNew: ''
   });
   const [filterOptions, setFilterOptions] = useState<LeadFilterOptions>({
     statuses: [],
@@ -538,6 +540,16 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
 
   const handleTodayActivityToggle = () => {
     setFilters(prev => ({ ...prev, todayActivity: prev.todayActivity ? '' : '1' }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleTodayFollowupToggle = () => {
+    setFilters(prev => ({ ...prev, todayFollowup: prev.todayFollowup ? '' : '1' }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleTodayNewToggle = () => {
+    setFilters(prev => ({ ...prev, todayNew: prev.todayNew ? '' : '1' }));
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
@@ -1644,6 +1656,30 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             <Clock className="w-4 h-4 mr-2" />
             Today&apos;s Activity
           </button>
+          <button
+            onClick={handleTodayFollowupToggle}
+            title="Leads with a pending follow-up scheduled for today"
+            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              filters.todayFollowup
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <Clock className="w-4 h-4 mr-2" />
+            Today&apos;s Follow-up Leads
+          </button>
+          <button
+            onClick={handleTodayNewToggle}
+            title="Leads created today"
+            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              filters.todayNew
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Today&apos;s New Leads
+          </button>
         </div>
       </div>
 
@@ -1836,7 +1872,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               dateFrom: '',
               dateTo: '',
               assignTo: '',
-              todayActivity: ''
+              todayActivity: '',
+              todayFollowup: '',
+              todayNew: ''
             })}
             className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
           >
