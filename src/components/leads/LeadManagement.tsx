@@ -1651,7 +1651,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             onClick={() => handleTodayViewToggle('todayActivity')}
             title="Leads with a remark, follow-up, or appointment added today"
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              filters.todayActivity
+              activeTodayView === 'todayActivity'
                 ? 'bg-teal-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
             }`}
@@ -1663,7 +1663,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             onClick={() => handleTodayViewToggle('todayFollowup')}
             title="Leads with a pending follow-up scheduled for today"
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              filters.todayFollowup
+              activeTodayView === 'todayFollowup'
                 ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
             }`}
@@ -1675,7 +1675,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             onClick={() => handleTodayViewToggle('todayNew')}
             title="Leads created today"
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              filters.todayNew
+              activeTodayView === 'todayNew'
                 ? 'bg-cyan-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
             }`}
