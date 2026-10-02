@@ -527,6 +527,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   }, []);
 
   const handleTabChange = (tab: LeadTab) => {
+    setFilters(prev => ({ ...prev, todayActivity: '', todayFollowup: '', todayNew: '' }));
     setActiveTab(tab);
     setSelectedLeads([]);
     setViewMode('list');
@@ -538,18 +539,20 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
-  const handleTodayActivityToggle = () => {
-    setFilters(prev => ({ ...prev, todayActivity: prev.todayActivity ? '' : '1' }));
-    setPagination(prev => ({ ...prev, page: 1 }));
-  };
+  // Today's Activity / Follow-up / New Leads behave like tabs: only one can be
+  // active, and picking one switches back to the base Lead List scope.
+  const TODAY_FILTER_OFF = { todayActivity: '', todayFollowup: '', todayNew: '' };
+  const activeTodayView: 'todayActivity' | 'todayFollowup' | 'todayNew' | null =
+    filters.todayActivity ? 'todayActivity' : filters.todayFollowup ? 'todayFollowup' : filters.todayNew ? 'todayNew' : null;
 
-  const handleTodayFollowupToggle = () => {
-    setFilters(prev => ({ ...prev, todayFollowup: prev.todayFollowup ? '' : '1' }));
-    setPagination(prev => ({ ...prev, page: 1 }));
-  };
-
-  const handleTodayNewToggle = () => {
-    setFilters(prev => ({ ...prev, todayNew: prev.todayNew ? '' : '1' }));
+  const handleTodayViewToggle = (key: 'todayActivity' | 'todayFollowup' | 'todayNew') => {
+    const turnOff = activeTodayView === key;
+    setFilters(prev => ({ ...prev, ...TODAY_FILTER_OFF, [key]: turnOff ? '' : '1' }));
+    if (!turnOff) {
+      setActiveTab('leads');
+      setSelectedLeads([]);
+      setViewMode('list');
+    }
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
@@ -1587,7 +1590,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           <button
             onClick={() => handleTabChange('leads')}
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'leads'
+              activeTab === 'leads' && !activeTodayView
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
             }`}
@@ -1599,7 +1602,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             <button
               onClick={() => handleTabChange('my-leads')}
               className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'my-leads'
+                activeTab === 'my-leads' && !activeTodayView
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
               }`}
@@ -1611,7 +1614,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           <button
             onClick={() => handleTabChange('opportunities')}
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'opportunities'
+              activeTab === 'opportunities' && !activeTodayView
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
             }`}
@@ -1622,7 +1625,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           <button
             onClick={() => handleTabChange('clients')}
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'clients'
+              activeTab === 'clients' && !activeTodayView
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
             }`}
@@ -1633,7 +1636,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           <button
             onClick={() => handleTabChange('duplicates')}
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'duplicates'
+              activeTab === 'duplicates' && !activeTodayView
                 ? 'bg-red-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
             }`}
@@ -1645,7 +1648,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           <div className="mx-1 h-6 w-px bg-gray-200" />
 
           <button
-            onClick={handleTodayActivityToggle}
+            onClick={() => handleTodayViewToggle('todayActivity')}
             title="Leads with a remark, follow-up, or appointment added today"
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               filters.todayActivity
@@ -1657,7 +1660,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             Today&apos;s Activity
           </button>
           <button
-            onClick={handleTodayFollowupToggle}
+            onClick={() => handleTodayViewToggle('todayFollowup')}
             title="Leads with a pending follow-up scheduled for today"
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               filters.todayFollowup
@@ -1669,7 +1672,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             Today&apos;s Follow-up Leads
           </button>
           <button
-            onClick={handleTodayNewToggle}
+            onClick={() => handleTodayViewToggle('todayNew')}
             title="Leads created today"
             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               filters.todayNew
