@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '@/lib/sequelize';
 import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { buildLeadScopeSql } from '@/lib/leadAccess';
 
 type SearchRow = {
   id: string | number;
@@ -24,7 +25,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ results: [] });
     }
 
-    const replacements = { query: likeTerm(query), exact: query, limit: 8 };
+    // Counselors only find their own leads/clients; BM/FOE their branch, etc.
+    const leadScope = buildLeadScopeSql(auth, 'l');
+    const replacements = { query: likeTerm(query), exact: query, limit: 8, ...leadScope.replacements };
 
     const [leads, clients, reports, invoices, employees] = await Promise.all([
       sequelize.query<SearchRow>(
@@ -36,12 +39,15 @@ export async function GET(request: NextRequest) {
             'Lead' AS type,
             CONCAT('/admin/leads/', l.id, '/edit') AS href
           FROM dmc_forum_leads l
-          WHERE CAST(l.id AS CHAR) = :exact
-             OR l.fname LIKE :query
-             OR l.lname LIKE :query
-             OR l.email LIKE :query
-             OR l.mobile LIKE :query
-             OR l.phone LIKE :query
+          WHERE ${leadScope.sql}
+            AND (
+              CAST(l.id AS CHAR) = :exact
+              OR l.fname LIKE :query
+              OR l.lname LIKE :query
+              OR l.email LIKE :query
+              OR l.mobile LIKE :query
+              OR l.phone LIKE :query
+            )
           ORDER BY l.created DESC
           LIMIT :limit
         `,
@@ -58,6 +64,7 @@ export async function GET(request: NextRequest) {
           FROM dm_clients c
           LEFT JOIN dmc_forum_leads l ON l.id = c.leadId
           WHERE c.is_deleted = 0
+            AND ${leadScope.sql}
             AND (
               CAST(c.id AS CHAR) = :exact
               OR c.first_name LIKE :query

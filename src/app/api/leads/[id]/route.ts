@@ -7,6 +7,7 @@ import { logLeadRemark } from '@/lib/leadRemarks';
 import { resolveLeadReferenceId } from '@/lib/leadReferenceResolver';
 import { resolveBranchReference } from '@/lib/branchResolver';
 import { DmcFollowUpReminders } from '@/models/DmcFollowUpReminders';
+import { checkLeadAccess } from '@/lib/leadAccess';
 
 let dbInitialized = false;
 
@@ -307,6 +308,14 @@ export async function GET(
   try {
     await ensureDBConnection();
     const { id } = await params;
+    const access = await checkLeadAccess(auth, Number(id));
+    if (access === 'not_found') {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+    if (access === 'denied') {
+      return NextResponse.json({ error: 'You do not have access to this lead' }, { status: 403 });
+    }
+
     const lead = await fetchLead(id);
 
     if (!lead) {
@@ -329,6 +338,14 @@ export async function PUT(
   try {
     await ensureDBConnection();
     const { id } = await params;
+    const access = await checkLeadAccess(auth, Number(id));
+    if (access === 'not_found') {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+    if (access === 'denied') {
+      return NextResponse.json({ error: 'You do not have access to this lead' }, { status: 403 });
+    }
+
     const data = await request.json();
 
     const validationErrors = validateLeadUpdate(data);

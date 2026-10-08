@@ -59,6 +59,9 @@ interface QuotationData {
   tax: number;
   total: number;
   terms: string;
+  // Whether the branch VAT/GST is added on top of the quotation. Undefined is
+  // treated as included so existing drafts keep their current behaviour.
+  taxIncluded?: boolean;
 }
 
 interface PaymentData {
@@ -2508,11 +2511,12 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
     ? { rate: branchDetails.vatGstPercent / 100, label: nameBasedVatInfo.label }
     : nameBasedVatInfo;
   const vatRate = vatInfo.rate;
-  const calculateQuotationTotals = (subtotal: number, discount: number) => {
+  const taxIncluded = data.taxIncluded !== false;
+  const calculateQuotationTotals = (subtotal: number, discount: number, includeTax: boolean = taxIncluded) => {
     const safeSubtotal = Math.max(0, subtotal);
     const safeDiscount = Math.min(Math.max(0, discount || 0), safeSubtotal);
     const taxableAmount = Math.max(0, safeSubtotal - safeDiscount);
-    const tax = taxableAmount * vatRate;
+    const tax = includeTax ? taxableAmount * vatRate : 0;
     return {
       subtotal: safeSubtotal,
       discount: safeDiscount,
@@ -2621,6 +2625,11 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
     const totals = calculateQuotationTotals(data.subtotal, requested);
     setData({ ...data, ...totals });
     onDiscountChanged?.(totals.discount);
+  };
+
+  const updateTaxIncluded = (checked: boolean) => {
+    const totals = calculateQuotationTotals(data.subtotal, data.discount, checked);
+    setData({ ...data, taxIncluded: checked, ...totals });
   };
 
   const requiresDiscountApproval = data.discount > 0;
@@ -2808,9 +2817,20 @@ function QuotationStage({ lead, data, setData, feeData, feeLoading, retentionDat
               )}
             </div>
           </div>
+          <label className="flex items-center gap-2 pt-1 text-sm text-gray-700 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={taxIncluded}
+              onChange={(e) => updateTaxIncluded(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            Include tax ({(vatInfo.rate * 100).toFixed(0)}% {vatInfo.label})
+          </label>
           <div className="flex justify-between">
-            <span>Tax ({(vatInfo.rate * 100).toFixed(0)}% {vatInfo.label}):</span>
-            <span className="font-medium">{currencyCode} {data.tax.toFixed(2)}</span>
+            <span className={taxIncluded ? '' : 'text-gray-400'}>
+              Tax ({(vatInfo.rate * 100).toFixed(0)}% {vatInfo.label}){taxIncluded ? '' : ' — excluded'}:
+            </span>
+            <span className={`font-medium ${taxIncluded ? '' : 'text-gray-400'}`}>{currencyCode} {data.tax.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-lg font-bold border-t pt-2">
             <span>Total:</span>

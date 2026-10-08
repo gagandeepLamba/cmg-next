@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sequelize } from '@/lib/sequelize';
 import { resolveLeadAutoAssignment } from '@/lib/leadAutoAssignment';
 import { verifyToken } from '@/lib/auth';
+import { buildLeadScopeSql } from '@/lib/leadAccess';
 import { QueryTypes } from 'sequelize';
 import { checkForDuplicate, findExistingLead } from '@/lib/duplicateLeadCheck';
 
@@ -184,12 +185,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Authentication is required' }, { status: 401 });
     }
 
+    const leadScope = buildLeadScopeSql(currentUser, 'l');
     const [leads] = await sequelize.query(`
-      SELECT id, fname, lname, email, phone, status, priority, created 
-      FROM dmc_forum_leads 
-      ORDER BY created DESC 
+      SELECT l.id, l.fname, l.lname, l.email, l.phone, l.status, l.priority, l.created
+      FROM dmc_forum_leads l
+      WHERE ${leadScope.sql}
+      ORDER BY l.created DESC
       LIMIT 10
-    `);
+    `, { replacements: leadScope.replacements });
 
     return NextResponse.json({
       success: true,

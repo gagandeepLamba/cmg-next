@@ -4,6 +4,8 @@ import { DmClients } from '@/models';
 import { createCrudHandlers } from '@/lib/apiCrud';
 import { sequelize, connectDB } from '@/lib/sequelize';
 import { requireAuth, isAuthError } from '@/lib/apiAuth';
+import { isCounsellor } from '@/lib/roleChecks';
+import { buildLeadScopeSql } from '@/lib/leadAccess';
 
 let dbReady = false;
 const ensureDB = async () => { if (!dbReady) { await connectDB(); dbReady = true; } };
@@ -77,6 +79,13 @@ export async function GET(request: NextRequest) {
     if (search) {
       conditions.push(`(l.fname LIKE :search OR l.lname LIKE :search OR l.email LIKE :search)`);
       replacements.search = `%${search}%`;
+    }
+    // Counselors only see clients they own (lead or opportunity assigned to /
+    // created by them). Ops/case roles keep the full list they work from.
+    if (isCounsellor(auth)) {
+      const scope = buildLeadScopeSql({ ...auth, type: 'counsellor' }, 'l');
+      conditions.push(scope.sql);
+      Object.assign(replacements, scope.replacements);
     }
 
     const rows = await sequelize.query<ClientListRow>(

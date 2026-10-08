@@ -264,14 +264,14 @@ export async function GET(request: NextRequest) {
         whereConditions.push('l.region = ?')
         replacements.push(currentUser.region)
       } else if (!canViewAll) {
+        // Counselors see only their own opportunities - unassigned ones are
+        // triaged by FOE/Branch Manager/CEO, same as on the Leads tab.
         whereConditions.push(`(
           l.Counsilor = ? OR l.assignTo = ?
           OR EXISTS (
             SELECT 1 FROM dmc_opportunities o
             WHERE o.leadId = l.id AND (o.assignedTo = ? OR o.createdBy = ?)
           )
-          OR (l.Counsilor IS NULL AND l.assignTo IS NULL
-              AND NOT EXISTS (SELECT 1 FROM dmc_opportunities o2 WHERE o2.leadId = l.id AND o2.assignedTo IS NOT NULL))
         )`)
         replacements.push(currentUser.id, currentUser.id, currentUser.id, currentUser.id)
       }
