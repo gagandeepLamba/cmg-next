@@ -389,6 +389,16 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
     @page {
       size: A4;
       margin: 10mm 8mm 14mm;
+      /* The address footer lives in the margin box too — a position: fixed
+         footer sits inside the content area and overprints the last row. */
+      @bottom-left {
+        content: "${COMPANY.nameEn} — ${COMPANY.addressEn}";
+        color: #667;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 8px;
+        vertical-align: bottom;
+        padding-bottom: 4mm;
+      }
       @bottom-right {
         content: "Page " counter(page) " of " counter(pages);
         color: #667;
@@ -446,8 +456,16 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
     .title-bar .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; }
 
     /* ── generic bilingual block ── */
+    /* Short blocks (details, fee tables, signatures) stay on one page. Clauses
+       must be allowed to split: Clause 8 alone is taller than an A4 page, and
+       forcing a taller-than-page block to "avoid" breaking makes Chrome paint
+       its overflow on top of the following pages (duplicated/overlapping
+       8.4–10.4 text in printed PDFs). Clauses break between rows instead. */
     .cmg-block { border: 1px solid var(--border); margin-bottom: 7px; break-inside: avoid; page-break-inside: avoid; }
+    .cmg-block.cmg-clause { break-inside: auto; page-break-inside: auto; }
     .cmg-section-header {
+      break-after: avoid;
+      page-break-after: avoid;
       background: var(--navy);
       color: #fff;
       display: grid;
@@ -460,8 +478,10 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
     }
     .cmg-section-header .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; text-transform: none; }
     .cmg-rows > .cmg-row:nth-child(odd) { background: var(--stripe); }
-    .cmg-row { display: grid; grid-template-columns: 1fr 1fr; }
-    .cmg-row .en, .cmg-row .ar { padding: 5px 10px; }
+    /* Flex rather than grid: Chrome fragments flex rows across pages more
+       reliably, and each EN/AR sentence pair is kept whole on one page. */
+    .cmg-row { display: flex; break-inside: avoid; page-break-inside: avoid; }
+    .cmg-row .en, .cmg-row .ar { flex: 1 1 0; min-width: 0; padding: 5px 10px; }
     .cmg-row .en { border-right: 1px solid var(--border); }
     .cmg-row .ar { text-align: right; font-family: Tahoma, Arial, sans-serif; font-size: 10.3px; line-height: 1.6; }
     .cmg-clause .cmg-row .en, .cmg-clause .cmg-row .ar { padding: 6px 10px; }
@@ -497,12 +517,13 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
       .document { background: #fff; padding: 10mm 8mm 14mm; box-shadow: 0 2px 12px rgba(0,0,0,.12); }
       .print-footer { position: static; margin-top: 10px; }
     }
-    @media print { .document { padding: 0; } .print-footer { position: fixed; } }
+    @media print { .document { padding: 0; } .print-footer { display: none; } }
     @media (max-width: 700px) {
       html, body { font-size: 11px; }
-      .letterhead, .title-bar, .cmg-section-header, .cmg-row, .annexure-title {
+      .letterhead, .title-bar, .cmg-section-header, .annexure-title {
         grid-template-columns: 1fr;
       }
+      .cmg-row { flex-direction: column; }
       .letterhead .en, .title-bar .en, .cmg-row .en { border-right: 0; border-bottom: 1px solid var(--border); }
     }
   </style>
