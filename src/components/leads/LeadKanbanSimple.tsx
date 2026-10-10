@@ -141,7 +141,7 @@ export default function LeadKanbanSimple({
                               </div>
                               <p className="mt-1 truncate text-xs text-slate-500">{lead.email || 'No email address'}</p>
                               <p className="mt-1 truncate text-xs text-slate-500">{lead.mobile || 'No mobile number'}</p>
-                              <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
+                              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3">
                                 <button
                                   type="button"
                                   onClick={() => onLeadSelect?.(lead)}
