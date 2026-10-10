@@ -64,6 +64,10 @@ function validateLeadSubmission(data: Record<string, unknown>): string[] {
   return errors;
 }
 
+// Statuses counselors don't work from their list (DNQ + the "unreachable"
+// family). Static literals only - interpolated straight into SQL.
+const DEAD_LEAD_STATUS_SQL = `'DNQ', 'Not_answered', 'Could Not Connect'`
+
 export async function GET(request: NextRequest) {
   try {
     // Ensure database connection is established
@@ -275,6 +279,20 @@ export async function GET(request: NextRequest) {
         )`)
         replacements.push(currentUser.id, currentUser.id, currentUser.id, currentUser.id)
       }
+    } else if (opportunityView === 'dnq-unreachable') {
+      // Manager-only review queue for the leads hidden from counselors.
+      if (!canViewAll && !isBranchManager && !isRegionalManager) {
+        return NextResponse.json({ error: 'Only FOE, Branch Manager, Regional Manager or CEO can view DNQ / Unreachable leads' }, { status: 403 })
+      }
+      whereConditions.push(`COALESCE(l.status,'') IN (${DEAD_LEAD_STATUS_SQL})`)
+      whereConditions.push(`NOT ${CLIENT_STATUS_SQL}`)
+      if (isBranchManager) {
+        whereConditions.push('l.branch = ?')
+        replacements.push(currentUser.branch)
+      } else if (isRegionalManager) {
+        whereConditions.push('l.region = ?')
+        replacements.push(currentUser.region)
+      }
     } else if (opportunityView === 'duplicates') {
       whereConditions.push('l.duplicate = 1')
       whereConditions.push(`NOT ${CLIENT_STATUS_SQL}`)
@@ -298,6 +316,12 @@ export async function GET(request: NextRequest) {
         whereConditions.push(`NOT ${HAS_OPP_SQL}`)
         whereConditions.push('(l.Counsilor = ? OR l.assignTo = ?)')
         replacements.push(currentUser.id, currentUser.id)
+        // DNQ and unreachable leads are dead ends for a counselor's working
+        // list - they stay visible to FOE/BM/RM/CEO (DNQ / Unreachable tab)
+        // for review and recycling. COALESCE keeps NULL statuses in (NOT IN
+        // over NULL is NULL, which WHERE treats as false). 'Call Back' is
+        // deliberately not hidden: it is a promised follow-up.
+        whereConditions.push(`COALESCE(l.status,'') NOT IN (${DEAD_LEAD_STATUS_SQL})`)
       } else {
         // Admin/DS/BM/RM: all leads but exclude those with opportunities
         whereConditions.push(`NOT ${HAS_OPP_SQL}`)
@@ -411,6 +435,12 @@ export async function GET(request: NextRequest) {
         l.assignTo, l.branch, l.region, l.stepComplete, l.novat,
         l.opportunity_id, l.opportunity_status, l.campaign, l.campaign_group,
         (SELECT remark FROM dmc_forum_leads_remarks WHERE \`lead\` = l.id ORDER BY id DESC LIMIT 1) as latest_remark,
+        -- Earliest still-open follow-up / appointment (overdue ones included), for the list's columns.
+        (SELECT DATE_FORMAT(MIN(fr.reminder_date), '%Y-%m-%d %H:%i') FROM dmc_follow_up_reminders fr
+          WHERE fr.lead_id = l.id AND fr.status = 'pending') as next_follow_up,
+        (SELECT MIN(CONCAT(ap.date, ' ', LEFT(ap.appointtime, 5))) FROM appointments ap
+          WHERE ap.leadid = l.id AND COALESCE(ap.done, 0) = 0 AND COALESCE(ap.not_done, 0) = 0
+            AND ap.date REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') as next_appointment,
         COALESCE(cp.name, l.country_interest) as country_interest_label,
         COALESCE(s.name, pt.type, l.service_interest) as service_interest_label,
         COALESCE(ms.name, l.market_source) as market_source_label,

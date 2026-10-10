@@ -40,6 +40,7 @@ export interface Lead {
   campaign?: string;
   campaign_group?: string;
   latest_remark?: string;
+  transfer_date?: string | null;
   agreementNumber?: string;
   dmEmployeeByASSIGNTo?: { id: number; name: string };
   dmEmployeeByCoUNSILOR?: { id: number; name: string };

@@ -1,7 +1,10 @@
 'use client';
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useSortableData } from '@/components/ui/sortable-th';
+import { useSortableData, SortableTh } from '@/components/ui/sortable-th';
+import { ColumnPicker } from '@/components/ui/ColumnPicker';
+import { useColumnPrefs } from '@/hooks/useColumnPrefs';
+import { resolveColumns, type ColumnDef } from '@/lib/tablePrefs';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -10,15 +13,92 @@ import {
   Filter, Calendar, Phone, Mail, MapPin, DollarSign, MessageCircle,
   Eye, CheckCircle, XCircle, Clock,
   Target, X, Save, LayoutList, LayoutGrid, Briefcase, MessageSquare, Settings,
-  Receipt, AlertCircle, Printer, Loader2, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, ExternalLink
+  Receipt, AlertCircle, Printer, Loader2, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, ExternalLink,
+  Table2, RefreshCw
 } from 'lucide-react';
 import LeadKanbanSimple from './LeadKanbanSimple';
 import ConversationHistoryModal from '@/components/shared/ConversationHistoryModal';
 import { Lead } from '@/types/lead';
 import { useAuth } from '@/contexts/AuthContext';
-import { isBranchManagerOrCeo, isCeo, isFoe, isFoeOrBranchManagerOrCeo, isCounsellor } from '@/lib/roleChecks';
+import { isBranchManagerOrCeo, isCeo, isFoe, isFoeOrBranchManagerOrCeo, isCounsellor, canViewAllBranches } from '@/lib/roleChecks';
 import { BANK_PAYMENT_OPTIONS, CARD_PAYMENT_OPTIONS } from '@/lib/paymentOptions';
 import { getLeadBranchDetails, printReceipt as printReceiptDocument } from '@/lib/receiptTemplate';
+
+// The configurable columns of the leads table. The checkbox and Actions
+// columns are fixed (first / last); the contact name is locked so a row is
+// always identifiable. Everything else can be hidden or reordered per user.
+const LEAD_TABLE_COLUMNS: Array<ColumnDef & { sortKey?: string }> = [
+  { key: 'id', label: 'Lead ID', sortKey: 'id' },
+  { key: 'name', label: 'Contact Name', sortKey: 'name', locked: true },
+  { key: 'phone', label: 'Phone' },
+  { key: 'email', label: 'Email' },
+  { key: 'status', label: 'Status', sortKey: 'status' },
+  { key: 'remarks', label: 'Remarks' },
+  { key: 'followup', label: 'Follow-up' },
+  { key: 'appointment', label: 'Appointment' },
+  { key: 'counselor', label: 'Counselor', sortKey: 'assignedTo' },
+  { key: 'registered', label: 'CRM Entry Date', sortKey: 'registered' },
+  { key: 'assigned', label: 'Assigned Date', sortKey: 'assignedDate' },
+  { key: 'campaign', label: 'Campaign' },
+];
+const LEAD_COLUMNS_PREF_KEY = 'leads.columns';
+
+const WhatsAppIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+    <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.08c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.69.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35zM12.05 21.5h-.01a9.4 9.4 0 0 1-4.79-1.31l-.34-.2-3.56.93.95-3.47-.22-.36a9.4 9.4 0 0 1-1.44-5.01c0-5.2 4.23-9.43 9.43-9.43 2.52 0 4.89.98 6.67 2.77a9.37 9.37 0 0 1 2.76 6.67c0 5.2-4.23 9.43-9.43 9.43zm8.03-17.46A11.27 11.27 0 0 0 12.05.75C5.8.75.71 5.84.71 12.09c0 2 .52 3.95 1.52 5.67L.62 23.25l5.62-1.47a11.3 11.3 0 0 0 5.41 1.38h.01c6.25 0 11.34-5.09 11.34-11.34 0-3.03-1.18-5.88-3.32-8.02z" />
+  </svg>
+);
+
+// Stable per-counselor colour: the same name always hashes to the same tint.
+const COUNSELOR_TAG_PALETTE = [
+  { tag: 'bg-blue-50 text-blue-800 ring-blue-200', badge: 'bg-blue-600' },
+  { tag: 'bg-emerald-50 text-emerald-800 ring-emerald-200', badge: 'bg-emerald-600' },
+  { tag: 'bg-violet-50 text-violet-800 ring-violet-200', badge: 'bg-violet-600' },
+  { tag: 'bg-rose-50 text-rose-800 ring-rose-200', badge: 'bg-rose-600' },
+  { tag: 'bg-amber-50 text-amber-800 ring-amber-200', badge: 'bg-amber-500' },
+  { tag: 'bg-cyan-50 text-cyan-800 ring-cyan-200', badge: 'bg-cyan-600' },
+  { tag: 'bg-fuchsia-50 text-fuchsia-800 ring-fuchsia-200', badge: 'bg-fuchsia-600' },
+  { tag: 'bg-lime-50 text-lime-800 ring-lime-200', badge: 'bg-lime-600' },
+  { tag: 'bg-orange-50 text-orange-800 ring-orange-200', badge: 'bg-orange-500' },
+  { tag: 'bg-teal-50 text-teal-800 ring-teal-200', badge: 'bg-teal-600' },
+  { tag: 'bg-indigo-50 text-indigo-800 ring-indigo-200', badge: 'bg-indigo-600' },
+  { tag: 'bg-pink-50 text-pink-800 ring-pink-200', badge: 'bg-pink-600' },
+];
+
+const CounselorTag = ({ name, className = '' }: { name?: string | null; className?: string }) => {
+  const label = String(name || '').trim();
+  if (!label) {
+    return <span className={`inline-flex max-w-full items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-400 ring-1 ring-inset ring-gray-200 ${className}`}>Unassigned</span>;
+  }
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) hash = (hash * 31 + label.toLowerCase().charCodeAt(i)) >>> 0;
+  const tone = COUNSELOR_TAG_PALETTE[hash % COUNSELOR_TAG_PALETTE.length];
+  const initials = label.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase();
+  return (
+    <span className={`inline-flex max-w-full items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5 text-xs font-semibold ring-1 ring-inset ${tone.tag} ${className}`}>
+      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white ${tone.badge}`}>{initials}</span>
+      <span className="truncate">{label}</span>
+    </span>
+  );
+};
+
+// Next follow-up / appointment in the lead table. Overdue (past) times are red.
+// Compared with the browser clock - close enough for a list highlight.
+const ScheduleCell = ({ value, emptyLabel, onClick }: { value?: string | null; emptyLabel: string; onClick: () => void }) => {
+  if (!value) {
+    return <button type="button" onClick={onClick} className="font-semibold text-blue-600 hover:text-blue-800 hover:underline">+ {emptyLabel}</button>;
+  }
+  const at = new Date(value.replace(' ', 'T'));
+  const overdue = !Number.isNaN(at.getTime()) && at.getTime() < Date.now();
+  const sameDay = !Number.isNaN(at.getTime()) && at.toDateString() === new Date().toDateString();
+  return (
+    <button type="button" onClick={onClick} title={overdue ? 'Overdue - click to add another' : 'Click to add another'}
+      className={`rounded-md px-2 py-0.5 font-semibold ${overdue ? 'bg-red-50 text-red-700' : sameDay ? 'bg-amber-50 text-amber-800' : 'bg-sky-50 text-sky-700'}`}>
+      {sameDay ? `Today ${value.slice(11, 16)}` : value.slice(0, 16)}
+      {overdue && <span className="ml-1 text-[10px] uppercase">overdue</span>}
+    </button>
+  );
+};
 
 interface LeadManagementProps {
   onLeadSelect?: (lead: Lead) => void;
@@ -51,7 +131,7 @@ interface LeadFilterOptions {
 }
 
 type LeadActionType = 'appointment' | 'followup' | 'remark' | 'status';
-type LeadTab = 'leads' | 'my-leads' | 'opportunities' | 'clients' | 'duplicates';
+type LeadTab = 'leads' | 'my-leads' | 'opportunities' | 'clients' | 'duplicates' | 'dnq-unreachable';
 
 interface QuickPayLeadState {
   lead: Lead;
@@ -196,7 +276,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   const [currentLead, setCurrentLead] = useState<Lead | null>(null);
   const [formData, setFormData] = useState<Partial<Lead>>({});
   const [importing, setImporting] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'card'>('list');
   const [activeTab, setActiveTab] = useState<LeadTab>('leads');
   const [showLeadActionModal, setShowLeadActionModal] = useState(false);
   const [returnToViewModalOnClose, setReturnToViewModalOnClose] = useState(false);
@@ -254,6 +334,12 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   // FOE and CEO can assign/reassign leads too, in addition to DS/BM/Admin (isDSorBM).
   const canAssignLeads = isDSorBM || isFoeOrBranchManagerOrCeo(user);
   const showMyLeadsTab = isBranchManagerOrCeo(user);
+  // Mirrors the backend's non-counselor scopes for the dnq-unreachable view
+  // (canViewAll, branch manager/FOE/receptionist, regional manager).
+  const showDeadLeadsTab = useMemo(() => {
+    const t = String(user?.type || '').toLowerCase().replace(/[\s-]+/g, '_');
+    return isFoeOrBranchManagerOrCeo(user) || canViewAllBranches(user) || ['regional_manager', 'rm', 'receptionist'].includes(t);
+  }, [user]);
 
   useEffect(() => {
     if (!isFoeOrBranchManagerOrCeo(user)) return;
@@ -390,8 +476,40 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       registered: (lead: Lead) => lead.regdate,
       branch: (lead: Lead) => lead.dmBranch?.name,
       assignedTo: (lead: Lead) => lead.dmEmployeeByASSIGNTo?.name,
+      assignedDate: (lead: Lead) => lead.transfer_date,
     },
   );
+
+  // Each user's own choice of visible columns (saved on the server so it
+  // follows them across devices; see useColumnPrefs).
+  const { prefs: columnPrefs, save: saveColumnPrefs } = useColumnPrefs(LEAD_COLUMNS_PREF_KEY, user?.id);
+  const visibleLeadColumns = resolveColumns(LEAD_TABLE_COLUMNS, columnPrefs);
+
+  // A second scrollbar above the table, kept in sync with the real one, so a
+  // wide table can be scrolled without reaching the bottom of a long page.
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
+  const handleTopScroll = () => {
+    const table = tableScrollRef.current;
+    const top = topScrollRef.current;
+    if (table && top && table.scrollLeft !== top.scrollLeft) table.scrollLeft = top.scrollLeft;
+  };
+  const handleTableScroll = () => {
+    const table = tableScrollRef.current;
+    const top = topScrollRef.current;
+    if (table && top && top.scrollLeft !== table.scrollLeft) top.scrollLeft = table.scrollLeft;
+  };
+
+  const activeFilterCount = [
+    filters.status, filters.priority, filters.branch, filters.region, filters.countryInterest,
+    filters.serviceInterest, filters.marketSource, filters.leadQuality, filters.dateFrom, filters.dateTo, filters.assignTo,
+  ].filter(Boolean).length;
+  const resetLeadFilters = () => setFilters({
+    status: '', priority: '', branch: '', region: '', countryInterest: '', serviceInterest: '',
+    marketSource: '', leadQuality: '', dateFrom: '', dateTo: '', assignTo: '',
+    todayActivity: '', todayFollowup: '', todayNew: '',
+  });
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1569,6 +1687,131 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     return 'Pending';
   };
 
+  const renderLeadCell = (columnKey: string, lead: Lead, name: string) => {
+    switch (columnKey) {
+      case 'id':
+        return <td key="id" className="px-4 py-2.5 whitespace-nowrap text-sm font-semibold text-gray-600">#{lead.id}</td>;
+      case 'name':
+        return (
+          <td key="name" className="px-4 py-2.5 whitespace-nowrap max-w-[220px]">
+            {activeTab === 'leads' || activeTab === 'opportunities' || activeTab === 'dnq-unreachable' ? (
+              <Link
+                href={activeTab === 'opportunities' ? `/admin/leads/opportunity-flow?leadId=${lead.id}` : `/admin/leads/${lead.id}/edit`}
+                className="block truncate text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                title={name}
+              >
+                {name}
+              </Link>
+            ) : (
+              <button
+                onClick={() => handleOpenOperations(lead)}
+                className="block w-full truncate text-left text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                title={name}
+              >
+                {name}
+              </button>
+            )}
+          </td>
+        );
+      case 'phone': {
+        const waLink = getWhatsAppLink(lead.whatsapp_number || lead.mobile);
+        return (
+          <td key="phone" className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-700">
+            <div className="flex items-center gap-2">
+              {waLink && (
+                <a href={waLink} target="_blank" rel="noopener noreferrer" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-white shadow-sm hover:bg-[#1ebe5b]" title="Send WhatsApp">
+                  <WhatsAppIcon className="h-4 w-4" />
+                </a>
+              )}
+              <span>{lead.phone || lead.mobile || '—'}</span>
+            </div>
+          </td>
+        );
+      }
+      case 'email':
+        return (
+          <td key="email" className="px-4 py-2.5 whitespace-nowrap max-w-[200px] truncate text-sm text-gray-700" title={lead.email || undefined}>
+            {lead.email || '—'}
+          </td>
+        );
+      case 'status':
+        return (
+          <td key="status" className="px-4 py-2.5 whitespace-nowrap">
+            <button
+              type="button"
+              onClick={() => openLeadActionModal(lead, 'status')}
+              title="Click to update status with a remark"
+              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold hover:brightness-95 ${getStatusColor(lead.status || 'Unknown')}`}
+            >
+              {lead.status || 'No Status'}
+            </button>
+          </td>
+        );
+      case 'remarks':
+        return (
+          <td
+            key="remarks"
+            className="px-4 py-2.5 cursor-pointer text-xs text-gray-600 hover:text-blue-700 hover:underline"
+            title={lead.latest_remark ? `${lead.latest_remark}\n\nClick to add a remark` : 'Click to add a remark'}
+            onClick={() => openLeadActionModal(lead, 'remark')}
+          >
+            <div className="w-24 truncate">
+              {lead.latest_remark || <span className="text-gray-400">No remarks</span>}
+            </div>
+          </td>
+        );
+      case 'followup':
+        return (
+          <td key="followup" className="px-4 py-2.5 whitespace-nowrap text-xs">
+            <ScheduleCell value={(lead as any).next_follow_up} emptyLabel="Add" onClick={() => openLeadActionModal(lead, 'followup')} />
+          </td>
+        );
+      case 'appointment':
+        return (
+          <td key="appointment" className="px-4 py-2.5 whitespace-nowrap text-xs">
+            <ScheduleCell value={(lead as any).next_appointment} emptyLabel="Book" onClick={() => openLeadActionModal(lead, 'appointment')} />
+          </td>
+        );
+      case 'counselor':
+        return (
+          <td key="counselor" className="px-4 py-2.5 whitespace-nowrap text-sm font-medium text-gray-700">
+            {canAssignLeads ? (
+              <button type="button" onClick={() => openAssignModal(lead)} title="Assign or reassign" className="hover:opacity-80">
+                <CounselorTag name={lead.dmEmployeeByASSIGNTo?.name} />
+              </button>
+            ) : (
+              <CounselorTag name={lead.dmEmployeeByASSIGNTo?.name} />
+            )}
+          </td>
+        );
+      case 'registered':
+        return <td key="registered" className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-700">{formatDate(lead.regdate)}</td>;
+      case 'assigned':
+        return <td key="assigned" className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-700">{formatDate(lead.transfer_date)}</td>;
+      case 'campaign':
+        return (
+          <td key="campaign" className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-700" title={lead.campaign || undefined}>
+            {lead.campaign || <span className="text-gray-400">—</span>}
+          </td>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // Re-measure how far the table overflows whenever the rendered rows/columns
+  // change, so the top scrollbar only shows when there is something to scroll.
+  useEffect(() => {
+    if (viewMode !== 'list') return;
+    const measure = () => {
+      const el = tableScrollRef.current;
+      setTableScrollWidth(el && el.scrollWidth > el.clientWidth + 1 ? el.scrollWidth : 0);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [viewMode, leads, activeTab, columnPrefs]);
+
   if (authLoading || (loading && leads.length === 0 && !debouncedSearchTerm)) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -1578,18 +1821,18 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   }
 
   return (
-    <div className="space-y-6">
+    <div className="overflow-visible rounded-lg border border-gray-200 bg-white shadow-sm">
       {loadError && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="m-3 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <span>{loadError}</span>
           <button onClick={() => fetchLeads()} className="font-medium underline">Retry</button>
         </div>
       )}
-      <div ref={tabBarRef} className="bg-white rounded-lg shadow p-2">
+      <div ref={tabBarRef} className="border-b border-gray-200 bg-white px-3 py-2">
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => handleTabChange('leads')}
-            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
               activeTab === 'leads' && !activeTodayView
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -1601,7 +1844,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           {showMyLeadsTab && (
             <button
               onClick={() => handleTabChange('my-leads')}
-              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`flex shrink-0 items-center px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
                 activeTab === 'my-leads' && !activeTodayView
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -1613,7 +1856,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           )}
           <button
             onClick={() => handleTabChange('opportunities')}
-            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
               activeTab === 'opportunities' && !activeTodayView
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -1624,7 +1867,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           </button>
           <button
             onClick={() => handleTabChange('clients')}
-            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
               activeTab === 'clients' && !activeTodayView
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -1635,7 +1878,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           </button>
           <button
             onClick={() => handleTabChange('duplicates')}
-            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
               activeTab === 'duplicates' && !activeTodayView
                 ? 'bg-red-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -1644,13 +1887,26 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             <AlertCircle className="w-4 h-4 mr-2" />
             Duplicate Leads
           </button>
+          {showDeadLeadsTab && (
+            <button
+              onClick={() => handleTabChange('dnq-unreachable')}
+              className={`flex shrink-0 items-center px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
+                activeTab === 'dnq-unreachable' && !activeTodayView
+                  ? 'bg-slate-700 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            >
+              <AlertCircle className="w-4 h-4 mr-2" />
+              DNQ / Unreachable
+            </button>
+          )}
 
           <div className="mx-1 h-6 w-px bg-gray-200" />
 
           <button
             onClick={() => handleTodayViewToggle('todayActivity')}
             title="Leads with a remark, follow-up, or appointment added today"
-            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
               activeTodayView === 'todayActivity'
                 ? 'bg-teal-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -1662,7 +1918,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           <button
             onClick={() => handleTodayViewToggle('todayFollowup')}
             title="Leads with a pending follow-up scheduled for today"
-            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
               activeTodayView === 'todayFollowup'
                 ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -1674,7 +1930,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           <button
             onClick={() => handleTodayViewToggle('todayNew')}
             title="Leads created today"
-            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
               activeTodayView === 'todayNew'
                 ? 'bg-cyan-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -1687,7 +1943,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       </div>
 
       {(activeTab === 'leads' || activeTab === 'my-leads') && filterOptions.statuses.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-3">
+        <div className="border-b border-gray-200 bg-white px-3 py-2">
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => handleStatusTabChange('')}
@@ -1717,228 +1973,55 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       )}
 
       {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder={activeTab === 'opportunities' ? 'Search opportunities (min 3 chars)...' : 'Search leads (min 3 chars)...'}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            {searchTerm.length > 0 && searchTerm.length < 3 && (
-              <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">
-                Type {3 - searchTerm.length} more {3 - searchTerm.length === 1 ? 'char' : 'chars'}
+      <div className="border-b border-gray-200 bg-gradient-to-b from-white to-gray-50 p-3">
+        {/* Row 1: record count + reload (left) - add / sample / import / export (right) */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm shadow-sm">
+              <span className="font-semibold text-gray-500">Records</span>
+              <span className="font-bold text-gray-950">{pagination.total.toLocaleString()}</span>
+            </div>
+            <button
+              onClick={() => fetchLeads()}
+              disabled={loading}
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+              title="Reload leads from the server"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Reload
+            </button>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={resetLeadFilters}
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                title="Clear active filters"
+              >
+                <X className="h-4 w-4" />
+                {activeFilterCount} active
+              </button>
+            )}
+            {loading && (
+              <span className="inline-flex h-10 items-center rounded-md border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700">
+                Refreshing...
               </span>
             )}
           </div>
 
-          <SearchableSelect
-            value={filters.status}
-            onChange={(e) => setFilters({...filters, status: e.target.value})}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Status</option>
-            {filterOptions.statuses.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </SearchableSelect>
-
-          <SearchableSelect
-            value={filters.priority}
-            onChange={(e) => setFilters({...filters, priority: e.target.value})}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Priority</option>
-            {filterOptions.priorities.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </SearchableSelect>
-
-          <SearchableSelect
-            value={filters.region}
-            onChange={(e) => setFilters({...filters, region: e.target.value, branch: ''})}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Regions</option>
-            {filterOptions.regions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </SearchableSelect>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <SearchableSelect
-            value={filters.branch}
-            onChange={(e) => setFilters({...filters, branch: e.target.value})}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Branches</option>
-            {filteredBranchOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </SearchableSelect>
-
-          {isFoeOrBranchManagerOrCeo(user) && (
-            <SearchableSelect
-              value={filters.assignTo}
-              onChange={(e) => setFilters({...filters, assignTo: e.target.value})}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Counselors</option>
-              {counselorFilterOptions.map((option) => (
-                <option key={option.id} value={String(option.id)}>{option.name}</option>
-              ))}
-            </SearchableSelect>
-          )}
-
-          <SearchableSelect
-            value={filters.countryInterest}
-            onChange={(e) => setFilters({...filters, countryInterest: e.target.value})}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Countries</option>
-            {filterOptions.countries.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </SearchableSelect>
-
-          <SearchableSelect
-            value={filters.serviceInterest}
-            onChange={(e) => setFilters({...filters, serviceInterest: e.target.value})}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Programs/Services</option>
-            {filterOptions.services.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </SearchableSelect>
-
-          <SearchableSelect
-            value={filters.marketSource}
-            onChange={(e) => setFilters({...filters, marketSource: e.target.value})}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Sources</option>
-            {filterOptions.sources.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </SearchableSelect>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <SearchableSelect
-            value={filters.leadQuality}
-            onChange={(e) => setFilters({...filters, leadQuality: e.target.value})}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Qualities</option>
-            {filterOptions.leadQualities.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </SearchableSelect>
-
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="date"
-              placeholder="Date From"
-              value={filters.dateFrom}
-              onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="date"
-              placeholder="Date To"
-              value={filters.dateTo}
-              onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <button
-            onClick={() => setFilters({
-              status: '',
-              priority: '',
-              branch: '',
-              region: '',
-              countryInterest: '',
-              serviceInterest: '',
-              marketSource: '',
-              leadQuality: '',
-              dateFrom: '',
-              dateTo: '',
-              assignTo: '',
-              todayActivity: '',
-              todayFollowup: '',
-              todayNew: ''
-            })}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
-          >
-            Clear Filters
-          </button>
-        </div>
-
-        <div className="flex justify-end items-center">
           {showActions && (
-            <div className="flex items-center space-x-2">
-              {(activeTab === 'leads' || activeTab === 'my-leads') && (
-                <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      viewMode === 'list'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <LayoutList className="w-4 h-4 mr-2" />
-                    List
-                  </button>
-                  <button
-                    onClick={() => setViewMode('kanban')}
-                    className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      viewMode === 'kanban'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <LayoutGrid className="w-4 h-4 mr-2" />
-                    Kanban
-                  </button>
-                </div>
-              )}
-
+            <div className="flex flex-wrap items-center gap-2">
               {activeTab === 'leads' && (
-                <>
-                  <button
-                    onClick={() => router.push('/admin/leads/create')}
-                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add New Lead
-                  </button>
-                  {!isFoe(user) && (
-                    <button
-                      onClick={handleBulkConvertToOpportunity}
-                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      <Target className="w-4 h-4 mr-2" />
-                      Convert Selected to Opportunities
-                    </button>
-                  )}
-                </>
+                <button
+                  onClick={() => router.push('/admin/leads/create')}
+                  className="flex h-10 items-center rounded-md bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Lead
+                </button>
               )}
               {activeTab === 'opportunities' && (
                 <button
                   onClick={() => router.push('/admin/leads/create?mode=opportunity')}
-                  className="flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                  className="flex h-10 items-center rounded-md bg-amber-600 px-3 text-sm font-semibold text-white hover:bg-amber-700"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add New Opportunity
@@ -1955,16 +2038,16 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 <button
                   type="button"
                   onClick={() => { window.location.href = '/api/leads/sample-template'; }}
-                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="flex h-10 items-center rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold hover:bg-gray-50"
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Download Sample
+                  Sample
                 </button>
               )}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={importing}
-                className={`flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 ${activeTab !== 'leads' || !canBulkUpload ? 'hidden' : ''}`}
+                className={`flex h-10 items-center rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50 ${activeTab !== 'leads' || !canBulkUpload ? 'hidden' : ''}`}
               >
                 <Upload className="w-4 h-4 mr-2" />
                 {importing ? 'Importing...' : 'Import'}
@@ -1972,7 +2055,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               {isBranchManagerOrCeo(user) && (
                 <button
                   onClick={handleExportExcel}
-                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="flex h-10 items-center rounded-md border border-gray-300 bg-white px-3 text-sm font-semibold hover:bg-gray-50"
                 >
                   <Download className="w-4 h-4 mr-2" />
                   Export
@@ -1980,6 +2063,124 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               )}
             </div>
           )}
+        </div>
+
+        {/* Row 2: List / Kanban / Card toggle (left) - Convert Selected (right) */}
+        {showActions && (activeTab === 'leads' || activeTab === 'my-leads') && (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex h-10 items-center rounded-md bg-gray-100 p-1">
+              {([
+                { mode: 'list', label: 'List', Icon: Table2 },
+                { mode: 'kanban', label: 'Kanban', Icon: LayoutGrid },
+                { mode: 'card', label: 'Card', Icon: LayoutList },
+              ] as const).map(({ mode, label, Icon }) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`flex h-8 items-center px-3 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === mode
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 mr-2" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === 'leads' && !isFoe(user) && (
+              <button
+                onClick={handleBulkConvertToOpportunity}
+                className="flex h-10 items-center rounded-md bg-green-600 px-3 text-sm font-semibold text-white hover:bg-green-700"
+              >
+                <Target className="w-4 h-4 mr-2" />
+                Convert Selected to Opportunities
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-bold text-gray-900">Lead filters</span>
+            </div>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={resetLeadFilters}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 px-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+              >
+                <X className="h-3.5 w-3.5" />
+                Reset
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder={activeTab === 'opportunities' ? 'Search opportunities (min 3 chars)...' : 'Search leads (min 3 chars)...'}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-9 w-full rounded-md border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500"
+              />
+              {searchTerm.length > 0 && searchTerm.length < 3 && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                  Type {3 - searchTerm.length} more
+                </span>
+              )}
+            </div>
+            <SearchableSelect value={filters.status} onChange={(e) => setFilters({...filters, status: e.target.value})} className="h-9 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <option value="">Status: All</option>
+              {filterOptions.statuses.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SearchableSelect>
+            <SearchableSelect value={filters.priority} onChange={(e) => setFilters({...filters, priority: e.target.value})} className="h-9 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <option value="">Priority: All</option>
+              {filterOptions.priorities.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SearchableSelect>
+            <SearchableSelect value={filters.region} onChange={(e) => setFilters({...filters, region: e.target.value, branch: ''})} className="h-9 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <option value="">Region: All</option>
+              {filterOptions.regions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SearchableSelect>
+            <SearchableSelect value={filters.branch} onChange={(e) => setFilters({...filters, branch: e.target.value})} className="h-9 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <option value="">Branch: All</option>
+              {filteredBranchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SearchableSelect>
+            {isFoeOrBranchManagerOrCeo(user) && (
+              <SearchableSelect value={filters.assignTo} onChange={(e) => setFilters({...filters, assignTo: e.target.value})} className="h-9 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500">
+                <option value="">Counselor: All</option>
+                {counselorFilterOptions.map((option) => <option key={option.id} value={String(option.id)}>{option.name}</option>)}
+              </SearchableSelect>
+            )}
+            <SearchableSelect value={filters.countryInterest} onChange={(e) => setFilters({...filters, countryInterest: e.target.value})} className="h-9 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <option value="">Country: All</option>
+              {filterOptions.countries.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SearchableSelect>
+            <SearchableSelect value={filters.serviceInterest} onChange={(e) => setFilters({...filters, serviceInterest: e.target.value})} className="h-9 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <option value="">Program: All</option>
+              {filterOptions.services.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SearchableSelect>
+            <SearchableSelect value={filters.marketSource} onChange={(e) => setFilters({...filters, marketSource: e.target.value})} className="h-9 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <option value="">Source: All</option>
+              {filterOptions.sources.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SearchableSelect>
+            <SearchableSelect value={filters.leadQuality} onChange={(e) => setFilters({...filters, leadQuality: e.target.value})} className="h-9 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <option value="">Quality: All</option>
+              {filterOptions.leadQualities.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SearchableSelect>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({...filters, dateFrom: e.target.value})} title="Registered from" className="h-9 w-full rounded-md border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input type="date" value={filters.dateTo} onChange={(e) => setFilters({...filters, dateTo: e.target.value})} title="Registered to" className="h-9 w-full rounded-md border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2011,30 +2212,36 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         </div>
       )}
 
-      {/* Leads Display - List or Kanban View */}
-      {viewMode === 'list' ? (
-        <div className="bg-white rounded-lg shadow">
+      {/* Leads Display - List (table), Card, or Kanban View */}
+      {viewMode !== 'kanban' ? (
+        <div className="bg-slate-50">
           <div className="border-b border-gray-200 bg-white px-3 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-600">
+              <div className={`flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-600 ${viewMode === 'list' ? 'invisible' : ''}`}>
                 <button onClick={() => toggleLeadSort('name')} className={`rounded-md border px-2.5 py-1.5 hover:bg-gray-50 ${leadSortKey === 'name' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white'}`}>Name</button>
                 <button onClick={() => toggleLeadSort('stage')} className={`rounded-md border px-2.5 py-1.5 hover:bg-gray-50 ${leadSortKey === 'stage' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white'}`}>Stage</button>
                 <button onClick={() => toggleLeadSort('registered')} className={`rounded-md border px-2.5 py-1.5 hover:bg-gray-50 ${leadSortKey === 'registered' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white'}`}>Newest</button>
                 <button onClick={() => toggleLeadSort('assignedTo')} className={`rounded-md border px-2.5 py-1.5 hover:bg-gray-50 ${leadSortKey === 'assignedTo' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white'}`}>Counselor</button>
               </div>
-              {activeTab === 'leads' && (
-                <label className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm">
-                  <input
-                    type="checkbox"
-                    checked={selectableLeadIds.length > 0 && selectedLeads.length === selectableLeadIds.length}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  Select visible
-                </label>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {viewMode === 'list' && (
+                  <ColumnPicker columns={LEAD_TABLE_COLUMNS} prefs={columnPrefs} onChange={saveColumnPrefs} />
+                )}
+                {activeTab === 'leads' && (
+                  <label className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectableLeadIds.length > 0 && selectedLeads.length === selectableLeadIds.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Select visible
+                  </label>
+                )}
+              </div>
             </div>
           </div>
+          {viewMode === 'card' && (
           <div className="p-3">
             {sortedLeadRows.length === 0 ? (
               <div className="flex h-full min-h-[280px] items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white text-center">
@@ -2045,7 +2252,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3">
+              <div className={`grid grid-cols-1 gap-3 transition-opacity ${loading ? 'pointer-events-none opacity-55' : 'opacity-100'}`}>
                 {sortedLeadRows.map((lead: Lead, index) => {
                   const leadId = getSelectableLeadId(lead);
                   const stage = getPipelineStage(lead);
@@ -2082,9 +2289,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              {activeTab === 'leads' || activeTab === 'opportunities' ? (
+                              {activeTab === 'leads' || activeTab === 'opportunities' || activeTab === 'dnq-unreachable' ? (
                                 <Link
-                                  href={activeTab === 'leads' ? `/admin/leads/${lead.id}/edit` : `/admin/leads/opportunity-flow?leadId=${lead.id}`}
+                                  href={activeTab === 'leads' || activeTab === 'dnq-unreachable' ? `/admin/leads/${lead.id}/edit` : `/admin/leads/opportunity-flow?leadId=${lead.id}`}
                                   className="min-w-0 break-words text-base font-bold text-gray-950 hover:text-blue-700"
                                 >
                                   {name}
@@ -2157,13 +2364,13 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                                 {canAssignLeads ? (
                                   <button
                                     onClick={() => openAssignModal(lead)}
-                                    className="mt-0.5 block max-w-full truncate text-left font-semibold text-blue-700 hover:underline"
+                                    className="mt-0.5 block max-w-full text-left hover:opacity-80"
                                     title="Assign or reassign"
                                   >
-                                    {lead.dmEmployeeByASSIGNTo?.name || 'Unassigned'}
+                                    <CounselorTag name={lead.dmEmployeeByASSIGNTo?.name} />
                                   </button>
                                 ) : (
-                                  <div className="mt-0.5 truncate font-semibold text-gray-900">{lead.dmEmployeeByASSIGNTo?.name || 'Unassigned'}</div>
+                                  <div className="mt-0.5"><CounselorTag name={lead.dmEmployeeByASSIGNTo?.name} /></div>
                                 )}
                                 <div className="text-gray-600">{formatDate(lead.regdate)}</div>
                               </div>
@@ -2284,6 +2491,162 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               </div>
             )}
           </div>
+          )}
+
+          {viewMode === 'list' && (
+            <>
+              {loading && sortedLeadRows.length > 0 && (
+                <div className="flex items-center gap-2 border-b border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Refreshing leads...
+                </div>
+              )}
+              {sortedLeadRows.length === 0 ? (
+                <div className="m-3 flex min-h-[280px] items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white text-center">
+                  <div>
+                    <Users className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+                    <h3 className="text-sm font-bold text-gray-900">No leads found</h3>
+                    <p className="mt-1 text-sm text-gray-500">Try changing filters or search terms.</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {tableScrollWidth > 0 && (
+                    <div
+                      ref={topScrollRef}
+                      onScroll={handleTopScroll}
+                      className="overflow-x-auto overflow-y-hidden border-b border-gray-200 bg-white"
+                      style={{ height: 14 }}
+                    >
+                      <div style={{ width: tableScrollWidth, height: 1 }} />
+                    </div>
+                  )}
+                  {/* overflow-x-auto only (no overflow-hidden ancestor) so the
+                      sticky header can stick while the page scrolls. */}
+                  <div ref={tableScrollRef} onScroll={handleTableScroll} className={`overflow-x-auto bg-white transition-opacity ${loading ? 'opacity-60' : 'opacity-100'}`}>
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+                        <tr>
+                          <th className="w-10 px-4 py-2.5 text-left">
+                            {activeTab === 'leads' && (
+                              <input
+                                type="checkbox"
+                                checked={selectableLeadIds.length > 0 && selectedLeads.length === selectableLeadIds.length}
+                                onChange={(e) => handleSelectAll(e.target.checked)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                            )}
+                          </th>
+                          {visibleLeadColumns.map((column) => column.sortKey ? (
+                            <SortableTh
+                              key={column.key}
+                              label={column.label}
+                              sortKey={column.sortKey as NonNullable<typeof leadSortKey>}
+                              activeKey={leadSortKey}
+                              direction={leadSortDirection}
+                              onSort={toggleLeadSort}
+                              className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                            />
+                          ) : (
+                            <th key={column.key} className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">{column.label}</th>
+                          ))}
+                          <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 bg-white">
+                        {sortedLeadRows.map((lead: Lead, index) => {
+                          const leadId = getSelectableLeadId(lead);
+                          const name = `${lead.fname || ''} ${lead.mname || ''} ${lead.lname || ''}`.replace(/\s+/g, ' ').trim() || `Lead #${lead.id}`;
+                          const newToday = isLeadNewToday(lead);
+                          return (
+                            <tr key={leadId ?? `${lead.email || 'lead'}-${index}`} className={newToday ? 'bg-emerald-50 hover:bg-emerald-100/60' : 'hover:bg-gray-50'}>
+                              <td className="px-4 py-2.5 whitespace-nowrap">
+                                {activeTab === 'leads' && (
+                                  <input
+                                    type="checkbox"
+                                    checked={leadId !== null && selectedLeads.includes(leadId)}
+                                    disabled={leadId === null}
+                                    onChange={(e) => leadId !== null && handleSelectLead(leadId, e.target.checked)}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                )}
+                              </td>
+                              {visibleLeadColumns.map((column) => renderLeadCell(column.key, lead, name))}
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm font-medium">
+                                <div className="flex items-center gap-1.5">
+                                  {newToday && (
+                                    <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">New</span>
+                                  )}
+                                  {activeTab === 'clients' && Number(lead.payBalance) > 0 && (
+                                    <button
+                                      onClick={() => openQuickPayForLead(lead)}
+                                      title={`Collect balance ${currencyCode} ${Number(lead.payBalance).toLocaleString()} & generate receipt`}
+                                      className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1 text-xs font-semibold text-white hover:bg-orange-600"
+                                    >
+                                      <Receipt className="w-3.5 h-3.5" />
+                                      Receipt
+                                    </button>
+                                  )}
+                                  <button onClick={() => handleViewLead(lead)} className="text-blue-600 hover:text-blue-900" title="View lead">
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => openLeadActionModal(lead, 'remark')} className="text-slate-600 hover:text-slate-900" title="Add remark">
+                                    <MessageSquare className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => openLeadActionModal(lead, 'appointment')} className="text-indigo-600 hover:text-indigo-900" title="Book appointment">
+                                    <Calendar className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => openLeadActionModal(lead, 'followup')} className="text-amber-600 hover:text-amber-900" title="Add follow-up">
+                                    <Clock className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => openLeadActionModal(lead, 'status')} className="text-emerald-600 hover:text-emerald-900" title="Update status with remark">
+                                    <CheckCircle className="w-4 h-4" />
+                                  </button>
+                                  {activeTab === 'leads' && !isFoe(user) && (
+                                    <button onClick={() => handleConvertToOpportunity(Number(lead.id))} className="text-green-600 hover:text-green-900" title="Start Opportunity Flow">
+                                      <Target className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  {activeTab === 'clients' && isClientLead(lead) && (
+                                    <button onClick={() => handleOpenClientOpportunityFlow(lead)} className="text-amber-600 hover:text-amber-900" title="Edit opportunity flow">
+                                      <Settings className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  {activeTab === 'clients' && isClientLead(lead) && (
+                                    <button onClick={() => handleOpenOperations(lead)} className="text-purple-600 hover:text-purple-900" title="Open Operations">
+                                      <Briefcase className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  {activeTab === 'opportunities' && (
+                                    <Link href={`/admin/leads/opportunity-flow?leadId=${lead.id}`} className="text-amber-600 hover:text-amber-900" title="Edit opportunity flow">
+                                      <Settings className="w-4 h-4" />
+                                    </Link>
+                                  )}
+                                  {activeTab === 'opportunities' && isCeo(user) && (
+                                    <button onClick={() => handleMoveOpportunityBackToLead(lead)} className="text-slate-600 hover:text-slate-900" title="Move back to Leads">
+                                      <ChevronsLeft className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  <Link href={`/admin/leads/${lead.id}/edit`} className="text-gray-600 hover:text-gray-900" title="Edit lead">
+                                    <Edit className="w-4 h-4" />
+                                  </Link>
+                                  {isCeo(user) && (
+                                    <button onClick={() => handleDeleteLead(lead.id)} className="text-red-600 hover:text-red-900" title="Delete lead">
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </>
+          )}
 
           {/* Pagination */}
           <div className="bg-white px-4 py-3 flex flex-col gap-2 border-t border-gray-200 sm:flex-row sm:items-center sm:justify-between sm:px-6">
