@@ -43,6 +43,10 @@ const LEAD_TABLE_COLUMNS: Array<ColumnDef & { sortKey?: string }> = [
 ];
 const LEAD_COLUMNS_PREF_KEY = 'leads.columns';
 
+// Tag-shaped status label: squared left edge, rounded right edge, punch-hole dot.
+const STATUS_TAG_CLASS = 'relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-l-md rounded-r-full py-0.5 pl-2 pr-3 text-[11px] font-bold uppercase tracking-wide shadow-sm transition hover:brightness-110 hover:shadow';
+const StatusTagDot = () => <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-white/90 ring-1 ring-black/10" />;
+
 const WhatsAppIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
     <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.08c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.69.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35zM12.05 21.5h-.01a9.4 9.4 0 0 1-4.79-1.31l-.34-.2-3.56.93.95-3.47-.22-.36a9.4 9.4 0 0 1-1.44-5.01c0-5.2 4.23-9.43 9.43-9.43 2.52 0 4.89.98 6.67 2.77a9.37 9.37 0 0 1 2.76 6.67c0 5.2-4.23 9.43-9.43 9.43zm8.03-17.46A11.27 11.27 0 0 0 12.05.75C5.8.75.71 5.84.71 12.09c0 2 .52 3.95 1.52 5.67L.62 23.25l5.62-1.47a11.3 11.3 0 0 0 5.41 1.38h.01c6.25 0 11.34-5.09 11.34-11.34 0-3.03-1.18-5.88-3.32-8.02z" />
@@ -68,15 +72,15 @@ const COUNSELOR_TAG_PALETTE = [
 const CounselorTag = ({ name, className = '' }: { name?: string | null; className?: string }) => {
   const label = String(name || '').trim();
   if (!label) {
-    return <span className={`inline-flex max-w-full items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-400 ring-1 ring-inset ring-gray-200 ${className}`}>Unassigned</span>;
+    return <span className={`inline-flex max-w-full items-center rounded-l-md rounded-r-full bg-gray-200 py-0.5 pl-2 pr-3 text-[11px] font-bold uppercase tracking-wide text-gray-500 ${className}`}>Unassigned</span>;
   }
   let hash = 0;
   for (let i = 0; i < label.length; i++) hash = (hash * 31 + label.toLowerCase().charCodeAt(i)) >>> 0;
   const tone = COUNSELOR_TAG_PALETTE[hash % COUNSELOR_TAG_PALETTE.length];
   const initials = label.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase();
   return (
-    <span className={`inline-flex max-w-full items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5 text-xs font-semibold ring-1 ring-inset ${tone.tag} ${className}`}>
-      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white ${tone.badge}`}>{initials}</span>
+    <span className={`inline-flex max-w-full items-center gap-1.5 rounded-l-md rounded-r-full py-0.5 pl-0.5 pr-3 text-[11px] font-bold tracking-wide text-white shadow-sm ${tone.badge} ${className}`} title={label}>
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] bg-white/25 text-[9px] font-bold">{initials}</span>
       <span className="truncate">{label}</span>
     </span>
   );
@@ -266,7 +270,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
   });
   const [pagination, setPagination] = useState<PaginationData>({
     page: 1,
-    limit: 10,
+    limit: 50,
     total: 0,
     pages: 0
   });
@@ -1605,16 +1609,25 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     }
   };
 
+  // Solid tag colours so the status reads as a label, not body text.
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Prospect': return 'bg-blue-100 text-blue-800';
-      case 'Not Interested': return 'bg-red-100 text-red-800';
-      case 'DNQ': return 'bg-gray-100 text-gray-800';
-      case 'Not_answered': return 'bg-yellow-100 text-yellow-800';
-      case 'Could Not Connect': return 'bg-orange-100 text-orange-800';
-      case 'Call Back': return 'bg-purple-100 text-purple-800';
-      case 'Abroad Lead': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+    switch (String(status || '').trim().toLowerCase()) {
+      case 'untouched': return 'bg-amber-500 text-white';
+      case 'new': return 'bg-sky-500 text-white';
+      case 'contacted': return 'bg-blue-600 text-white';
+      case 'qualified': return 'bg-indigo-600 text-white';
+      case 'prospect': return 'bg-green-600 text-white';
+      case 'converted': return 'bg-emerald-600 text-white';
+      case 'closed': return 'bg-slate-500 text-white';
+      case 'not interested': return 'bg-rose-600 text-white';
+      case 'dnq': return 'bg-slate-600 text-white';
+      case 'not_answered': return 'bg-yellow-400 text-yellow-950';
+      case 'could not connect': return 'bg-orange-500 text-white';
+      case 'call back': return 'bg-violet-600 text-white';
+      case 'abroad lead': return 'bg-teal-600 text-white';
+      case 'junk': return 'bg-stone-500 text-white';
+      case 'duplicate': return 'bg-fuchsia-600 text-white';
+      default: return 'bg-gray-400 text-white';
     }
   };
 
@@ -1741,8 +1754,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               type="button"
               onClick={() => openLeadActionModal(lead, 'status')}
               title="Click to update status with a remark"
-              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold hover:brightness-95 ${getStatusColor(lead.status || 'Unknown')}`}
+              className={`${STATUS_TAG_CLASS} ${getStatusColor(lead.status || 'Unknown')}`}
             >
+              <StatusTagDot />
               {lead.status || 'No Status'}
             </button>
           </td>
@@ -2379,8 +2393,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                                 <button
                                   type="button"
                                   onClick={() => openLeadActionModal(lead, 'status')}
-                                  className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(lead.status || 'Unknown')}`}
+                                  className={`mt-0.5 ${STATUS_TAG_CLASS} ${getStatusColor(lead.status || 'Unknown')}`}
                                 >
+                                  <StatusTagDot />
                                   {lead.status || 'No Status'}
                                 </button>
                                 <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getPriorityColor(lead.priority)}`}>
