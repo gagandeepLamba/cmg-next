@@ -64,9 +64,11 @@ function validateLeadSubmission(data: Record<string, unknown>): string[] {
   return errors;
 }
 
-// Statuses counselors don't work from their list (DNQ + the "unreachable"
-// family). Static literals only - interpolated straight into SQL.
-const DEAD_LEAD_STATUS_SQL = `'DNQ', 'Not_answered', 'Could Not Connect'`
+// Statuses hidden from a counselor's list: DNQ and wrong numbers ('Could Not
+// Connect' is labelled "Could Not Connect/Wrong Number" in the UI). 'Not_answered'
+// stays visible - the counselor still has to retry those. Static literals only -
+// interpolated straight into SQL.
+const DEAD_LEAD_STATUS_SQL = `'DNQ', 'Could Not Connect'`
 
 export async function GET(request: NextRequest) {
   try {
@@ -280,9 +282,9 @@ export async function GET(request: NextRequest) {
         replacements.push(currentUser.id, currentUser.id, currentUser.id, currentUser.id)
       }
     } else if (opportunityView === 'dnq-unreachable') {
-      // Manager-only review queue for the leads hidden from counselors.
+      // Manager-only review queue for the leads hidden from counselors (DNQ / wrong number).
       if (!canViewAll && !isBranchManager && !isRegionalManager) {
-        return NextResponse.json({ error: 'Only FOE, Branch Manager, Regional Manager or CEO can view DNQ / Unreachable leads' }, { status: 403 })
+        return NextResponse.json({ error: 'Only FOE, Branch Manager, Regional Manager or CEO can view DNQ / Wrong Number leads' }, { status: 403 })
       }
       whereConditions.push(`COALESCE(l.status,'') IN (${DEAD_LEAD_STATUS_SQL})`)
       whereConditions.push(`NOT ${CLIENT_STATUS_SQL}`)
@@ -316,8 +318,8 @@ export async function GET(request: NextRequest) {
         whereConditions.push(`NOT ${HAS_OPP_SQL}`)
         whereConditions.push('(l.Counsilor = ? OR l.assignTo = ?)')
         replacements.push(currentUser.id, currentUser.id)
-        // DNQ and unreachable leads are dead ends for a counselor's working
-        // list - they stay visible to FOE/BM/RM/CEO (DNQ / Unreachable tab)
+        // DNQ and wrong-number leads are dead ends for a counselor's working
+        // list - they stay visible to FOE/BM/RM/CEO (DNQ / Wrong Number tab)
         // for review and recycling. COALESCE keeps NULL statuses in (NOT IN
         // over NULL is NULL, which WHERE treats as false). 'Call Back' is
         // deliberately not hidden: it is a promised follow-up.

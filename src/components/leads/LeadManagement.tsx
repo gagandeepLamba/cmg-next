@@ -1911,7 +1911,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               }`}
             >
               <AlertCircle className="w-4 h-4 mr-2" />
-              DNQ / Unreachable
+              DNQ / Wrong Number
             </button>
           )}
 
