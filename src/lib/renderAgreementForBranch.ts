@@ -7,6 +7,10 @@
 // longer branches on `branchAbbrv` — the parameter is kept only so callers
 // don't need to change their call sites.
 import { renderDubaiAgreement } from './DubaiBilingualAgreementTemplate';
+import {
+  isSkillsResumeMarketingProgram,
+  renderSkillsResumeMarketingAgreement,
+} from './SkillsResumeMarketingAgreementTemplate';
 
 export interface AgreementLeadData {
   agreementNumber: string;
@@ -37,6 +41,16 @@ export interface AgreementLeadData {
   includedDeliverables?: string;
   expressExclusions?: string;
   specialTerms?: string;
+  // Australia visa agreement (Service Provider block / Fee Summary).
+  registeredMigrationAgent?: string;
+  marn?: string;
+  governmentFeeEstimate?: string;
+  // Skills Assessment + Resume Marketing agreement only. 'fresh' (default) is
+  // the fixed AED 5,000 case; 'existing' = client already holds a positive
+  // Skills Assessment and `professionalFee` is the consultant-adjusted fee.
+  skillsCaseType?: 'fresh' | 'existing';
+  professionalFee?: string;
+  assessingAuthority?: string;
 }
 
 // Callers feed the Annexure A "Scope Includes" / "Special Terms" rows from CRM
@@ -54,6 +68,29 @@ const isPlaceholderTerms = (value?: string) => {
 };
 
 export function renderAgreementForBranch(_branchAbbrv: string | null | undefined, data: AgreementLeadData): string {
+  // Skills Assessment + Resume Marketing has its own agreement text (6-month
+  // term, fixed AED 5,000 fresh-case fee, resume-marketing clauses).
+  if (isSkillsResumeMarketingProgram(data.serviceProgram, data.programCode)) {
+    return renderSkillsResumeMarketingAgreement({
+      agreementNumber: data.agreementNumber,
+      agreementDate: data.agreementDate,
+      clientName: data.clientName,
+      clientEmail: data.clientEmail,
+      clientPhone: data.clientPhone,
+      nationality: data.nationality || '',
+      passportNumber: data.passportNumber || '',
+      caseType: data.skillsCaseType,
+      professionalFee: data.professionalFee,
+      initialPayment: data.initialPayment,
+      secondPayment: data.secondPayment,
+      secondPaymentDue: data.secondPaymentDue,
+      occupation: data.occupation,
+      assessingAuthority: data.assessingAuthority,
+      specialTerms: isPlaceholderTerms(data.specialTerms) ? undefined : data.specialTerms,
+      currencyCode: 'AED',
+    });
+  }
+
   return renderDubaiAgreement({
     agreementNumber: data.agreementNumber,
     agreementDate: data.agreementDate,
@@ -77,6 +114,9 @@ export function renderAgreementForBranch(_branchAbbrv: string | null | undefined
     includedDeliverables: isPlaceholderScope(data.includedDeliverables) ? undefined : data.includedDeliverables,
     expressExclusions: data.expressExclusions,
     specialTerms: isPlaceholderTerms(data.specialTerms) ? undefined : data.specialTerms,
+    registeredMigrationAgent: data.registeredMigrationAgent,
+    marn: data.marn,
+    governmentFeeEstimate: data.governmentFeeEstimate,
     currencyCode: 'AED',
   });
 }
