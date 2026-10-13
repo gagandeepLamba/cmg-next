@@ -88,6 +88,7 @@ export async function GET(request: NextRequest) {
     const serviceInterest = searchParams.get('serviceInterest')
     const marketSource = searchParams.get('marketSource')
     const leadQuality = searchParams.get('leadQuality')
+    const campaignName = searchParams.get('campaignName')
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     const todayActivity = searchParams.get('todayActivity') === '1' || searchParams.get('todayActivity') === 'true'
@@ -178,6 +179,13 @@ export async function GET(request: NextRequest) {
     if (leadQuality) {
       whereConditions.push('l.lead_quality = ?')
       replacements.push(leadQuality)
+    }
+
+    // Campaign filter matches the campaign name stored in campaign_group
+    // (Meta campaign name for Meta leads).
+    if (campaignName) {
+      whereConditions.push('l.campaign_group = ?')
+      replacements.push(campaignName)
     }
 
     // "Today's Activity": leads with a remark, follow-up, or appointment
@@ -288,6 +296,22 @@ export async function GET(request: NextRequest) {
       }
       whereConditions.push(`COALESCE(l.status,'') IN (${DEAD_LEAD_STATUS_SQL})`)
       whereConditions.push(`NOT ${CLIENT_STATUS_SQL}`)
+      if (isBranchManager) {
+        whereConditions.push('l.branch = ?')
+        replacements.push(currentUser.branch)
+      } else if (isRegionalManager) {
+        whereConditions.push('l.region = ?')
+        replacements.push(currentUser.region)
+      }
+    } else if (opportunityView === 'unassigned') {
+      // Triage queue: leads nobody owns yet. Manager-only, same as the Leads tab's unassigned visibility.
+      if (!canViewAll && !isBranchManager && !isRegionalManager) {
+        return NextResponse.json({ error: 'Only FOE, Branch Manager, Regional Manager or CEO can view unassigned leads' }, { status: 403 })
+      }
+      whereConditions.push(`NOT ${HAS_OPP_SQL}`)
+      whereConditions.push(`NOT ${CLIENT_STATUS_SQL}`)
+      whereConditions.push(`COALESCE(l.status,'') NOT IN (${DEAD_LEAD_STATUS_SQL})`)
+      whereConditions.push(`(COALESCE(l.Counsilor, 0) = 0 AND COALESCE(l.assignTo, 0) = 0)`)
       if (isBranchManager) {
         whereConditions.push('l.branch = ?')
         replacements.push(currentUser.branch)

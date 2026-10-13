@@ -117,6 +117,12 @@ export function buildCrmPayload(
     }
   }
 
+  // Always carry the Meta campaign name through so web-to-leads stores it in
+  // lead.campaign_group (unless an explicit mapping already set CampaignName).
+  if (!payload.CampaignName && lead.campaignName) {
+    payload.CampaignName = lead.campaignName;
+  }
+
   // Ensure required fields have sensible defaults
   if (!payload.lastName && lead.fullName) payload.lastName = lead.fullName;
   if (!payload.email && lead.email) payload.email = lead.email;

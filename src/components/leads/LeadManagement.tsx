@@ -132,10 +132,11 @@ interface LeadFilterOptions {
   services: FilterOption[];
   sources: FilterOption[];
   leadQualities: FilterOption[];
+  campaigns: FilterOption[];
 }
 
 type LeadActionType = 'appointment' | 'followup' | 'remark' | 'status';
-type LeadTab = 'leads' | 'my-leads' | 'opportunities' | 'clients' | 'duplicates' | 'dnq-unreachable';
+type LeadTab = 'leads' | 'my-leads' | 'opportunities' | 'clients' | 'duplicates' | 'dnq-unreachable' | 'unassigned';
 
 interface QuickPayLeadState {
   lead: Lead;
@@ -251,6 +252,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     serviceInterest: '',
     marketSource: '',
     leadQuality: '',
+    campaignName: '',
     dateFrom: '',
     dateTo: '',
     assignTo: '',
@@ -266,7 +268,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     countries: [],
     services: [],
     sources: [],
-    leadQualities: []
+    leadQualities: [],
+    campaigns: []
   });
   const [pagination, setPagination] = useState<PaginationData>({
     page: 1,
@@ -507,11 +510,11 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
 
   const activeFilterCount = [
     filters.status, filters.priority, filters.branch, filters.region, filters.countryInterest,
-    filters.serviceInterest, filters.marketSource, filters.leadQuality, filters.dateFrom, filters.dateTo, filters.assignTo,
+    filters.serviceInterest, filters.marketSource, filters.leadQuality, filters.campaignName, filters.dateFrom, filters.dateTo, filters.assignTo,
   ].filter(Boolean).length;
   const resetLeadFilters = () => setFilters({
     status: '', priority: '', branch: '', region: '', countryInterest: '', serviceInterest: '',
-    marketSource: '', leadQuality: '', dateFrom: '', dateTo: '', assignTo: '',
+    marketSource: '', leadQuality: '', campaignName: '', dateFrom: '', dateTo: '', assignTo: '',
     todayActivity: '', todayFollowup: '', todayNew: '',
   });
 
@@ -638,7 +641,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
           countries: data.countries || [],
           services: data.services || [],
           sources: data.sources || [],
-          leadQualities: data.leadQualities || []
+          leadQualities: data.leadQualities || [],
+          campaigns: data.campaigns || []
         });
       } catch (error) {
         console.error('Error fetching lead filter options:', error);
@@ -1707,7 +1711,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
       case 'name':
         return (
           <td key="name" className="px-4 py-2.5 whitespace-nowrap max-w-[220px]">
-            {activeTab === 'leads' || activeTab === 'opportunities' || activeTab === 'dnq-unreachable' ? (
+            {activeTab === 'leads' || activeTab === 'opportunities' || activeTab === 'dnq-unreachable' || activeTab === 'unassigned' ? (
               <Link
                 href={activeTab === 'opportunities' ? `/admin/leads/opportunity-flow?leadId=${lead.id}` : `/admin/leads/${lead.id}/edit`}
                 className="block truncate text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline"
@@ -1804,8 +1808,8 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         return <td key="assigned" className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-700">{formatDate(lead.transfer_date)}</td>;
       case 'campaign':
         return (
-          <td key="campaign" className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-700" title={lead.campaign || undefined}>
-            {lead.campaign || <span className="text-gray-400">—</span>}
+          <td key="campaign" className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-700" title={lead.campaign_group || lead.campaign || undefined}>
+            {lead.campaign_group || lead.campaign || <span className="text-gray-400">—</span>}
           </td>
         );
       default:
@@ -1901,6 +1905,19 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
             <AlertCircle className="w-4 h-4 mr-2" />
             Duplicate Leads
           </button>
+          {showDeadLeadsTab && (
+            <button
+              onClick={() => handleTabChange('unassigned')}
+              className={`flex shrink-0 items-center px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
+                activeTab === 'unassigned' && !activeTodayView
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Unassigned Leads
+            </button>
+          )}
           {showDeadLeadsTab && (
             <button
               onClick={() => handleTabChange('dnq-unreachable')}
@@ -2186,6 +2203,10 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
               <option value="">Quality: All</option>
               {filterOptions.leadQualities.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </SearchableSelect>
+            <SearchableSelect value={filters.campaignName} onChange={(e) => setFilters({...filters, campaignName: e.target.value})} className="h-9 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500">
+              <option value="">Campaign: All</option>
+              {filterOptions.campaigns.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SearchableSelect>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({...filters, dateFrom: e.target.value})} title="Registered from" className="h-9 w-full rounded-md border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500" />
@@ -2303,9 +2324,9 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              {activeTab === 'leads' || activeTab === 'opportunities' || activeTab === 'dnq-unreachable' ? (
+                              {activeTab === 'leads' || activeTab === 'opportunities' || activeTab === 'dnq-unreachable' || activeTab === 'unassigned' ? (
                                 <Link
-                                  href={activeTab === 'leads' || activeTab === 'dnq-unreachable' ? `/admin/leads/${lead.id}/edit` : `/admin/leads/opportunity-flow?leadId=${lead.id}`}
+                                  href={activeTab === 'leads' || activeTab === 'dnq-unreachable' || activeTab === 'unassigned' ? `/admin/leads/${lead.id}/edit` : `/admin/leads/opportunity-flow?leadId=${lead.id}`}
                                   className="min-w-0 break-words text-base font-bold text-gray-950 hover:text-blue-700"
                                 >
                                   {name}

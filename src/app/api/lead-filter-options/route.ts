@@ -70,7 +70,8 @@ export async function GET(request: NextRequest) {
       services,
       serviceValues,
       sources,
-      sourceValues
+      sourceValues,
+      campaignValues
     ] = await Promise.all([
       sequelize.query<RawOption>(
         "SELECT DISTINCT status as value FROM dmc_forum_leads WHERE status IS NOT NULL AND status <> ''",
@@ -119,6 +120,10 @@ export async function GET(request: NextRequest) {
       sequelize.query<RawOption>(
         "SELECT DISTINCT market_source as value FROM dmc_forum_leads WHERE market_source IS NOT NULL AND market_source <> ''",
         { type: QueryTypes.SELECT }
+      ),
+      sequelize.query<RawOption>(
+        "SELECT DISTINCT campaign_group as value FROM dmc_forum_leads WHERE campaign_group IS NOT NULL AND campaign_group <> ''",
+        { type: QueryTypes.SELECT }
       )
     ]);
 
@@ -143,7 +148,8 @@ export async function GET(request: NextRequest) {
       countries: Array.from(countryMap.values()).sort((a, b) => a.label.localeCompare(b.label)),
       services: Array.from(serviceMap.values()).sort((a, b) => a.label.localeCompare(b.label)),
       sources: Array.from(sourceMap.values()).sort((a, b) => a.label.localeCompare(b.label)),
-      leadQualities: toOptions(leadQualities, baseLeadQualities)
+      leadQualities: toOptions(leadQualities, baseLeadQualities),
+      campaigns: toOptions(campaignValues)
     });
   } catch (error) {
     console.error('Error fetching lead filter options:', error);
