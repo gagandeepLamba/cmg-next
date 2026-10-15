@@ -541,7 +541,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         limit: isKanban ? '500' : pagination.limit.toString(),
         search: debouncedSearchTerm,
         opportunityView: activeTab,
-        kanban: isKanban && (activeTab === 'leads' || activeTab === 'my-leads') ? 'true' : 'false',
+        kanban: isKanban ? 'true' : 'false',
 
         ...Object.entries(filters).reduce((acc, [key, value]) => {
           if (value) acc[key] = value;
@@ -656,7 +656,6 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     setFilters(prev => ({ ...prev, todayActivity: '', todayFollowup: '', todayNew: '' }));
     setActiveTab(tab);
     setSelectedLeads([]);
-    setViewMode('list');
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
@@ -2097,7 +2096,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         </div>
 
         {/* Row 2: List / Kanban / Card toggle (left) - Convert Selected (right) */}
-        {showActions && (activeTab === 'leads' || activeTab === 'my-leads') && (
+        {showActions && (
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex h-10 items-center rounded-md bg-gray-100 p-1">
               {([
