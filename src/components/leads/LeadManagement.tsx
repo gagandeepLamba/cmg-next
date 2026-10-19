@@ -676,7 +676,6 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
     if (!turnOff) {
       setActiveTab('leads');
       setSelectedLeads([]);
-      setViewMode('list');
     }
     setPagination(prev => ({ ...prev, page: 1 }));
   };
@@ -2218,7 +2217,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
         </div>
       </div>
 
-      {activeTab === 'leads' && isFoeOrBranchManagerOrCeo(user) && selectedLeads.length > 0 && (
+      {isFoeOrBranchManagerOrCeo(user) && selectedLeads.length > 0 && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white rounded-lg shadow-xl px-4 py-3 flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium whitespace-nowrap">{selectedLeads.length} selected</span>
           <button
@@ -2261,7 +2260,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                 {viewMode === 'list' && (
                   <ColumnPicker columns={LEAD_TABLE_COLUMNS} prefs={columnPrefs} onChange={saveColumnPrefs} />
                 )}
-                {activeTab === 'leads' && (
+                {(
                   <label className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm">
                     <input
                       type="checkbox"
@@ -2309,7 +2308,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                     >
                       <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
                         <div className="flex min-w-0 gap-3">
-                          {activeTab === 'leads' && (
+                          {(
                             <input
                               type="checkbox"
                               checked={leadId !== null && selectedLeads.includes(leadId)}
@@ -2563,7 +2562,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                       <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
                         <tr>
                           <th className="w-10 px-4 py-2.5 text-left">
-                            {activeTab === 'leads' && (
+                            {(
                               <input
                                 type="checkbox"
                                 checked={selectableLeadIds.length > 0 && selectedLeads.length === selectableLeadIds.length}
@@ -2596,7 +2595,7 @@ export default function LeadManagement({ onLeadSelect, onConvertToOpportunity, s
                           return (
                             <tr key={leadId ?? `${lead.email || 'lead'}-${index}`} className={newToday ? 'bg-emerald-50 hover:bg-emerald-100/60' : 'hover:bg-gray-50'}>
                               <td className="px-4 py-2.5 whitespace-nowrap">
-                                {activeTab === 'leads' && (
+                                {(
                                   <input
                                     type="checkbox"
                                     checked={leadId !== null && selectedLeads.includes(leadId)}

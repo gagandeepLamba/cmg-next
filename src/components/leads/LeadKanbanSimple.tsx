@@ -51,18 +51,34 @@ export default function LeadKanbanSimple({
   const [searchTerm, setSearchTerm] = useState('');
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
+  // Other tabs (opportunities, clients, ...) can carry statuses outside the
+  // standard lead list, so add a column for each unknown status present.
+  const columns = useMemo(() => {
+    const known = new Set<string>(kanbanColumns.map((c) => c.id));
+    const extra: { id: string; title: string; accent: string; tint: string }[] = [];
+    leads.forEach((lead) => {
+      const status = lead.status ? String(lead.status) : 'No Status';
+      if (!known.has(status)) {
+        known.add(status);
+        extra.push({ id: status, title: status.replace(/_/g, ' '), accent: 'bg-blue-500', tint: 'border-blue-100 bg-blue-50/60' });
+      }
+    });
+    return [...kanbanColumns, ...extra];
+  }, [leads]);
+
   const leadsByStatus = useMemo(() => {
-    return kanbanColumns.reduce<Record<string, Lead[]>>((groups, column) => {
+    return columns.reduce<Record<string, Lead[]>>((groups, column) => {
       groups[column.id] = leads.filter((lead) => {
         const searchable = [lead.fname, lead.mname, lead.lname, lead.email, lead.phone]
           .filter(Boolean)
           .join(' ')
           .toLowerCase();
-        return lead.status === column.id && (!normalizedSearch || searchable.includes(normalizedSearch));
+        const status = lead.status ? String(lead.status) : 'No Status';
+        return status === column.id && (!normalizedSearch || searchable.includes(normalizedSearch));
       });
       return groups;
     }, {});
-  }, [leads, normalizedSearch]);
+  }, [leads, columns, normalizedSearch]);
 
   const handleDragEnd = ({ draggableId, destination, source }: DropResult) => {
     if (!destination || destination.droppableId === source.droppableId) return;
@@ -90,7 +106,7 @@ export default function LeadKanbanSimple({
 
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-4">
-          {kanbanColumns.map((column) => {
+          {columns.map((column) => {
             const columnLeads = leadsByStatus[column.id] ?? [];
 
             return (
