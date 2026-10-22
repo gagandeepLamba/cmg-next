@@ -42,6 +42,8 @@ export interface AgreementLeadData {
   expressExclusions?: string;
   specialTerms?: string;
   // Australia visa agreement (Service Provider block / Fee Summary).
+  // true (default) = agreement with a MARA-registered agent; false = without.
+  maraAgent?: boolean;
   registeredMigrationAgent?: string;
   marn?: string;
   governmentFeeEstimate?: string;
@@ -114,6 +116,7 @@ export function renderAgreementForBranch(_branchAbbrv: string | null | undefined
     includedDeliverables: isPlaceholderScope(data.includedDeliverables) ? undefined : data.includedDeliverables,
     expressExclusions: data.expressExclusions,
     specialTerms: isPlaceholderTerms(data.specialTerms) ? undefined : data.specialTerms,
+    maraAgent: data.maraAgent,
     registeredMigrationAgent: data.registeredMigrationAgent,
     marn: data.marn,
     governmentFeeEstimate: data.governmentFeeEstimate,

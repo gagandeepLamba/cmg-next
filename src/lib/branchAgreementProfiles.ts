@@ -1,11 +1,11 @@
 // Authoritative legal content for the "Client Advisory Agreement" contract,
-// taken verbatim from the signed Commonwealth Migration Group (CMG) PDF.
-// The app now operates a single branch/entity (Dubai, trading as CMG), so
+// taken verbatim from the signed Commonwealth Migration Advisor (CW Migration) PDF.
+// The app now operates a single branch/entity (Dubai, trading as CW Migration), so
 // this is the only profile — the multi-branch (Abu Dhabi/Kuwait/Qatar/
 // Hyderabad) profiles and templates were removed.
 //
 // Legal name vs. trading name: the registered legal entity is Commonwealth
-// Document Clearing Services; "Commonwealth Migration Group" / "CMG" is its
+// Document Clearing Services; "Commonwealth Migration Advisor" / "CW Migration" is its
 // trading name. Matches both reference PDFs (the agreement and the tax
 // invoice) exactly — do not swap these.
 
@@ -26,8 +26,8 @@ export interface BranchAgreementProfile {
 const CMG_PROFILE: BranchAgreementProfile = {
   legalNameEn: 'Commonwealth Document Clearing Services',
   legalNameAr: 'خدمات كومنولث لتخليص المستندات',
-  tradingAsEn: 'Commonwealth Migration Group ("CMG")',
-  tradingAsAr: 'مجموعة كومنولث للهجرة ("CMG")',
+  tradingAsEn: 'Commonwealth Migration Advisor ("CW Migration")',
+  tradingAsAr: 'مستشار كومنولث للهجرة ("CW Migration")',
   addressEn: 'Office 307, 3rd Floor, Business Atrium Building, Oud Metha, Dubai, UAE',
   addressAr: 'مكتب 307، الطابق الثالث، مبنى بزنس أتريوم، عود ميثاء، دبي، الإمارات العربية المتحدة',
   regulatoryLineEn: 'MARA-Registered Migration Agent — Australia',

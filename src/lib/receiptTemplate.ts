@@ -8,11 +8,13 @@
 // one — Company Legal Name / Trading As / Company TRN / Client Residency
 // Status are all real fields on the printed page, not just internal data.
 //
-// The app operates a single branch/entity — Commonwealth Migration Group
-// (CMG), Dubai — so this no longer branches on branch geography/name. Branch
+// The app operates a single branch/entity — Commonwealth Migration Advisor
+// (CW Migration), Dubai — so this no longer branches on branch geography/name. Branch
 // identity (company name/address/TRN/VAT/bank details) still comes from the
 // lead/client's actual dm_branch record, not hardcoded, so it stays correct
 // if finance updates those fields.
+
+import { BRAND_LOGO_DATA_URI } from './brandLogo';
 
 export interface ReceiptBranchSource {
   name?: string | null;
@@ -122,8 +124,8 @@ export function getLeadBranchDetails(
   const bankBranch = String(dmBranch.bankBranch || leadData?.branchBankBranch || leadData?.branch_bank_branch || '').trim();
 
   return {
-    companyName: branchName || 'Commonwealth Migration Group',
-    branchName: branchName || 'Commonwealth Migration Group',
+    companyName: branchName || 'Commonwealth Migration Advisor',
+    branchName: branchName || 'Commonwealth Migration Advisor',
     branchNameAr,
     branchAddress,
     branchEmail,
@@ -142,13 +144,13 @@ export function getLeadBranchDetails(
 
 // Fixed legal identity of the single entity this app operates as — matches
 // the signed Tax Invoice/Receipt reference document exactly. The header
-// banner always reads "COMMONWEALTH MIGRATION GROUP" regardless of which
+// banner always reads "COMMONWEALTH MIGRATION ADVISOR" regardless of which
 // branch/lead the receipt is for (the app operates a single UAE entity) —
 // never the raw dm_branch.name value, which is an internal office label
 // (e.g. "Dubai SZR"), not the company's trading identity.
 const CMG_LEGAL_NAME = 'Commonwealth Documents Clearing Services LLC';
-const CMG_DISPLAY_NAME = 'Commonwealth Migration Group';
-const CMG_TRADING_AS = 'Commonwealth Migration Group ("CMG")';
+const CMG_DISPLAY_NAME = 'Commonwealth Migration Advisor';
+const CMG_TRADING_AS = 'Commonwealth Migration Advisor ("CW Migration")';
 const CMG_ISSUER_EMAIL = 'accounts@cwmigrationgroup.ae';
 
 export interface BranchReceiptConfig {
@@ -163,7 +165,7 @@ export interface BranchReceiptConfig {
   branchChargesVat: boolean; // false for branches with no VAT/GST regime at all (e.g. Kuwait, Qatar)
 }
 
-// Commonwealth Migration Group's identity for the printed invoice — legal
+// Commonwealth Migration Advisor's identity for the printed invoice — legal
 // name/trading name are fixed (this app operates a single UAE entity); TRN,
 // address, and VAT rate still come from the branch's own dm_branch record
 // (never hardcoded), so they stay correct if finance updates those fields.
@@ -175,9 +177,12 @@ export function getBranchReceiptConfig(
   branchTrn: string | null = null,
   branchVatGstPercent: number | string | null = null,
 ): BranchReceiptConfig {
-  const vatRate = branchVatGstPercent !== null && branchVatGstPercent !== undefined && branchVatGstPercent !== ''
+  // UAE standard VAT is always applied automatically; a missing/zero branch
+  // rate falls back to 5% rather than silently printing a VAT-free invoice.
+  const configuredRate = branchVatGstPercent !== null && branchVatGstPercent !== undefined && branchVatGstPercent !== ''
     ? Number(branchVatGstPercent)
-    : 5;
+    : 0;
+  const vatRate = configuredRate > 0 ? configuredRate : 5;
 
   return {
     companyName: CMG_DISPLAY_NAME,
@@ -232,6 +237,9 @@ export interface ReceiptFields {
   paidAmount?: number | string | null;
   remainingBalance?: number | string | null;
   remark?: string | null;
+  // Which agreement the client signs: with a MARA-registered agent or without.
+  // Left undefined by screens that don't ask, in which case no row is printed.
+  maraOption?: 'mara' | 'non_mara' | null;
   bankName?: string | null;
   bankAccountName?: string | null;
   bankAccountNumber?: string | null;
@@ -366,6 +374,7 @@ export function buildReceiptHtml(r: ReceiptFields): string {
   body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:9pt;line-height:1.3;padding:18px 28px 20px}
   .placeholder{color:#666;font-style:italic;font-weight:400}
   .doc-header{text-align:center;margin-bottom:6px}
+  .doc-header .logo{height:58px;width:auto;margin-bottom:4px}
   .doc-header .company{font-size:13.5pt;font-weight:800;letter-spacing:.3px}
   .doc-header .legal{font-size:8.8pt;font-weight:600;margin-top:1px}
   .doc-header .addr{font-size:8pt;color:#333;margin-top:1px}
@@ -400,6 +409,7 @@ export function buildReceiptHtml(r: ReceiptFields): string {
   }
 </style></head><body>
 <div class="doc-header">
+  <img class="logo" src="${BRAND_LOGO_DATA_URI}" alt="${esc(cfg.companyName)}"/>
   <div class="company">${esc(cfg.companyName.toUpperCase())}</div>
   <div class="legal">${esc(cfg.legalName)}</div>
   ${branchAddress ? `<div class="addr">${esc(branchAddress)}</div>` : ''}
@@ -422,6 +432,7 @@ export function buildReceiptHtml(r: ReceiptFields): string {
   <tr><td class="label">Payment Mode</td><td>${esc(titleCase(r.paymentMethod || 'Cash'))}</td></tr>
   <tr><td class="label">Payment Status</td><td><strong>Payment Received</strong></td></tr>
   ${r.agreementNumber ? `<tr><td class="label">Agreement No.</td><td>${esc(r.agreementNumber)}</td></tr>` : ''}
+  ${r.maraOption ? `<tr><td class="label">Agreement Type</td><td>${r.maraOption === 'mara' ? 'With MARA Agent' : 'Without MARA Agent (Non-MARA)'}</td></tr>` : ''}
   ${r.consultantName ? `<tr><td class="label">Consultant</td><td>${esc(r.consultantName)}</td></tr>` : ''}
   ${r.transactionId ? `<tr><td class="label">Bank Reference</td><td>${esc(r.transactionId)}</td></tr>` : ''}
   ${r.remark ? `<tr><td class="label">Remark</td><td>${esc(r.remark)}</td></tr>` : ''}
@@ -447,7 +458,7 @@ ${hasBankDetails ? `<table class="bank-table">
 </table>` : ''}
 <div class="sign-row">
   <div class="box"><span class="line"></span><div class="cap">Client Signature</div></div>
-  <div class="box"><span class="line"></span><div class="cap">Authorised Signatory — CMG</div></div>
+  <div class="box"><span class="line"></span><div class="cap">Authorised Signatory — CW Migration</div></div>
 </div>
 <div class="notes">
   <ul>

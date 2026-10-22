@@ -11,6 +11,7 @@ import { renderAgreementForBranch } from '@/lib/renderAgreementForBranch';
 import { uploadFileToBlob } from '@/lib/uploadToBlob';
 import { getBranchTaxInfo } from '@/lib/branchTax';
 import { getLeadBranchDetails, printReceipt } from '@/lib/receiptTemplate';
+import { getMaraOption, setMaraOption, type MaraOption } from '@/lib/maraOption';
 import {
   Search, Plus, Edit, Trash2, Download, Upload, CheckCircle, XCircle, Clock,
   AlertCircle, FileText, Send, Eye, User, Calendar, DollarSign, FileSignature,
@@ -1299,6 +1300,7 @@ export default function OpportunityFlowWizard({ leadId, initialStage, initialOpp
               includedDeliverables: agreementData.agreementTitle || '',
               expressExclusions: '',
               specialTerms: agreementData.terms || '',
+              maraAgent: getMaraOption((lead as any)?.id) === 'mara',
             });
 
             // Persist the refreshed content so the standalone agreement page and any
@@ -2875,6 +2877,8 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
   const [saving, setSaving] = useState(false);
   const [receipt, setReceipt] = useState<any>(null);
   const [printingReceipt, setPrintingReceipt] = useState(false);
+  const [maraOption, setMaraOptionState] = useState<MaraOption>('mara');
+  useEffect(() => { setMaraOptionState(getMaraOption(lead?.id)); }, [lead?.id]);
   const [checkingStatus, setCheckingStatus] = useState(false);
   // Once a receipt has been generated, only Branch Manager/CEO may still
   // change the payment details — a counselor's view of that receipt becomes
@@ -3166,6 +3170,7 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
       paidAmount: data.paidAmount || r.paidAmount || r.amount,
       remainingBalance: data.remainingBalance,
       remark: r.remark || data.remark || undefined,
+      maraOption,
     });
     setPrintingReceipt(false);
   };
@@ -3254,6 +3259,18 @@ function PaymentStage({ lead, data, setData, quotationTotal, quotationTax, quota
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <h4 className="font-semibold text-lg mb-4 text-gray-900">Payment Details</h4>
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Agreement Type</label>
+              <select
+                value={maraOption}
+                onChange={(e) => { const v = e.target.value as MaraOption; setMaraOptionState(v); setMaraOption(lead?.id, v); }}
+                className="w-full p-3 border rounded-lg"
+              >
+                <option value="mara">With MARA Agent</option>
+                <option value="non_mara">Without MARA Agent (Non-MARA)</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Decides which agreement is generated and is printed on the receipt.</p>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
               <SearchableSelect
@@ -3560,6 +3577,7 @@ function AccountsStage({ lead, leadId, opportunityId, onNext, onPrevious }: any)
       paidAmount: p.paidAmount,
       remainingBalance: p.remainingBalance ?? p.balanceAmount,
       remark: p.remark || undefined,
+      maraOption: getMaraOption((lead as any)?.id),
     });
     setPrintingId(null);
   };
@@ -4029,6 +4047,7 @@ function AgreementStage({ lead, data, setData, quotationData, paymentData, progr
         includedDeliverables: data.agreementTitle || '',
         expressExclusions: '',
         specialTerms: data.terms || '',
+        maraAgent: getMaraOption((lead as any)?.id) === 'mara',
       });
 
       // Open in a new tab — browser renders Arabic natively, user saves as PDF via Ctrl+P / Print dialog
