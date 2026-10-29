@@ -15,7 +15,8 @@
 // from the signing date (Clause 10.1).
 import {
   COMPANY,
-  logoHtml,
+  headerHtml,
+  footerHtml,
   addMonthsToDisplayDate,
   agreementStyles,
   clauseSection,
@@ -63,7 +64,7 @@ export function isSkillsResumeMarketingProgram(...texts: Array<string | null | u
 // The 14 clauses, English from the reference PDF, in its own order/numbering.
 const clauses: Array<[string, string[], string, string[]]> = [
   ["1. DEFINITIONS AND INTERPRETATION", [
-    "1.1 \"CW Migration\" means Commonwealth Migration Advisor, the trading name of Commonwealth Document Clearing Services LLC, together with its officers, employees, agents, branches and authorised representatives in the UAE and the region.",
+    "1.1 \"CW Migration\" means CW Migration Advisor, the trading name of Commonwealth Document Clearing Services LLC, together with its officers, employees, agents, branches and authorised representatives in the UAE and the region.",
     "1.2 \"Client\" means the individual(s) named in this Agreement who has/have engaged CW Migration for the Services.",
     "1.3 \"Services\" means only the Skills Assessment and Resume Marketing services specified in Clause 2 and Annexure A.",
     "1.4 \"Retainer Fee\" means the professional fees payable to CW Migration as detailed in Annexure A.",
@@ -76,7 +77,7 @@ const clauses: Array<[string, string[], string, string[]]> = [
     "1.11 \"DIAC\" means the Dubai International Arbitration Centre.",
     "1.12 Interpretation: words importing the singular include the plural and vice versa; references to any statutory provision include modifications or re-enactments; headings are for convenience only and do not affect interpretation.",
   ], "1. التعريفات والتفسير", [
-    "1.1 تعني \"CW Migration\" مستشار كومنولث للهجرة، وهي الاسم التجاري لشركة خدمات كومنولث لتخليص المستندات ذ.م.م، وموظفيها ومسؤوليها ووكلائها وفروعها وممثليها المعتمدين في دولة الإمارات العربية المتحدة والمنطقة.",
+    "1.1 تعني \"CW Migration\" سي دبليو مستشار الهجرة، وهي الاسم التجاري لشركة خدمات كومنولث لتخليص المستندات ذ.م.م، وموظفيها ومسؤوليها ووكلائها وفروعها وممثليها المعتمدين في دولة الإمارات العربية المتحدة والمنطقة.",
     "1.2 يعني \"العميل\" الشخص أو الأشخاص المحددة أسماؤهم في هذه الاتفاقية والذين استعانوا بـ CW Migration للحصول على الخدمات.",
     "1.3 تعني \"الخدمات\" حصرًا خدمتي تقييم المهارات والتسويق للسيرة الذاتية المحددتين في البند 2 والملحق أ.",
     "1.4 تعني \"رسوم الاحتجاز\" الأتعاب المهنية المستحقة لـ CW Migration كما هو مفصل في الملحق أ.",
@@ -322,8 +323,8 @@ const clauses: Array<[string, string[], string, string[]]> = [
   ]],
 ];
 
-const PREAMBLE_EN = 'This Client Advisory Agreement ("Agreement") is entered into between Commonwealth Migration Advisor ("CW Migration"), the trading name of Commonwealth Document Clearing Services LLC, a UAE-based migration consultancy, and the Client identified above.<br><br>WHEREAS CW Migration specialises in Australian skilled migration, skills assessment, resume marketing to prospective Australian employers, employer-sponsored visa support, and related document clearing services for individuals in the UAE and the region.<br><br>WHEREAS the Client wishes to engage CW Migration for a Skills Assessment and Resume Marketing service, and has been provided a full opportunity to read, review, and seek independent legal advice in relation to this Agreement prior to execution.<br><br>NOW THEREFORE, in consideration of the mutual covenants herein, the parties agree as follows:';
-const PREAMBLE_AR = 'تُبرم اتفاقية الخدمات الاستشارية للعميل هذه ("الاتفاقية") بين مستشار كومنولث للهجرة ("CW Migration")، وهي الاسم التجاري لشركة خدمات كومنولث لتخليص المستندات ذ.م.م، وهي شركة استشارات هجرة مقرها دولة الإمارات العربية المتحدة، وبين العميل المحدد أعلاه.<br><br>حيث تتخصص CW Migration في الهجرة الماهرة إلى أستراليا، وتقييم المهارات، والتسويق للسيرة الذاتية لدى أصحاب العمل المحتملين في أستراليا، ودعم التأشيرات بكفالة صاحب العمل، وخدمات تخليص المستندات ذات الصلة للأفراد في دولة الإمارات العربية المتحدة والمنطقة.<br><br>وحيث يرغب العميل في الاستعانة بـ CW Migration لخدمة تقييم المهارات والتسويق للسيرة الذاتية، وقد أُتيحت له فرصة كاملة لقراءة هذه الاتفاقية ومراجعتها والحصول على مشورة قانونية مستقلة بشأنها قبل توقيعها.<br><br>لذلك، وبناءً على التعهدات المتبادلة الواردة في هذه الاتفاقية، يتفق الطرفان على ما يلي:';
+const PREAMBLE_EN = 'This Client Advisory Agreement ("Agreement") is entered into between CW Migration Advisor ("CW Migration"), the trading name of Commonwealth Document Clearing Services LLC, a UAE-based migration consultancy, and the Client identified above.<br><br>WHEREAS CW Migration specialises in Australian skilled migration, skills assessment, resume marketing to prospective Australian employers, employer-sponsored visa support, and related document clearing services for individuals in the UAE and the region.<br><br>WHEREAS the Client wishes to engage CW Migration for a Skills Assessment and Resume Marketing service, and has been provided a full opportunity to read, review, and seek independent legal advice in relation to this Agreement prior to execution.<br><br>NOW THEREFORE, in consideration of the mutual covenants herein, the parties agree as follows:';
+const PREAMBLE_AR = 'تُبرم اتفاقية الخدمات الاستشارية للعميل هذه ("الاتفاقية") بين سي دبليو مستشار الهجرة ("CW Migration")، وهي الاسم التجاري لشركة خدمات كومنولث لتخليص المستندات ذ.م.م، وهي شركة استشارات هجرة مقرها دولة الإمارات العربية المتحدة، وبين العميل المحدد أعلاه.<br><br>حيث تتخصص CW Migration في الهجرة الماهرة إلى أستراليا، وتقييم المهارات، والتسويق للسيرة الذاتية لدى أصحاب العمل المحتملين في أستراليا، ودعم التأشيرات بكفالة صاحب العمل، وخدمات تخليص المستندات ذات الصلة للأفراد في دولة الإمارات العربية المتحدة والمنطقة.<br><br>وحيث يرغب العميل في الاستعانة بـ CW Migration لخدمة تقييم المهارات والتسويق للسيرة الذاتية، وقد أُتيحت له فرصة كاملة لقراءة هذه الاتفاقية ومراجعتها والحصول على مشورة قانونية مستقلة بشأنها قبل توقيعها.<br><br>لذلك، وبناءً على التعهدات المتبادلة الواردة في هذه الاتفاقية، يتفق الطرفان على ما يلي:';
 
 export function renderSkillsResumeMarketingAgreement(v: SkillsResumeAgreementValues): string {
   const currencyCode = v.currencyCode || COMPANY.currencyCode;
@@ -372,21 +373,7 @@ ${agreementStyles()}
 </head>
 <body>
   <main class="document">
-    ${logoHtml()}
-    <header class="letterhead">
-      <div class="en">
-        <div class="company-name">${esc(COMPANY.brandEn.toUpperCase())}</div>
-        <div class="trading-as">Legal Name: ${esc(COMPANY.nameEn)}</div>
-        <div class="addr">${esc(COMPANY.addressEn)}</div>
-        <div class="addr">${esc(COMPANY.contactEn)}</div>
-      </div>
-      <div class="ar" dir="rtl" lang="ar">
-        <div class="company-name">${esc(COMPANY.brandAr)}</div>
-        <div class="trading-as">الاسم القانوني: ${esc(COMPANY.nameAr)}</div>
-        <div class="addr">${esc(COMPANY.addressAr)}</div>
-        <div class="addr">${esc(COMPANY.contactAr)}</div>
-      </div>
-    </header>
+    ${headerHtml()}
 
     <div class="title-bar">
       <span class="en">CLIENT ADVISORY AGREEMENT</span>
@@ -472,9 +459,7 @@ ${agreementStyles()}
       </div>
     </div>
 
-    <footer class="print-footer">
-      <span>${esc(COMPANY.brandEn)} — ${esc(COMPANY.addressEn)}</span>
-    </footer>
+    ${footerHtml()}
   </main>
 </body>
 </html>`;

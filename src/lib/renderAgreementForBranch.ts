@@ -3,7 +3,7 @@
 // sample-agreement route, the standalone opportunity agreement page, the
 // Opportunity Flow wizard, and the Agreements page) should call this instead
 // of importing the renderer directly. The app operates a single branch/
-// entity (Dubai, trading as Commonwealth Migration Group), so this no
+// entity (Dubai, trading as CW Migration Advisor), so this no
 // longer branches on `branchAbbrv` — the parameter is kept only so callers
 // don't need to change their call sites.
 import { renderDubaiAgreement } from './DubaiBilingualAgreementTemplate';
@@ -47,6 +47,9 @@ export interface AgreementLeadData {
   registeredMigrationAgent?: string;
   marn?: string;
   governmentFeeEstimate?: string;
+  // Optional Annexure A breakdown (plain formatted numbers).
+  vatAmount?: string;
+  totalPayable?: string;
   // Skills Assessment + Resume Marketing agreement only. 'fresh' (default) is
   // the fixed AED 5,000 case; 'existing' = client already holds a positive
   // Skills Assessment and `professionalFee` is the consultant-adjusted fee.
@@ -120,6 +123,8 @@ export function renderAgreementForBranch(_branchAbbrv: string | null | undefined
     registeredMigrationAgent: data.registeredMigrationAgent,
     marn: data.marn,
     governmentFeeEstimate: data.governmentFeeEstimate,
+    vatAmount: data.vatAmount,
+    totalPayable: data.totalPayable,
     currencyCode: 'AED',
   });
 }

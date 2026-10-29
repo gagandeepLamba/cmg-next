@@ -1,13 +1,15 @@
 // Bilingual (EN/AR) "Client Advisory Agreement" — Dubai branch, operating as
-// Commonwealth Migration Advisor (CW Migration) / Commonwealth Document Clearing
-// Services, a MARA-registered UAE migration consultancy.
+// CW Migration Advisor (CW Migration) / Commonwealth Document Clearing
+// Services LLC, a UAE migration consultancy.
 //
-// Transcribed verbatim (English) from the signed reference PDF
-// ("CMG_Client_Advisory_Agreement_Bilingual.pdf") with a professional Arabic
-// translation carrying the same legal meaning. This single file is the only
+// Transcribed verbatim (English) from the reference PDF
+// ("CW_Migration_Advisor_Client_Advisory_Agreement_FINAL-2.pdf") with a
+// professional Arabic translation carrying the same legal meaning. The PDF is
+// destination-neutral (one agreement, several services, generic "Regulator"),
+// so the Service / Fee fields below stay dynamic. This single file is the only
 // agreement renderer in the app — see renderAgreementForBranch.ts.
 
-import { BRAND_LOGO_DATA_URI } from './brandLogo';
+import { BRAND_LOGO_DATA_URI, BRAND_ICON_DATA_URI } from './brandLogo';
 
 export const esc = (value: unknown) => String(value ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -48,53 +50,57 @@ export interface DubaiAgreementValues {
   // false = CW Migration's own (non-MARA) agreement: no agent/MARN rows and
   // the MARA/OMARA wording is left out.
   maraAgent?: boolean;
-  // MARA-registered agent who handles the visa work (Service Provider block).
+  // Registered Representative (MARA agent, RCIC, etc.) who handles the visa
+  // work (Service Provider block).
   registeredMigrationAgent?: string;
   marn?: string;
   // Plain formatted number - the "current estimate" of Government / Authority fees.
   governmentFeeEstimate?: string;
+  // Optional Annexure A fee breakdown (plain formatted numbers). When omitted,
+  // VAT reads "As per UAE VAT Law" and Total Payable equals the retainer fee.
+  vatAmount?: string;
+  totalPayable?: string;
 }
 
-// Fixed branch identity — Commonwealth Migration Advisor, Dubai. Legal name vs.
-// trading name matches both reference PDFs (agreement + tax invoice)
-// exactly: the registered entity is Commonwealth Document Clearing Services;
-// "Commonwealth Migration Advisor" / "CW Migration" is its trading name.
+// Fixed branch identity — CW Migration Advisor, Dubai. The registered entity is
+// Commonwealth Document Clearing Services LLC; "CW Migration Advisor" /
+// "CW Migration" is its trading name.
 export const COMPANY = {
-  brandEn: 'Commonwealth Migration Advisor',
-  brandAr: 'مستشار كومنولث للهجرة',
+  brandEn: 'CW Migration Advisor',
+  brandAr: 'سي دبليو مستشار الهجرة',
   nameEn: 'Commonwealth Document Clearing Services LLC',
-  nameAr: 'خدمات كومنولث لتخليص المستندات ذ.م.م',
-  tradingAsEn: 'Commonwealth Migration Advisor ("CW Migration")',
-  tradingAsAr: 'مستشار كومنولث للهجرة ("CW Migration")',
+  nameAr: 'كومنولث لتخليص المستندات ذ.م.م',
+  tradingAsEn: 'CW Migration Advisor ("CW Migration")',
+  tradingAsAr: 'سي دبليو مستشار الهجرة ("CW Migration")',
   addressEn: 'Office 307, 3rd Floor, Business Atrium Building, Oud Metha, Dubai, UAE',
   addressAr: 'مكتب 307، الطابق الثالث، مبنى بزنس أتريوم، عود ميثاء، دبي، الإمارات العربية المتحدة',
-  regulatoryEn: 'MARA-Registered Migration Agent — Australia',
-  regulatoryAr: 'وكيل هجرة مسجل لدى MARA — أستراليا',
-  contactEn: 'info@cwmigrationgroup.com | cwmigrationgroup.com',
-  contactAr: 'info@cwmigrationgroup.com | cwmigrationgroup.com',
+  regulatoryEn: 'Regulated and registered migration agents and licensed representatives',
+  regulatoryAr: 'وكلاء هجرة مرخصون ومسجلون وممثلون مرخصون',
+  contactEn: 'info@cwmigration.com | cwmigration.com',
+  contactAr: 'info@cwmigration.com | cwmigration.com',
   currencyCode: 'AED',
 };
 
 // The 14 clauses, verbatim (English) from the signed PDF, in its own order/numbering.
 const clauses: Array<[string, string[], string, string[]]> = [
   ['1. DEFINITIONS AND INTERPRETATION', [
-    '1.1 "CW Migration" means Commonwealth Migration Advisor, the trading name of Commonwealth Document Clearing Services LLC, together with its officers, employees, agents, branches and authorised representatives in the UAE and the region.',
+    '1.1 "CW Migration" means CW Migration Advisor, the trading name of Commonwealth Document Clearing Services LLC, together with its officers, employees, agents, branches and authorised representatives in the UAE and the region.',
     '1.2 "Client" means the individual(s) named in this Agreement who has/have engaged CW Migration for migration consultancy services, including all family members included in the same application.',
     '1.3 "Services" means only the immigration consultancy services specified in Annexure A.',
     '1.4 "Retainer Fee" means the professional fees payable to CW Migration as detailed in Annexure A.',
-    '1.5 "Government / Authority Fees" means all fees payable to the Department of Home Affairs, Skills Assessment Authorities, State/Territory bodies, English testing bodies, or any other government or quasi-government body. These are excluded from the Retainer Fee and are the Client’s sole responsibility.',
+    '1.5 "Government / Authority Fees" means all fees payable to immigration departments, skills assessment bodies, provincial/state/territory bodies, educational institutions, language testing bodies, embassies and visa application centres, or any other government or quasi-government body. These are excluded from the Retainer Fee and are the Client’s sole responsibility.',
     '1.6 "Refusal" or "Rejection" means any negative decision, refusal, cancellation, withdrawal-deemed-refusal, or non-approval issued by an Authority in respect of any application lodged under this Agreement.',
-    '1.7 "OMARA" means the Office of the Migration Agents Registration Authority (Australia), and "MARN" means a Migration Agent Registration Number issued by OMARA.',
+    '1.7 "Regulator" means the professional body that regulates the Registered Representative named in this Agreement (for example, OMARA in Australia for MARA-registered agents, or the College of Immigration and Citizenship Consultants (CICC) in Canada for RCICs), and "Registration Number" means the registration or licence number issued by that Regulator.',
     '1.8 "DIAC" means the Dubai International Arbitration Centre.',
     '1.9 Interpretation: words importing the singular include the plural and vice versa; references to any statutory provision include modifications or re-enactments; headings are for convenience only and do not affect interpretation.',
   ], '1. التعريفات والتفسير', [
-    '1.1 تعني "CW Migration" مستشار كومنولث للهجرة، وهي الاسم التجاري لشركة خدمات كومنولث لتخليص المستندات ذ.م.م، وموظفيها ومسؤوليها ووكلائها وفروعها وممثليها المعتمدين في دولة الإمارات العربية المتحدة والمنطقة.',
+    '1.1 تعني "CW Migration" سي دبليو مستشار الهجرة، وهي الاسم التجاري لشركة خدمات كومنولث لتخليص المستندات ذ.م.م، وموظفيها ومسؤوليها ووكلائها وفروعها وممثليها المعتمدين في دولة الإمارات العربية المتحدة والمنطقة.',
     '1.2 يعني "العميل" الشخص أو الأشخاص المحددة أسماؤهم في هذه الاتفاقية والذين استعانوا بـ CW Migration للحصول على خدمات استشارات الهجرة، بما في ذلك جميع أفراد الأسرة المدرجين في الطلب ذاته.',
-    '1.3 تعني "الخدمات" حصرًا خدمات استشارات الهجرة المحددة في الملحق أ.',
-    '1.4 تعني "رسوم الاحتجاز" الأتعاب المهنية المستحقة لـ CW Migration كما هو مفصل في الملحق أ.',
-    '1.5 تعني "رسوم الحكومة / الجهات المختصة" جميع الرسوم المستحقة لوزارة الشؤون الداخلية، أو هيئات تقييم المهارات، أو الجهات الإقليمية/الولائية، أو هيئات اختبار اللغة، أو أي جهة حكومية أو شبه حكومية أخرى. وهذه الرسوم مستثناة من رسوم الاحتجاز وتقع على عاتق العميل وحده.',
+    '1.3 تعني "الخدمات" حصرًا خدمات استشارات الهجرة المحددة في الملحق (أ).',
+    '1.4 تعني "رسوم الاحتفاظ" الأتعاب المهنية المستحقة لـ CW Migration كما هو مفصل في الملحق (أ).',
+    '1.5 تعني "رسوم الحكومة / الجهات المختصة" جميع الرسوم المستحقة لدوائر الهجرة، أو جهات تقييم المهارات، أو هيئات المقاطعات/الولايات/الأقاليم، أو المؤسسات التعليمية، أو جهات اختبار اللغة، أو السفارات ومراكز استقبال طلبات التأشيرة، أو أي جهة حكومية أو شبه حكومية أخرى. وهذه الرسوم مستثناة من رسوم الاحتفاظ وتقع على عاتق العميل وحده.',
     '1.6 يعني "الرفض" أي قرار سلبي، أو رفض، أو إلغاء، أو سحب يُعامل كرفض، أو عدم موافقة صادر عن جهة مختصة بخصوص أي طلب مقدم بموجب هذه الاتفاقية.',
-    '1.7 يعني "OMARA" مكتب هيئة تسجيل وكلاء الهجرة (أستراليا)، ويعني "MARN" رقم تسجيل وكيل الهجرة الصادر عن OMARA.',
+    '1.7 تعني "الجهة المنظِّمة" الهيئة المهنية التي تنظم عمل الممثل المسجل المذكور في هذه الاتفاقية (مثل OMARA في أستراليا للوكلاء المسجلين لدى MARA، أو الكلية الكندية لمستشاري الهجرة والجنسية (CICC) في كندا لمستشاري RCIC)، وتعني "رقم التسجيل" رقم التسجيل أو الترخيص الصادر عن تلك الجهة.',
     '1.8 يعني "DIAC" مركز دبي الدولي للتحكيم.',
     '1.9 التفسير: تشمل الكلمات الدالة على المفرد الجمع والعكس صحيح؛ وتشمل الإشارات إلى أي حكم قانوني أي تعديلات أو إعادة سنّه؛ والعناوين لغرض التيسير فقط ولا تؤثر على التفسير.',
   ]],
@@ -102,25 +108,29 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '2.1 CW Migration agrees to provide only the Services specified in Annexure A, including: (a) pre-application eligibility assessment, (b) document review and preparation, (c) submission and follow-up of the application, (d) liaison with the relevant Authority, and (e) general consultation and advice.',
     '2.2 Services are strictly limited to migration consultancy and do not include legal representation, legal advice, or courtroom/tribunal representation of any kind.',
     '2.3 Any services beyond the scope of Annexure A (including refiling, appeals, reassessment, additional family members, or a change of visa subclass/program) require a separate written agreement and additional fees.',
-    '2.4 CW Migration may engage third-party agents, MARA agents, translators, or assessors to fulfil part of the Services. The Client consents to CW Migration sharing their information with such third parties strictly for the purpose of providing the Services.',
-    '2.5 All immigration assistance in relation to any Australian visa application under this Agreement shall be provided by, or under the direct supervision of, the MARA-registered migration agent named above. CW Migration’s UAE staff provide administrative, document and client-liaison support only.',
+    '2.4 CW Migration may engage third-party agents, registered agents, translators, or assessors to fulfil part of the Services. The Client consents to CW Migration sharing their information with such third parties strictly for the purpose of providing the Services.',
+    '2.5 All immigration assistance in relation to any visa or immigration application under this Agreement that is regulated by a Regulator shall be provided by, or under the direct supervision of, the Registered Representative (MARA, RCIC or other licensed representative) named above. CW Migration’s UAE staff provide administrative, document and client-liaison support only.',
+    '2.6 Service-specific terms. For each service selected in Annexure A: (a) Permanent Residence / Skilled Migration — CW Migration prepares and submits the profile, expression of interest or application; invitations, nominations and decisions rest solely with the Authorities; (b) Skills Assessment — CW Migration prepares and submits the file to the relevant assessing body, whose outcome and processing time are not controlled by CW Migration; (c) Student Visa — admission, scholarships and the visa decision rest solely with the institution and the Authority; (d) Resume Marketing — CW Migration prepares the Client’s resume and profile and circulates or applies to employers and job portals on the Client’s behalf; this is a career-support service, not an immigration service, and does not guarantee interviews, job offers or employment; (e) Visit Visas — CW Migration prepares and submits the application; the decision and the permitted duration of stay rest solely with the Authority; and (f) any other service listed on cwmigration.com and selected in Annexure A — as described on that website at the date of signing and detailed in Annexure A.',
+    '2.7 One agreement, several services. This Agreement may cover one or more services selected in Annexure A. Fees are itemised per service, and each service is treated separately for the purposes of Clause 8 (Refund Policy); an outcome in one service does not affect fees due for another. Service descriptions on cwmigration.com are for information only, and Annexure A prevails if they differ.',
   ], '2. نطاق الخدمات', [
-    '2.1 توافق CW Migration على تقديم الخدمات المحددة في الملحق أ فقط، وتشمل: (أ) تقييم الأهلية قبل التقديم، (ب) مراجعة وإعداد المستندات، (ج) تقديم الطلب ومتابعته، (د) التواصل مع الجهة المختصة ذات الصلة، و(هـ) الاستشارة والمشورة العامة.',
+    '2.1 توافق CW Migration على تقديم الخدمات المحددة في الملحق (أ) فقط، وتشمل: (أ) تقييم الأهلية قبل التقديم، (ب) مراجعة وإعداد المستندات، (ج) تقديم الطلب ومتابعته، (د) التواصل مع الجهة المختصة ذات الصلة، و(هـ) الاستشارة والمشورة العامة.',
     '2.2 تقتصر الخدمات حصرًا على الاستشارات المتعلقة بالهجرة ولا تشمل التمثيل القانوني أو المشورة القانونية أو التمثيل أمام المحاكم أو الهيئات القضائية بأي شكل.',
-    '2.3 أي خدمات تتجاوز نطاق الملحق أ (بما في ذلك إعادة التقديم، أو الطعون، أو إعادة التقييم، أو إضافة أفراد أسرة، أو تغيير فئة/برنامج التأشيرة) تستلزم اتفاقية مكتوبة منفصلة ورسومًا إضافية.',
-    '2.4 يجوز لـ CW Migration الاستعانة بوكلاء من أطراف ثالثة، أو وكلاء مسجلين لدى MARA، أو مترجمين، أو مقيّمين لتنفيذ جزء من الخدمات. ويوافق العميل على مشاركة CW Migration لمعلوماته مع هذه الأطراف الثالثة حصرًا لغرض تقديم الخدمات.',
-    '2.5 تُقدَّم جميع المساعدات المتعلقة بالهجرة فيما يخص أي طلب تأشيرة أسترالية بموجب هذه الاتفاقية من قبل وكيل الهجرة المسجل لدى MARA المذكور أعلاه، أو تحت إشرافه المباشر. ويقتصر دور موظفي CW Migration في دولة الإمارات على تقديم الدعم الإداري ودعم المستندات والتواصل مع العميل.',
+    '2.3 أي خدمات تتجاوز نطاق الملحق (أ) (بما في ذلك إعادة التقديم، أو الطعون، أو إعادة التقييم، أو إضافة أفراد أسرة، أو تغيير فئة/برنامج التأشيرة) تستلزم اتفاقية مكتوبة منفصلة ورسومًا إضافية.',
+    '2.4 يجوز لـ CW Migration الاستعانة بوكلاء من أطراف ثالثة، أو وكلاء مسجلين، أو مترجمين، أو مقيّمين لتنفيذ جزء من الخدمات. ويوافق العميل على مشاركة CW Migration لمعلوماته مع هذه الأطراف الثالثة حصرًا لغرض تقديم الخدمات.',
+    '2.5 تُقدَّم جميع أعمال المساعدة في الهجرة المتعلقة بأي طلب تأشيرة أو هجرة بموجب هذه الاتفاقية والخاضعة لتنظيم جهة منظِّمة من قبل الممثل المسجل (وكيل MARA أو RCIC أو أي ممثل مرخص آخر) المذكور أعلاه، أو تحت إشرافه المباشر. ويقتصر دور موظفي CW Migration في دولة الإمارات على الدعم الإداري ودعم المستندات والتواصل مع العملاء.',
+    '2.6 شروط خاصة بالخدمات. بالنسبة لكل خدمة محددة في الملحق (أ): (أ) الإقامة الدائمة / الهجرة للعمالة الماهرة — تُعدّ CW Migration الملف أو التعبير عن الاهتمام أو الطلب وتقدمه؛ وتقع الدعوات والترشيحات والقرارات حصرًا على عاتق الجهات المختصة؛ (ب) تقييم المهارات — تُعدّ CW Migration الملف وتقدمه إلى جهة التقييم المعنية، ولا تتحكم CW Migration في نتيجته أو مدة معالجته؛ (ج) التأشيرة الدراسية — يخضع القبول والمنح الدراسية وقرار التأشيرة حصرًا للمؤسسة التعليمية والجهة المختصة؛ (د) تسويق السيرة الذاتية — تُعدّ CW Migration السيرة الذاتية للعميل وملفه المهني وتعممها أو تتقدم بها إلى أصحاب العمل ومواقع التوظيف نيابةً عنه؛ وهذه خدمة دعم وظيفي وليست خدمة هجرة، ولا تتضمن ضمان مقابلات أو عروض عمل أو توظيف؛ (هـ) تأشيرات الزيارة — تُعدّ CW Migration الطلب وتقدمه؛ ويخضع القرار ومدة الإقامة المسموح بها حصرًا للجهة المختصة؛ (و) أي خدمة أخرى مدرجة على cwmigration.com ومحددة في الملحق (أ) — وفق وصفها على ذلك الموقع في تاريخ التوقيع وكما هو مفصل في الملحق (أ).',
+    '2.7 اتفاقية واحدة لعدة خدمات. يجوز أن تغطي هذه الاتفاقية خدمة واحدة أو أكثر من الخدمات المحددة في الملحق (أ). وتُفصَّل الرسوم لكل خدمة على حدة، وتُعامل كل خدمة بشكل مستقل لأغراض البند 8 (سياسة الاسترداد)؛ ولا تؤثر نتيجة إحدى الخدمات على الرسوم المستحقة عن خدمة أخرى. وأوصاف الخدمات على cwmigration.com للعلم فقط، وتسود أحكام الملحق (أ) عند أي اختلاف.',
   ]],
   ['3. NO GUARANTEE OF OUTCOME', [
     '3.1 CW Migration does not guarantee, represent, or warrant the success, approval, timeline, or positive outcome of any visa application, skills assessment, expression of interest, nomination, or immigration process.',
-    '3.2 All decisions are made solely by the relevant Authorities (including the Department of Home Affairs, Skills Assessment bodies, and State/Territory nomination authorities). CW Migration has no influence over Authority decisions, processing times, occupation lists, invitation rounds, or points thresholds, and accepts no liability for them.',
+    '3.2 All decisions are made solely by the relevant Authorities (including immigration departments, embassies, skills assessment bodies, educational institutions, and provincial/state/territory nomination authorities). CW Migration has no influence over Authority decisions, processing times, occupation lists, invitation rounds, or points thresholds, and accepts no liability for them.',
     '3.3 CW Migration is not liable for any changes in immigration laws, policies, occupation lists, invitation scores, quotas, or processing times occurring after the signing of this Agreement.',
     '3.4 An unsuccessful, delayed, or partially successful outcome does not, by itself, entitle the Client to any refund except strictly as stated in Clause 8 (Refund Policy).',
     '3.5 No verbal or written representation made by any CW Migration employee, agent, or representative outside this Agreement constitutes a guarantee of outcome. The Client agrees not to rely on any such representation and confirms that no such promise induced them to sign this Agreement.',
     '3.6 The Client acknowledges that CW Migration has conducted only a preliminary assessment based on the information and documents provided by the Client, and that eligibility may change if the information provided is incomplete, inaccurate, or later found to be incorrect.',
   ], '3. عدم ضمان النتائج', [
     '3.1 لا تضمن CW Migration ولا تقر ولا تكفل نجاح أو الموافقة على أو المدة الزمنية أو تحقيق نتيجة إيجابية لأي طلب تأشيرة، أو تقييم مهارات، أو تعبير عن الاهتمام، أو ترشيح، أو إجراء هجرة.',
-    '3.2 تُتخذ جميع القرارات حصرًا من قبل الجهات المختصة ذات الصلة (بما في ذلك وزارة الشؤون الداخلية، وهيئات تقييم المهارات، وجهات الترشيح الإقليمية/الولائية). ولا تملك CW Migration أي تأثير على قرارات هذه الجهات، أو مدد المعالجة، أو قوائم المهن، أو جولات الدعوة، أو حدود النقاط، ولا تتحمل أي مسؤولية عنها.',
+    '3.2 تُتخذ جميع القرارات حصرًا من قبل الجهات المختصة ذات الصلة (بما في ذلك دوائر الهجرة والسفارات وجهات تقييم المهارات والمؤسسات التعليمية وجهات الترشيح في المقاطعات/الولايات/الأقاليم). ولا تملك CW Migration أي تأثير على قرارات هذه الجهات، أو مدد المعالجة، أو قوائم المهن، أو جولات الدعوة، أو حدود النقاط، ولا تتحمل أي مسؤولية عنها.',
     '3.3 لا تتحمل CW Migration مسؤولية أي تغييرات في قوانين أو سياسات الهجرة، أو قوائم المهن، أو درجات الدعوة، أو الحصص، أو مدد المعالجة التي تطرأ بعد توقيع هذه الاتفاقية.',
     '3.4 لا تخوّل النتيجة غير الناجحة أو المتأخرة أو الناجحة جزئيًا، بحد ذاتها، العميل الحق في أي استرداد إلا وفق ما هو منصوص عليه حصرًا في البند 8 (سياسة الاسترداد).',
     '3.5 لا يشكل أي تصريح شفهي أو كتابي يصدر عن أي موظف أو وكيل أو ممثل لدى CW Migration خارج نطاق هذه الاتفاقية ضمانًا لأي نتيجة، ويوافق العميل على عدم الاعتماد على أي تصريح من هذا القبيل ويؤكد أن لا وعد من هذا النوع كان الدافع لتوقيعه هذه الاتفاقية.',
@@ -138,7 +148,7 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '4.9 All documentation must be provided in English or accompanied by a certified legal translation, with a sworn statement from a qualified translator (who may not be the Client or a relative of the Client).',
     '4.10 The Client agrees to attend all interviews, medical examinations, biometric appointments, and other requirements within the stipulated timeframe. Failure to do so, without CW Migration’s fault, relieves CW Migration of liability for any adverse outcome and does not entitle the Client to a refund.',
     '4.11 The Client shall not instruct their bank or financial institution to reverse, dispute, charge back, or dishonour any payment made to CW Migration. Any bounced cheque or reversed payment (‘chargeback’) shall be treated as a material breach entitling CW Migration to suspend Services immediately and to recover the amount plus reasonable recovery costs, and forfeits the Client’s eligibility for any refund under Clause 8.',
-    '4.12 The Client shall NOT pay, offer, or agree to provide any money or benefit to an employer, sponsor, or any third party in exchange for a job offer, nomination, or sponsorship. CW Migration will never request such a payment. Any such arrangement may breach Australian law and is entirely at the Client’s own risk.',
+    '4.12 The Client shall NOT pay, offer, or agree to provide any money or benefit to an employer, sponsor, or any third party in exchange for a job offer, nomination, or sponsorship. CW Migration will never request such a payment. Any such arrangement may breach the laws of the destination country and is entirely at the Client’s own risk.',
   ], '4. التزامات العميل وإقراراته', [
     '4.1 يقر العميل بأن جميع المعلومات والمستندات المقدمة إلى CW Migration صحيحة ودقيقة وكاملة وحديثة وغير مضللة، ويتحمل العميل المسؤولية الكاملة عن دقة جميع المستندات والنماذج التي يوقّعها قبل تقديمها إلى CW Migration.',
     '4.2 يجب على العميل أن يقدم فورًا (وفي جميع الأحوال ضمن الإطار الزمني الذي تحدده CW Migration أو الجهة المختصة) جميع المستندات والمعلومات المطلوبة، بما في ذلك ما يخص تقييم المهارات (خلال 15 يومًا من توقيع هذه الاتفاقية، ما لم يُتفق على خلاف ذلك) ونتائج اختبار الكفاءة في اللغة الإنجليزية (خلال 90 إلى 120 يومًا من توقيع هذه الاتفاقية). وأي تأخر من جانب العميل يؤثر سلبًا على الطلب، بما في ذلك انتهاء صلاحية تقييم المهارات أو التعبير عن الاهتمام أو الدعوة، يقع على عاتق العميل وحده ولا يخوّله الحق في أي استرداد.',
@@ -151,7 +161,7 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '4.9 يجب أن تكون جميع المستندات باللغة الإنجليزية أو مصحوبة بترجمة قانونية معتمدة، مع بيان مشفوع بالقسم من مترجم مؤهل (لا يجوز أن يكون العميل أو أحد أقاربه).',
     '4.10 يوافق العميل على حضور جميع المقابلات والفحوصات الطبية ومواعيد البصمة البيومترية والمتطلبات الأخرى ضمن الإطار الزمني المحدد. وعدم القيام بذلك، دون تقصير من CW Migration، يعفي CW Migration من المسؤولية عن أي نتيجة سلبية ولا يخوّل العميل الحق في استرداد.',
     '4.11 لا يجوز للعميل إصدار تعليمات لبنكه أو مؤسسته المالية بعكس أو الاعتراض على أو استرجاع أو رفض أي دفعة مقدمة إلى CW Migration. ويُعامل أي شيك مرتجع أو دفعة معكوسة ("chargeback") كإخلال جوهري يخوّل CW Migration تعليق الخدمات فورًا واسترداد المبلغ بالإضافة إلى تكاليف التحصيل المعقولة، ويسقط أهلية العميل لأي استرداد بموجب البند 8.',
-    '4.12 لا يجوز للعميل دفع أو عرض أو الموافقة على تقديم أي مبلغ مالي أو منفعة إلى صاحب عمل أو كفيل أو أي طرف ثالث مقابل الحصول على عرض عمل أو ترشيح أو كفالة. ولن تطلب CW Migration أبدًا مثل هذه الدفعة. وقد يخالف أي ترتيب من هذا القبيل القانون الأسترالي ويكون على مسؤولية العميل الخاصة بالكامل.',
+    '4.12 لا يجوز للعميل دفع أو عرض أو الموافقة على تقديم أي مبلغ مالي أو منفعة إلى صاحب عمل أو كفيل أو أي طرف ثالث مقابل الحصول على عرض عمل أو ترشيح أو كفالة. ولن تطلب CW Migration أبدًا مثل هذه الدفعة. وقد يخالف أي ترتيب من هذا القبيل قوانين بلد الوجهة ويكون على مسؤولية العميل الخاصة بالكامل.',
   ]],
   ['5. FEES AND PAYMENT', [
     '5.1 The Client agrees to pay the Retainer Fee per the schedule in Annexure A.',
@@ -163,7 +173,7 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '5.7 Any payment plan agreed verbally or in writing must be honoured in full. Failure to adhere to an agreed payment plan constitutes a material breach of this Agreement and entitles CW Migration to suspend or terminate Services without refund.',
     '5.8 CW Migration does not accept payment into any employee’s personal account. Any such payment is considered unauthorised, and CW Migration shall not be liable for any loss, dispute, or consequence arising from it. All official payments must be made through CW Migration’s verified company bank accounts, approved online payment gateways, or at CW Migration’s official office locations, with an official company receipt issued.',
   ], '5. الرسوم والدفع', [
-    '5.1 يوافق العميل على سداد رسوم الاحتجاز وفق الجدول الزمني المحدد في الملحق أ.',
+    '5.1 يوافق العميل على سداد رسوم الاحتفاظ وفق الجدول الزمني المحدد في الملحق (أ).',
     '5.2 تقع جميع رسوم الحكومة / الجهات المختصة على عاتق العميل وحده وهي غير مشمولة بهذه الاتفاقية، بصرف النظر عما إذا كانت CW Migration تساعد في تقديم هذه المدفوعات. وأي تقدير لهذه الرسوم تقدمه CW Migration هو تقدير استرشادي فقط ويخضع للتغيير من قبل الجهة المختصة.',
     '5.3 قد يؤدي عدم سداد أي قسط إلى تعليق أو إنهاء فوري للخدمات دون إشعار أو استرداد.',
     '5.4 يجوز لـ CW Migration تأجيل تقديم أي طلب أو تعبير عن اهتمام أو ترشيح إلى حين سداد جميع الرسوم المستحقة بالكامل.',
@@ -178,7 +188,7 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '6.3 The Client acknowledges that CW Migration’s role is limited to consultancy and advisory support and does not include, unless separately agreed in writing, any guarantee of employment, job placement, or a specific number of job applications submitted.',
   ], '6. تحديد المسؤولية', [
     '6.1 إلى أقصى حد يسمح به القانون، لا تتحمل CW Migration المسؤولية عن: أي قرار أو تأخير أو رفض أو مدة معالجة صادرة عن جهة مختصة؛ أو التغييرات في القانون أو السياسة؛ أو المعلومات/المستندات غير الدقيقة أو الناقصة أو المتأخرة المقدمة من العميل؛ أو تأخر العميل في تقديم المستندات أو حضور المواعيد؛ أو تواصل العميل غير المصرح به مع أي جهة مختصة أو طرف ثالث؛ أو إجراءات العميل المتخذة تحسبًا للحصول على تأشيرة؛ أو فقدان السجلات أثناء النقل (والتي تقع مسؤوليتها على شركة التوصيل)؛ أو صحة المستندات التي تبدو أصلية ظاهريًا؛ أو أحداث القوة القاهرة؛ أو الاعتماد على أي تصريح خارج نطاق هذه الاتفاقية.',
-    '6.2 لا تتجاوز المسؤولية الإجمالية القصوى لـ CW Migration، بموجب أي نظرية مسؤولية (تعاقدية أو تقصيرية أو غير ذلك)، إجمالي رسوم الاحتجاز التي سددها العميل فعليًا، وتستثني أي أضرار غير مباشرة أو عرضية أو تبعية أو تأديبية، أو خسارة الدخل، أو خسارة الفرصة، أو فقدان أهلية التأشيرة.',
+    '6.2 لا تتجاوز المسؤولية الإجمالية القصوى لـ CW Migration، بموجب أي نظرية مسؤولية (تعاقدية أو تقصيرية أو غير ذلك)، إجمالي رسوم الاحتفاظ التي سددها العميل فعليًا، وتستثني أي أضرار غير مباشرة أو عرضية أو تبعية أو تأديبية، أو خسارة الدخل، أو خسارة الفرصة، أو فقدان أهلية التأشيرة.',
     '6.3 يقر العميل بأن دور CW Migration يقتصر على الاستشارات والدعم الاستشاري ولا يشمل، ما لم يُتفق على خلاف ذلك كتابيًا، أي ضمان للتوظيف أو التنسيب الوظيفي أو عدد محدد من طلبات العمل المقدمة.',
   ]],
   ['7. INDEMNIFICATION', [
@@ -236,21 +246,21 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '8.2(ع) الرسوم التي تدفعها CW Migration لجهات حكومية أو أطراف ثالثة نيابة عن العميل (يجب على العميل طلب استرداد هذه المبالغ مباشرة من الجهة المعنية)؛',
     '8.2(ف) ضريبة القيمة المضافة أو الضرائب الحكومية الأخرى المحوّلة إلى الجهات المختصة؛',
     '8.2(ص) أحداث القوة القاهرة أو وفاة أي شخص.',
-    '8.3 يجوز النظر في استرداد جزئي، وفق التقدير المطلق لـ CW Migration، فقط في حال عجز CW Migration الكامل عن بدء أي خدمات لسبب يعود حصرًا وكليًا إلى CW Migration، وفقط عن الجزء غير المستخدم من رسوم الاحتجاز المقابل للعمل الذي لم يُنجز بعد.',
+    '8.3 يجوز النظر في استرداد جزئي، وفق التقدير المطلق لـ CW Migration، فقط في حال عجز CW Migration الكامل عن بدء أي خدمات لسبب يعود حصرًا وكليًا إلى CW Migration، وفقط عن الجزء غير المستخدم من رسوم الاحتفاظ المقابل للعمل الذي لم يُنجز بعد.',
     '8.4 في حال قررت CW Migration، وفق تقديرها المطلق، الموافقة على استرداد بموجب البند 8.3، تلتزم CW Migration بمعالجة الاسترداد المعتمد خلال تسعين (90) يومًا تقويميًا من تاريخ الموافقة الكتابية على الاسترداد، مع خصم: (أ) أي ضريبة قيمة مضافة أو رسوم حكومية سارية تم تحويلها بالفعل؛ (ب) رسوم معالجة البطاقات/الدفع المتكبدة فعليًا (حتى 2.5%)؛ (ج) الرسوم الإدارية ورسوم التسجيل؛ و(د) قيمة العمل المنجز بالفعل حتى تاريخ الموافقة.',
     '8.5 لن يُصدر أي استرداد معتمد إلا عن طريق التحويل البنكي أو شيك الشركة، باسم العميل حصرًا، إلى الحساب/العنوان المسجل. ولن يُصدر أي استرداد لطرف ثالث أو مرشح أو أي شخص بخلاف العميل المذكور في هذه الاتفاقية.',
     '8.6 لا تسري فترة التراجع، إن وجدت، بعد تقديم أي تقييم أو مشورة أو مراجعة مستندات أو تسجيل ملف.',
     '8.7 لا يُلزم أي نص في هذا البند CW Migration بمراجعة أسباب الرفض؛ ومع ذلك، ستقدم CW Migration، عند الطلب، ملخصًا كتابيًا بالعمل المنجز على الملف الذي لم يُفضِ إلى الموافقة.',
-    '8.8 على الرغم مما ورد في البندين 2.3 و8.2، في حال إخفاق الخدمات بسبب خطأ أو سهو أو قصور يعود حصرًا إلى CW Migration (وليس إلى العميل أو أي جهة مختصة)، تلتزم CW Migration، وفق اختيارها، بما يلي: (أ) تصحيح الخطأ وإعادة التقديم نيابةً عن العميل دون أي أتعاب مهنية إضافية؛ أو (ب) في حال سداد العميل رسوم الاحتجاز كاملةً دفعةً واحدة، رد رسوم الاحتجاز بعد خصم نسبة العمل الذي أنجزته CW Migration حتى تاريخه. ويُعالج أي استرداد من هذا النوع خلال تسعين (90) يومًا تقويميًا وفق الطريقة المنصوص عليها في البند 8.5. وتظل رسوم الحكومة / الجهات المختصة على عاتق العميل وحده.',
+    '8.8 على الرغم مما ورد في البندين 2.3 و8.2، في حال إخفاق الخدمات بسبب خطأ أو سهو أو قصور يعود حصرًا إلى CW Migration (وليس إلى العميل أو أي جهة مختصة)، تلتزم CW Migration، وفق اختيارها، بما يلي: (أ) تصحيح الخطأ وإعادة التقديم نيابةً عن العميل دون أي أتعاب مهنية إضافية؛ أو (ب) في حال سداد العميل رسوم الاحتفاظ كاملةً دفعةً واحدة، رد رسوم الاحتفاظ بعد خصم نسبة العمل الذي أنجزته CW Migration حتى تاريخه. ويُعالج أي استرداد من هذا النوع خلال تسعين (90) يومًا تقويميًا وفق الطريقة المنصوص عليها في البند 8.5. وتظل رسوم الحكومة / الجهات المختصة على عاتق العميل وحده.',
   ]],
   ['9. CONFIDENTIALITY AND DATA PROTECTION', [
     '9.1 Both parties agree to maintain the confidentiality of all information received under this Agreement. Confidential Information shall not be disclosed without prior written consent, except as required by law.',
-    '9.2 The Client consents to CW Migration sharing their personal information with third parties as necessary to provide the Services (e.g., skills assessment bodies, Department of Home Affairs, nomination authorities, translators, and IELTS/PTE bodies). CW Migration may use the Client’s name or testimonial for marketing and branding purposes only with the Client’s prior consent, which the Client may withdraw at any time by email.',
+    '9.2 The Client consents to CW Migration sharing their personal information with third parties as necessary to provide the Services (e.g., skills assessment bodies, immigration departments, educational institutions, nomination authorities, translators, and IELTS/PTE bodies). CW Migration may use the Client’s name or testimonial for marketing and branding purposes only with the Client’s prior consent, which the Client may withdraw at any time by email.',
     '9.3 CW Migration processes the Client’s personal data in accordance with UAE Federal Decree-Law No. 45 of 2021 on the Protection of Personal Data (PDPL) and any applicable regulations thereunder.',
     '9.4 The Client releases CW Migration from all liability arising from electronic communications interception, delay, or delivery failure, provided CW Migration uses reasonable security measures.',
   ], '9. السرية وحماية البيانات', [
     '9.1 يتفق الطرفان على الحفاظ على سرية جميع المعلومات المتلقاة بموجب هذه الاتفاقية. ولا يجوز الإفصاح عن المعلومات السرية دون موافقة كتابية مسبقة، إلا وفق ما يقتضيه القانون.',
-    '9.2 يوافق العميل على مشاركة CW Migration لمعلوماته الشخصية مع أطراف ثالثة بالقدر اللازم لتقديم الخدمات (مثل هيئات تقييم المهارات، ووزارة الشؤون الداخلية، وجهات الترشيح، والمترجمين، وهيئات اختبار الآيلتس/البيرسون). ولا يجوز لـ CW Migration استخدام اسم العميل أو شهادته لأغراض التسويق والترويج إلا بموافقة العميل المسبقة، ويجوز للعميل سحب هذه الموافقة في أي وقت عبر البريد الإلكتروني.',
+    '9.2 يوافق العميل على مشاركة CW Migration لمعلوماته الشخصية مع أطراف ثالثة بالقدر اللازم لتقديم الخدمات (مثل جهات تقييم المهارات، ودوائر الهجرة، والمؤسسات التعليمية، وجهات الترشيح، والمترجمين، وجهات اختبار IELTS/PTE). ولا يجوز لـ CW Migration استخدام اسم العميل أو شهادته لأغراض التسويق والترويج إلا بموافقة العميل المسبقة، ويجوز للعميل سحب هذه الموافقة في أي وقت عبر البريد الإلكتروني.',
     '9.3 تعالج CW Migration بيانات العميل الشخصية وفقًا للمرسوم بقانون اتحادي رقم 45 لسنة 2021 بشأن حماية البيانات الشخصية (PDPL) وأي لوائح تنفيذية سارية بموجبه.',
     '9.4 يُعفي العميل CW Migration من أي مسؤولية ناشئة عن اعتراض الاتصالات الإلكترونية أو تأخرها أو فشل تسليمها، شريطة أن تتخذ CW Migration تدابير أمنية معقولة.',
   ]],
@@ -260,7 +270,7 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '10.3 CW Migration may terminate immediately and without notice for: non-payment; provision of false or forged documents; material breach; Client misconduct (Clause 4.6); breach of Clause 4.12; unauthorised engagement of another agent; or any circumstance described in Clause 8.2.',
     '10.4 Upon termination: (a) all CW Migration obligations cease; (b) no refund is due except strictly as set out in Clause 8; (c) the Client remains liable for all outstanding fees and charges; and (d) Clauses 6, 7, 8, 9, 11, and 13 survive termination.',
   ], '10. مدة الاتفاقية وإنهاؤها', [
-    '10.1 تسري هذه الاتفاقية اعتبارًا من تاريخ التوقيع وتظل نافذة حتى إتمام الخدمات أو حتى إنهائها وفقًا لهذا البند. وما لم يُنص على خلاف ذلك في الملحق أ، تسري هذه الاتفاقية لمدة 24 شهرًا من تاريخ التوقيع ويجوز تجديدها بموافقة كتابية متبادلة.',
+    '10.1 تسري هذه الاتفاقية اعتبارًا من تاريخ التوقيع وتظل نافذة حتى إتمام الخدمات أو حتى إنهائها وفقًا لهذا البند. وما لم يُنص على خلاف ذلك في الملحق (أ)، تسري هذه الاتفاقية لمدة 24 شهرًا من تاريخ التوقيع ويجوز تجديدها بموافقة كتابية متبادلة.',
     '10.2 يحق لأي من الطرفين إنهاء الاتفاقية بإشعار كتابي مسبق مدته خمسة عشر (15) يومًا عبر البريد الإلكتروني.',
     '10.3 يجوز لـ CW Migration إنهاء الاتفاقية فورًا ودون إشعار في الحالات التالية: عدم السداد؛ تقديم مستندات كاذبة أو مزورة؛ الإخلال الجوهري؛ سوء سلوك العميل (البند 4.6)؛ الإخلال بالبند 4.12؛ الاستعانة بوكيل آخر دون تصريح؛ أو أي حالة من الحالات الواردة في البند 8.2.',
     '10.4 عند الإنهاء: (أ) تنتهي جميع التزامات CW Migration؛ (ب) لا يستحق أي استرداد إلا وفق ما هو منصوص عليه حصرًا في البند 8؛ (ج) يظل العميل مسؤولًا عن جميع الرسوم والتكاليف المستحقة؛ و(د) تظل البنود 6 و7 و8 و9 و11 و13 سارية بعد الإنهاء.',
@@ -268,12 +278,12 @@ const clauses: Array<[string, string[], string, string[]]> = [
   ['11. SOCIAL MEDIA, REVIEWS, AND DEFAMATION', [
     '11.1 The Client agrees not to publish, on any platform (including Google, social media, review sites, or messaging applications), any content about CW Migration or its employees that is factually false or misleading, defamatory, malicious or abusive, or designed to cause commercial harm without factual basis.',
     '11.2 Legitimate grievances shall be addressed exclusively through the dispute resolution mechanism in Clause 13. The Client agrees to exhaust that process before making any public statement about CW Migration in connection with a dispute arising from this Agreement.',
-    '11.3 CW Migration reserves the right to seek injunctive relief, damages, and all available remedies under UAE Federal Decree-Law No. 34 of 2021 on Combating Rumours and Cybercrime, UAE Federal Decree-Law No. 31 of 2021 (Penal Code), and applicable defamation laws in any relevant jurisdiction (including Australia, Canada, or the Client’s country of residence), for any breach of this Clause.',
+    '11.3 CW Migration reserves the right to seek injunctive relief, damages, and all available remedies under UAE Federal Decree-Law No. 34 of 2021 on Combating Rumours and Cybercrime, UAE Federal Decree-Law No. 31 of 2021 (Penal Code), and applicable defamation laws in any relevant jurisdiction (including the destination country or the Client’s country of residence), for any breach of this Clause.',
     '11.4 Nothing in this Clause prevents the Client from making truthful, factual, and non-malicious statements about their experience with CW Migration in good faith, provided the Client has first followed the dispute resolution process under Clause 13.',
   ], '11. وسائل التواصل الاجتماعي والمراجعات والتشهير', [
     '11.1 يوافق العميل على عدم نشر أي محتوى عن CW Migration أو موظفيها، على أي منصة (بما في ذلك جوجل، ووسائل التواصل الاجتماعي، ومواقع المراجعات، وتطبيقات المراسلة)، يكون كاذبًا أو مضللًا من الناحية الواقعية، أو تشهيريًا، أو كيديًا أو مسيئًا، أو يهدف إلى إلحاق ضرر تجاري دون أساس واقعي.',
     '11.2 تُعالج الشكاوى المشروعة حصرًا من خلال آلية تسوية المنازعات المنصوص عليها في البند 13. ويوافق العميل على استنفاد هذه الإجراءات قبل الإدلاء بأي تصريح علني بشأن CW Migration فيما يتعلق بأي نزاع ناشئ عن هذه الاتفاقية.',
-    '11.3 تحتفظ CW Migration بحقها في طلب الإنصاف القضائي العاجل والتعويضات وجميع سبل الانتصاف المتاحة بموجب المرسوم بقانون اتحادي رقم 34 لسنة 2021 بشأن مكافحة الشائعات والجرائم الإلكترونية، والمرسوم بقانون اتحادي رقم 31 لسنة 2021 (قانون العقوبات)، وقوانين التشهير المعمول بها في أي اختصاص قضائي ذي صلة (بما في ذلك أستراليا أو كندا أو بلد إقامة العميل)، عن أي إخلال بهذا البند.',
+    '11.3 تحتفظ CW Migration بحقها في طلب الإنصاف القضائي العاجل والتعويضات وجميع سبل الانتصاف المتاحة بموجب المرسوم بقانون اتحادي رقم 34 لسنة 2021 بشأن مكافحة الشائعات والجرائم الإلكترونية، والمرسوم بقانون اتحادي رقم 31 لسنة 2021 (قانون العقوبات)، وقوانين التشهير المعمول بها في أي اختصاص قضائي ذي صلة (بما في ذلك بلد الوجهة أو بلد إقامة العميل)، عن أي إخلال بهذا البند.',
     '11.4 لا يحول هذا البند دون قيام العميل بالإدلاء بتصريحات صادقة وواقعية وغير كيدية عن تجربته مع CW Migration بحسن نية، شريطة أن يكون العميل قد اتبع أولًا إجراءات تسوية المنازعات المنصوص عليها في البند 13.',
   ]],
   ['12. FORCE MAJEURE', [
@@ -289,14 +299,14 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '13.3 Any dispute, controversy, or claim arising out of or relating to this Agreement, including its existence, validity, interpretation, performance, breach, or termination — including any dispute concerning a refusal, refund, or fee — that is not resolved through negotiation under Clause 13.2 shall be finally and exclusively resolved by arbitration administered by the Dubai International Arbitration Centre (DIAC) in accordance with its Arbitration Rules in force at the time the arbitration is commenced. The seat of arbitration shall be Dubai, UAE. The language of the arbitration shall be English (with Arabic translation available). The tribunal shall consist of one (1) arbitrator appointed in accordance with the DIAC Rules. The arbitral award shall be final and binding on both parties.',
     '13.4 Notwithstanding Clause 13.3, CW Migration reserves the right to seek urgent interim or injunctive relief (including for non-payment, breach of confidentiality, or defamation) from any competent court, without this being deemed a waiver of the arbitration agreement.',
     '13.5 The Client acknowledges that pursuing a dispute through a consumer complaint, regulatory body, or public statement in parallel with, or instead of, the process set out in this Clause does not suspend or waive CW Migration’s right to invoke this Clause 13 or Clause 7 (Indemnification).',
-    '13.6 Nothing in this Agreement limits or restricts the Client’s right to lodge a complaint with OMARA regarding the conduct of a registered migration agent.',
+    '13.6 Nothing in this Agreement limits or restricts the Client’s right to lodge a complaint with the relevant Regulator regarding the conduct of a registered migration agent or licensed representative.',
   ], '13. القانون الحاكم وتسوية المنازعات', [
     '13.1 تخضع هذه الاتفاقية لقوانين دولة الإمارات العربية المتحدة، وتحديدًا القوانين السارية في إمارة دبي.',
     '13.2 تُعالج المنازعات أولًا من خلال مفاوضات بحسن نية خلال 21 يومًا من تاريخ الإشعار الكتابي.',
     '13.3 أي نزاع أو خلاف أو مطالبة تنشأ عن أو تتعلق بهذه الاتفاقية، بما في ذلك وجودها أو صحتها أو تفسيرها أو تنفيذها أو الإخلال بها أو إنهاؤها — بما في ذلك أي نزاع يتعلق برفض أو استرداد أو رسوم — ولم تتم تسويته من خلال المفاوضات بموجب البند 13.2، يُحال إلى التحكيم بشكل نهائي وحصري وفقًا لقواعد التحكيم لدى مركز دبي الدولي للتحكيم (DIAC) السارية وقت بدء إجراءات التحكيم. ويكون مقر التحكيم في دبي، الإمارات العربية المتحدة. وتكون لغة التحكيم الإنجليزية (مع توفر ترجمة عربية). وتتألف هيئة التحكيم من محكّم واحد (1) يُعيَّن وفقًا لقواعد DIAC. ويكون قرار التحكيم نهائيًا وملزمًا للطرفين.',
     '13.4 بصرف النظر عن البند 13.3، تحتفظ CW Migration بحقها في طلب الإنصاف القضائي العاجل أو المؤقت (بما في ذلك بخصوص عدم السداد، أو خرق السرية، أو التشهير) من أي محكمة مختصة، دون اعتبار ذلك تنازلًا عن اتفاق التحكيم.',
     '13.5 يقر العميل بأن اللجوء إلى شكوى استهلاكية أو جهة تنظيمية أو تصريح علني بالتوازي مع، أو بدلًا من، الإجراءات المنصوص عليها في هذا البند لا يعلّق أو يُسقط حق CW Migration في الاحتجاج بهذا البند 13 أو البند 7 (التعويض).',
-    '13.6 لا يحدّ أي نص في هذه الاتفاقية من حق العميل في تقديم شكوى إلى OMARA بشأن سلوك وكيل هجرة مسجل.',
+    '13.6 لا يحدّ أي نص في هذه الاتفاقية من حق العميل في تقديم شكوى إلى الجهة المنظِّمة ذات الصلة بشأن سلوك وكيل هجرة مسجل أو ممثل مرخص.',
   ]],
   ['14. GENERAL PROVISIONS', [
     '14.1 Entire Agreement: This Agreement, including Annexure A, together with CW Migration’s website terms and any referenced policies as updated from time to time, constitutes the entire agreement between the parties and supersedes all prior discussions, representations, and agreements, whether oral or written.',
@@ -305,15 +315,15 @@ const clauses: Array<[string, string[], string, string[]]> = [
     '14.4 Assignment: The Client may not assign or transfer any rights or obligations under this Agreement without CW Migration’s prior written consent. CW Migration may assign this Agreement to an affiliate or successor entity within the CW Migration group.',
     '14.5 Notices: Any notice under this Agreement shall be in writing and sent by email or registered mail to the addresses on record, and shall be deemed effective on the day of delivery or the next business day if mailed.',
     '14.6 No Waiver: Failure by CW Migration to enforce any provision of this Agreement shall not be construed as a waiver of that or any other provision.',
-    '14.7 By signing below, the Client confirms they have read, understood, and had the opportunity to seek independent advice on this Agreement (including its Refund Policy and dispute resolution mechanism) prior to signing, have received a copy of the OMARA Consumer Guide, and agree to be bound by all its terms.',
+    '14.7 By signing below, the Client confirms they have read, understood, and had the opportunity to seek independent advice on this Agreement (including its Refund Policy and dispute resolution mechanism) prior to signing, have received a copy of any consumer guide required by the relevant Regulator, and agree to be bound by all its terms.',
   ], '14. أحكام عامة', [
-    '14.1 الاتفاق الكامل: تشكل هذه الاتفاقية، بما في ذلك الملحق أ، إلى جانب شروط موقع CW Migration وأي سياسات مشار إليها عند تحديثها من وقت لآخر، الاتفاق الكامل بين الطرفين وتحل محل جميع المناقشات والتصريحات والاتفاقيات السابقة، سواء كانت شفهية أو كتابية.',
+    '14.1 الاتفاق الكامل: تشكل هذه الاتفاقية، بما في ذلك الملحق (أ)، إلى جانب شروط موقع CW Migration وأي سياسات مشار إليها عند تحديثها من وقت لآخر، الاتفاق الكامل بين الطرفين وتحل محل جميع المناقشات والتصريحات والاتفاقيات السابقة، سواء كانت شفهية أو كتابية.',
     '14.2 التعديلات: تستلزم أي تعديلات وثيقة كتابية موقعة من الطرفين، باستثناء أن CW Migration يجوز لها تحديث تقديرات رسوم الحكومة/الجهات المختصة دون تعديل هذه الاتفاقية، حيث إن هذه الرسوم خارجة عن سيطرة CW Migration.',
     '14.3 قابلية الفصل: إذا تبين بطلان أو عدم قابلية إنفاذ أي حكم من أحكام هذه الاتفاقية، تظل الأحكام المتبقية سارية المفعول بالكامل، ويُستبدل الحكم الباطل بحكم صحيح يعكس بأقرب ما يمكن نية الطرفين الأصلية.',
     '14.4 التنازل: لا يجوز للعميل التنازل عن أو نقل أي حقوق أو التزامات بموجب هذه الاتفاقية دون موافقة كتابية مسبقة من CW Migration. ويجوز لـ CW Migration التنازل عن هذه الاتفاقية لشركة تابعة أو خلف ضمن مجموعة CW Migration.',
     '14.5 الإشعارات: يجب أن يكون أي إشعار بموجب هذه الاتفاقية كتابيًا ويُرسل عبر البريد الإلكتروني أو البريد المسجل إلى العناوين المسجلة، ويُعتبر ساريًا في يوم التسليم أو يوم العمل التالي إذا أُرسل بالبريد.',
     '14.6 عدم التنازل: لا يُفسَّر إخفاق CW Migration في إنفاذ أي حكم من أحكام هذه الاتفاقية على أنه تنازل عن ذلك الحكم أو أي حكم آخر.',
-    '14.7 بالتوقيع أدناه، يؤكد العميل أنه قرأ وفهم هذه الاتفاقية وأتيحت له الفرصة للحصول على مشورة مستقلة بشأنها (بما في ذلك سياسة الاسترداد وآلية تسوية المنازعات) قبل التوقيع، وأنه استلم نسخة من دليل المستهلك الصادر عن OMARA، ويوافق على الالتزام بجميع أحكامها.',
+    '14.7 بالتوقيع أدناه، يؤكد العميل أنه قرأ وفهم هذه الاتفاقية وأتيحت له الفرصة للحصول على مشورة مستقلة بشأنها (بما في ذلك سياسة الاسترداد وآلية تسوية المنازعات) قبل التوقيع، وأنه استلم نسخة من أي دليل للمستهلك تشترطه الجهة المنظِّمة ذات الصلة، ويوافق على الالتزام بجميع أحكامها.',
   ]],
 ];
 
@@ -366,6 +376,11 @@ export const clauseSection = (englishTitle: string, english: string[], arabicTit
   return `<section class="cmg-block cmg-clause">${sectionHeader(englishTitle, arabicTitle)}<div class="cmg-rows">${rows}</div></section>`;
 };
 
+// Orange rounded triangle from the CW logo, as a crisp inline SVG for the
+// @page margin box (margin boxes only accept url() images at intrinsic size).
+const FOOTER_ICON_SVG = "data:image/svg+xml;utf8," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="10" viewBox="0 0 22 20"><path d="M3.2 1h15.6c1.9 0 3 2 2 3.6L12.8 18.4c-.9 1.6-2.7 1.6-3.6 0L1.2 4.6C.2 3 1.3 1 3.2 1z" fill="#ff7714"/></svg>');
+
 // Shared <style> block for every bilingual agreement (this one and the Skills
 // Assessment + Resume Marketing agreement) so they print identically.
 export const agreementStyles = () => `
@@ -378,7 +393,7 @@ export const agreementStyles = () => `
       /* The address footer lives in the margin box too — a position: fixed
          footer sits inside the content area and overprints the last row. */
       @bottom-left {
-        content: "${COMPANY.brandEn} — ${COMPANY.addressEn}";
+        content: url("${FOOTER_ICON_SVG}") "  ${COMPANY.brandEn} — ${COMPANY.addressEn}";
         color: #667;
         font-family: Arial, Helvetica, sans-serif;
         font-size: 8px;
@@ -396,10 +411,12 @@ export const agreementStyles = () => `
     }
     * { box-sizing: border-box; }
     :root {
-      --navy: #0f2a4a;
-      --navy-dark: #0a1e38;
-      --border: #9fb0c8;
-      --stripe: #eaf0f9;
+      --navy: #003087;
+      --navy-dark: #00246a;
+      --orange: #ff7714;
+      --grey: #6f6f6f;
+      --border: #c5d0e3;
+      --stripe: #eef2fa;
     }
     html, body {
       margin: 0; padding: 0;
@@ -413,10 +430,19 @@ export const agreementStyles = () => `
     }
     .document { width: 100%; max-width: 8.27in; margin: 0 auto; }
 
-    .brand-logo { text-align: center; margin-bottom: 6px; }
-    .brand-logo img { height: 62px; width: auto; }
+    /* ── brand header: horizontal logo left, company details right ── */
+    .cw-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      border-bottom: 3px solid var(--orange);
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+    }
+    .cw-header .cw-logo img { height: 54px; width: auto; display: block; }
+    .cw-header .cw-company { text-align: right; font-size: 9px; color: var(--grey); line-height: 1.45; }
+    .cw-header .cw-company .name { font-size: 12px; font-weight: 800; color: var(--navy); }
+    .cw-header .cw-company .name .ar { font-family: Tahoma, Arial, sans-serif; }
 
-    /* ── letterhead ── */
+    /* ── letterhead (legacy two-column variant) ── */
     .letterhead {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -433,6 +459,7 @@ export const agreementStyles = () => `
 
     .title-bar {
       background: var(--navy);
+      border-bottom: 3px solid var(--orange);
       color: #fff;
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -456,6 +483,7 @@ export const agreementStyles = () => `
       break-after: avoid;
       page-break-after: avoid;
       background: var(--navy);
+      border-bottom: 2px solid var(--orange);
       color: #fff;
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -479,8 +507,10 @@ export const agreementStyles = () => `
     .preamble p:last-child { margin-bottom: 0; }
 
     .annexure-title {
-      background: #e5e7eb;
-      border: 1px solid var(--border);
+      background: var(--navy);
+      color: #fff;
+      border: 1px solid var(--navy);
+      border-bottom: 3px solid var(--orange);
       display: grid;
       grid-template-columns: 1fr 1fr;
       padding: 7px 10px;
@@ -497,9 +527,16 @@ export const agreementStyles = () => `
     .print-footer {
       position: fixed;
       left: 8mm; right: 8mm; bottom: 4mm;
-      display: flex; justify-content: space-between;
+      display: flex; justify-content: space-between; align-items: center;
       color: #667; font-size: 8px;
     }
+    .print-footer img { height: 10px; width: auto; vertical-align: middle; margin-right: 4px; }
+    .fee-table { width: 100%; border-collapse: collapse; font-size: 10.3px; }
+    .fee-table th { background: var(--navy); color: #fff; text-align: left; padding: 5px 8px; border-bottom: 2px solid var(--orange); }
+    .fee-table th.num, .fee-table td.num { text-align: right; white-space: nowrap; }
+    .fee-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .fee-table tr.total td { background: var(--stripe); font-weight: 700; }
+    .fee-table .ar { font-family: Tahoma, Arial, sans-serif; color: var(--grey); direction: rtl; display: block; }
 
     @media screen {
       body { background: #eef0f3; padding: 14px 0; }
@@ -512,6 +549,8 @@ export const agreementStyles = () => `
       .letterhead, .title-bar, .cmg-section-header, .annexure-title {
         grid-template-columns: 1fr;
       }
+      .cw-header { flex-direction: column; align-items: flex-start; }
+      .cw-header .cw-company { text-align: left; }
       .cmg-row { flex-direction: column; }
       .letterhead .en, .title-bar .en, .cmg-row .en { border-right: 0; border-bottom: 1px solid var(--border); }
     }
@@ -519,31 +558,51 @@ export const agreementStyles = () => `
 `;
 
 
-// Logo shown above the letterhead of every agreement (inline so it survives
-// being stored as HTML and opened in a blank window).
-export const logoHtml = () => `<div class="brand-logo"><img src="${BRAND_LOGO_DATA_URI}" alt="${esc(COMPANY.brandEn)}"></div>`;
+// Brand header shared by every agreement: horizontal CW logo on the left,
+// company details on the right (inline images so it survives being stored as
+// HTML and opened in a blank window).
+export const headerHtml = () => `<header class="cw-header">
+      <div class="cw-logo"><img src="${BRAND_LOGO_DATA_URI}" alt="${esc(COMPANY.brandEn)}"></div>
+      <div class="cw-company">
+        <div class="name"><span class="ar" dir="rtl" lang="ar">${esc(COMPANY.brandAr)}</span> | ${esc(COMPANY.brandEn)}</div>
+        <div>Legal Name: ${esc(COMPANY.nameEn)}</div>
+        <div>${esc(COMPANY.addressEn)}</div>
+        <div>${esc(COMPANY.contactEn)}</div>
+      </div>
+    </header>`;
 
-const OMARA_CLAUSE = /^(1\.7|2\.5|13\.6)\s/;
+export const footerHtml = () => `<footer class="print-footer">
+      <span><img src="${BRAND_ICON_DATA_URI}" alt="">${esc(COMPANY.brandEn)} — ${esc(COMPANY.addressEn)}</span>
+    </footer>`;
 
-// Non-MARA agreements drop the OMARA definition (1.7), the MARA-agent
-// supervision clause (2.5) and the OMARA complaint clause (13.6), renumber the
-// definitions that follow, and strip the MARA wording from the remaining text.
+const REGULATOR_CLAUSE = /^(1\.7|2\.5|13\.6)\s/;
+
+// Agreements with no Registered Representative (no regulated agent) drop the
+// Regulator definition (1.7), the Registered-Representative supervision clause
+// (2.5) and the Regulator complaint clause (13.6), renumber the clauses that
+// follow, and strip the regulator wording from the remaining text.
 export const withoutMara = (text: string) => text
-  .replace(', MARA agents,', ',')
-  .replace('، أو وكلاء مسجلين لدى MARA،', '،')
-  .replace(' through MARA-registered migration agents', '')
-  .replace(' من خلال وكلاء هجرة مسجلين لدى MARA', '')
-  .replace(', have received a copy of the OMARA Consumer Guide, and agree', ', and agree')
-  .replace('، وأنه استلم نسخة من دليل المستهلك الصادر عن OMARA، ويوافق', '، ويوافق');
+  .replace(' through regulated and registered migration agents and licensed representatives, as applicable to the destination country', '')
+  .replace(' عن طريق وكلاء هجرة مرخصين ومسجلين وممثلين مرخصين، بحسب ما ينطبق على بلد الوجهة', '')
+  .replace(', have received a copy of any consumer guide required by the relevant Regulator, and agree', ', and agree')
+  .replace('، وأنه استلم نسخة من أي دليل للمستهلك تشترطه الجهة المنظِّمة ذات الصلة، ويوافق', '، ويوافق')
+  .replace(' (MARA, RCIC or other licensed representative)', '')
+  .replace(/Clause 2[.]6/g, "Clause 2.5");
+
+// After dropping 1.7 / 2.5, shift later numbers in that clause down by one.
+const renumber = (t: string) => {
+  const m = t.match(/^(1|2)\.(\d+)\s/);
+  if (!m) return t;
+  const threshold = m[1] === '1' ? 7 : 5;
+  const n = Number(m[2]);
+  return n > threshold ? t.replace(/^(1|2)\.\d+/, `${m[1]}.${n - 1}`) : t;
+};
 
 function clausesFor(maraAgent: boolean) {
   if (maraAgent) return clauses;
   const adapt = (body: string[]) => body
-    .filter((t) => !OMARA_CLAUSE.test(t))
-    .map((t) => {
-      const m = t.match(/^1\.(\d+)\s/);
-      return withoutMara(m && Number(m[1]) > 7 ? t.replace(/^1\.\d+/,`1.${Number(m[1]) - 1}`) : t);
-    });
+    .filter((t) => !REGULATOR_CLAUSE.test(t))
+    .map((t) => withoutMara(renumber(t)));
   return clauses.map(([enTitle, enBody, arTitle, arBody]): [string, string[], string, string[]] =>
     [enTitle, adapt(enBody), arTitle, adapt(arBody)]);
 }
@@ -560,7 +619,7 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
   const clientEmail = textOrBlank(v.clientEmail);
   const serviceProgram = textOrBlank(v.serviceProgram);
   const destinationCountry = textOrBlank(v.destinationCountry);
-  const visaSubclass = textOrBlank(v.visaSubclass, 'To be confirmed based on the applicable occupation/points assessment');
+  const visaSubclass = String(v.visaSubclass ?? '').trim();
   const totalAmount = textOrBlank(v.totalAmount);
   const initialPayment = textOrBlank(v.initialPayment);
   const secondPayment = textOrBlank(v.secondPayment);
@@ -569,15 +628,18 @@ export function renderDubaiAgreement(v: DubaiAgreementValues): string {
   // it refers to the agreed payment plan (Clause 5.7) instead.
   const secondPaymentDue = String(v.secondPaymentDue ?? '').trim();
   const secondPaymentSummaryEn = secondPaymentDue ? `Due: ${secondPaymentDue}` : 'As per Annexure A';
-  const secondPaymentSummaryAr = secondPaymentDue ? `تستحق: ${secondPaymentDue}` : 'وفق الملحق أ';
+  const secondPaymentSummaryAr = secondPaymentDue ? `تستحق: ${secondPaymentDue}` : 'وفق الملحق (أ)';
   const secondPaymentAnnexEn = secondPaymentDue || 'As per the payment plan agreed with CW Migration (Clause 5.7)';
   const secondPaymentAnnexAr = secondPaymentDue || 'وفق خطة السداد المتفق عليها مع CW Migration (البند 5.7)';
-  const includedDeliverables = textOrBlank(v.includedDeliverables, 'Eligibility assessment, document review, application preparation and submission, liaison with the Authority, as per Clause 2');
-  const expressExclusions = textOrBlank(v.expressExclusions, 'Legal representation; job placement guarantee; Government / Authority fees; services not listed above');
-  const specialTerms = textOrBlank(v.specialTerms, 'Standard Client Advisory Agreement terms apply as set out in the body of this Agreement');
+  const includedDeliverables = textOrBlank(v.includedDeliverables, 'Eligibility assessment, document review, application / profile preparation and submission, and liaison with the Authority or relevant body, as per Clause 2 and the service-specific terms in Clause 2.6.');
+  const expressExclusions = textOrBlank(v.expressExclusions, 'Legal representation; any guarantee of visa approval, admission, interview or job placement; Government / Authority fees; services not named above.');
+  const specialTerms = String(v.specialTerms ?? '').trim();
   const registeredMigrationAgent = textOrBlank(v.registeredMigrationAgent);
   const marn = textOrBlank(v.marn);
   const governmentFeeEstimate = textOrBlank(v.governmentFeeEstimate);
+  // Annexure A fee breakdown: VAT / Total Payable are optional inputs.
+  const vatAmount = String(v.vatAmount ?? '').trim();
+  const totalPayable = String(v.totalPayable ?? '').trim() || totalAmount;
 
   const maraAgent = v.maraAgent !== false;
   const clauseHtml = clausesFor(maraAgent).map(([enTitle, enBody, arTitle, arBody]) =>
@@ -593,33 +655,19 @@ ${agreementStyles()}
 </head>
 <body>
   <main class="document">
-    ${logoHtml()}
-    <header class="letterhead">
-      <div class="en">
-        <div class="company-name">${esc(COMPANY.brandEn.toUpperCase())}</div>
-        <div class="trading-as">Legal Name: ${esc(COMPANY.nameEn)}</div>
-        <div class="addr">${esc(COMPANY.addressEn)}</div>
-        <div class="addr">${esc(COMPANY.contactEn)}</div>
-      </div>
-      <div class="ar" dir="rtl" lang="ar">
-        <div class="company-name">${esc(COMPANY.brandAr)}</div>
-        <div class="trading-as">الاسم القانوني: ${esc(COMPANY.nameAr)}</div>
-        <div class="addr">${esc(COMPANY.addressAr)}</div>
-        <div class="addr">${esc(COMPANY.contactAr)}</div>
-      </div>
-    </header>
+    ${headerHtml()}
 
     <div class="title-bar">
       <span class="en">CLIENT ADVISORY AGREEMENT</span>
-      <span class="ar" dir="rtl" lang="ar">اتفاقية استشارية للعميل</span>
+      <span class="ar" dir="rtl" lang="ar">اتفاقية استشارية للعملاء</span>
     </div>
 
     ${section('AGREEMENT DETAILS', 'تفاصيل الاتفاقية', [
       row('Agreement No.', agreementNumber, 'رقم الاتفاقية'),
       row('Date', agreementDate, 'التاريخ'),
       row('Date of Expiry', agreementExpiryDate, 'تاريخ الانتهاء'),
-      row('Service Program', serviceProgram, 'برنامج الخدمة'),
-      row('Country', destinationCountry, 'الدولة'),
+      row('Service(s) Selected', 'As selected in Annexure A', 'الخدمة / الخدمات المختارة', 'وفق الاختيار في الملحق (أ)'),
+      row('Destination Country', destinationCountry, 'بلد الوجهة'),
     ].join(''))}
 
     ${section('SERVICE PROVIDER', 'مقدم الخدمة', [
@@ -627,8 +675,8 @@ ${agreementStyles()}
       row('Legal Name', COMPANY.nameEn, 'الاسم القانوني', COMPANY.nameAr),
       row('Address', COMPANY.addressEn, 'العنوان', COMPANY.addressAr),
       ...(maraAgent ? [
-        row('Registered Migration Agent', registeredMigrationAgent, 'وكيل الهجرة المسجل'),
-        row('MARN', marn, 'رقم التسجيل (MARN)'),
+        row('Registered Representative', registeredMigrationAgent, 'الممثل المسجل'),
+        row('Registration No.', marn, 'رقم التسجيل'),
       ] : []),
     ].join(''))}
 
@@ -641,7 +689,7 @@ ${agreementStyles()}
     ].join(''))}
 
     ${section('FEE SUMMARY', 'ملخص الرسوم', [
-      row('Total Retainer Fee', `${currencyCode} ${totalAmount}`, 'إجمالي رسوم الاحتجاز'),
+      row('Total Retainer Fee', `${currencyCode} ${totalAmount}`, 'إجمالي رسوم الاحتفاظ'),
       row('Initial Payment', `${currencyCode} ${initialPayment}`, 'الدفعة الأولى'),
       row('Second / Instalment Payment', `${currencyCode} ${secondPayment} (${secondPaymentSummaryEn})`, 'الدفعة الثانية / القسط', `${currencyCode} ${secondPayment} (${secondPaymentSummaryAr})`),
       row('Government / Authority Fees', `NOT INCLUDED — paid by Client directly (current estimate: ${currencyCode} ${governmentFeeEstimate})`, 'رسوم الحكومة / الجهات المختصة', `غير مشمولة — يدفعها العميل مباشرة (التقدير الحالي: ${currencyCode} ${governmentFeeEstimate})`),
@@ -649,53 +697,78 @@ ${agreementStyles()}
     ].join(''))}
 
     <section class="cmg-block cmg-clause preamble">
-      ${sectionHeader('PREAMBLE', 'تمهيد')}
-      <div class="cmg-rows"><div class="cmg-row">
-        <div class="en">This Client Advisory Agreement ("Agreement") is entered into between Commonwealth Migration Advisor ("CW Migration"), the trading name of Commonwealth Document Clearing Services LLC, a UAE-based migration consultancy that provides Australian visa services through MARA-registered migration agents, and the Client identified above.<br><br>WHEREAS CW Migration specialises in Australian skilled migration, partner visas, student visas, visitor visas, and related document clearing services for individuals in the UAE and the region.<br><br>WHEREAS the Client has been provided a full opportunity to read, review, and seek independent legal advice in relation to this Agreement prior to execution.<br><br>NOW THEREFORE, in consideration of the mutual covenants herein, the parties agree as follows:</div>
-        <div class="ar" dir="rtl" lang="ar">تُبرم اتفاقية الخدمات الاستشارية للعميل هذه ("الاتفاقية") بين مستشار كومنولث للهجرة ("CW Migration")، وهي الاسم التجاري لشركة خدمات كومنولث لتخليص المستندات ذ.م.م، وهي شركة استشارات هجرة مقرها دولة الإمارات العربية المتحدة تقدم خدمات التأشيرات الأسترالية من خلال وكلاء هجرة مسجلين لدى MARA، وبين العميل المحدد أعلاه.<br><br>حيث تتخصص CW Migration في الهجرة الماهرة إلى أستراليا، وتأشيرات الشريك، وتأشيرات الطلاب، وتأشيرات الزيارة، وخدمات تخليص المستندات ذات الصلة للأفراد في دولة الإمارات العربية المتحدة والمنطقة.<br><br>وحيث أُتيحت للعميل فرصة كاملة لقراءة هذه الاتفاقية ومراجعتها والحصول على مشورة قانونية مستقلة بشأنها قبل توقيعها.<br><br>لذلك، وبناءً على التعهدات المتبادلة الواردة في هذه الاتفاقية، يتفق الطرفان على ما يلي:</div>
-      </div></div>
+      ${sectionHeader('PREAMBLE', 'التمهيد')}
+      <div class="cmg-rows">
+        <div class="cmg-row">
+          <div class="en">This Client Advisory Agreement ("Agreement") is entered into between CW Migration Advisor ("CW Migration"), the trading name of Commonwealth Document Clearing Services LLC, a UAE-based migration consultancy that provides immigration, skills assessment, student, visitor and career-support services (as listed at cwmigration.com) through regulated and registered migration agents and licensed representatives, as applicable to the destination country, and the Client identified above.</div>
+          <div class="ar" dir="rtl" lang="ar">أُبرمت اتفاقية الاستشارة هذه للعملاء ("الاتفاقية") بين سي دبليو مستشار الهجرة ("CW Migration")، وهو الاسم التجاري لشركة كومنولث لتخليص المستندات ذ.م.م، وهي شركة استشارات هجرة مقرها دولة الإمارات العربية المتحدة تقدّم خدمات الهجرة وتقييم المهارات والتأشيرات الدراسية وتأشيرات الزيارة والدعم الوظيفي (كما هو مدرج على cwmigration.com) عن طريق وكلاء هجرة مرخصين ومسجلين وممثلين مرخصين، بحسب ما ينطبق على بلد الوجهة، وبين العميل المحدد أعلاه.</div>
+        </div>
+        <div class="cmg-row">
+          <div class="en">WHEREAS CW Migration specialises in permanent residence and skilled migration, skills assessment, student visas, visit visas, resume marketing, and related document clearing services for individuals in the UAE and the region, as listed on its website cwmigration.com.</div>
+          <div class="ar" dir="rtl" lang="ar">وحيث إن CW Migration متخصصة في الإقامة الدائمة والهجرة للعمالة الماهرة وتقييم المهارات والتأشيرات الدراسية وتأشيرات الزيارة وتسويق السيرة الذاتية وخدمات تخليص المستندات ذات الصلة للأفراد في دولة الإمارات والمنطقة، وفق ما هو مدرج على موقعها الإلكتروني cwmigration.com.</div>
+        </div>
+        <div class="cmg-row">
+          <div class="en">WHEREAS the Client has been provided a full opportunity to read, review, and seek independent legal advice in relation to this Agreement prior to execution.</div>
+          <div class="ar" dir="rtl" lang="ar">وحيث إنه قد أُتيحت للعميل الفرصة الكاملة لقراءة هذه الاتفاقية ومراجعتها والحصول على مشورة قانونية مستقلة بشأنها قبل التوقيع عليها.</div>
+        </div>
+        <div class="cmg-row">
+          <div class="en">NOW THEREFORE, in consideration of the mutual covenants herein, the parties agree as follows:</div>
+          <div class="ar" dir="rtl" lang="ar">وعليه، ونظير التعهدات المتبادلة الواردة في هذه الاتفاقية، اتفق الطرفان على ما يلي:</div>
+        </div>
+      </div>
     </section>
 
     ${clauseHtml}
 
     <div class="annexure-title">
       <span class="en">ANNEXURE A — SCOPE OF SERVICES AND FEE SCHEDULE</span>
-      <span class="ar" dir="rtl" lang="ar">الملحق أ — نطاق الخدمات وجدول الرسوم</span>
+      <span class="ar" dir="rtl" lang="ar">الملحق (أ) — نطاق الخدمات وجدول الرسوم</span>
     </div>
 
-    ${section('SERVICES TO BE PROVIDED', 'الخدمات المقدمة', [
-      row('Service Description', serviceProgram, 'وصف الخدمة'),
-      row('Visa Subclass(es)', visaSubclass, 'فئة/فئات التأشيرة'),
+    ${section('1. SERVICE DETAILS', '1. تفاصيل الخدمة', [
+      row('Service', serviceProgram, 'الخدمة'),
+      ...(visaSubclass ? [row('Visa Subclass(es)', visaSubclass, 'فئة/فئات التأشيرة')] : []),
       row('Scope Includes', includedDeliverables, 'يشمل النطاق'),
       row('Scope Excludes', expressExclusions, 'يستثني النطاق'),
+      ...(specialTerms ? [row('Special Terms', specialTerms, 'شروط خاصة')] : []),
     ].join(''))}
 
-    ${section('FEE SCHEDULE', 'جدول الرسوم', [
-      row('Total Retainer Fee', `${currencyCode} ${totalAmount}`, 'إجمالي رسوم الاحتجاز'),
-      row('Initial Payment', `${currencyCode} ${initialPayment} — Due upon signing`, 'الدفعة الأولى', `${currencyCode} ${initialPayment} — تستحق عند التوقيع`),
-      row('Second Payment', `${currencyCode} ${secondPayment} — Due: ${secondPaymentAnnexEn}`, 'الدفعة الثانية', `${currencyCode} ${secondPayment} — تستحق: ${secondPaymentAnnexAr}`),
-      row('Government Fees', `NOT INCLUDED — paid directly by Client (current estimate: ${currencyCode} ${governmentFeeEstimate})`, 'رسوم الحكومة', `غير مشمولة — يدفعها العميل مباشرة (التقدير الحالي: ${currencyCode} ${governmentFeeEstimate})`),
-      row('VAT', 'Applicable per UAE VAT Law', 'ضريبة القيمة المضافة', 'مطبقة وفق قانون ضريبة القيمة المضافة الإماراتي'),
-      row('Refund (if approved under Clause 8)', 'Processed within 90 calendar days of written approval, less applicable deductions per Clause 8.4', 'الاسترداد (إن ووفق عليه بموجب البند 8)', 'يُعالج خلال 90 يومًا تقويميًا من تاريخ الموافقة الكتابية، بعد خصم المبالغ المطبقة وفقًا للبند 8.4'),
-      row('Special Terms', specialTerms, 'شروط خاصة'),
+    <section class="cmg-block">
+      ${sectionHeader('2. FEES', '2. الرسوم')}
+      <table class="fee-table">
+        <thead><tr><th style="width:36px">No.</th><th>Description</th><th class="num">Amount (${esc(currencyCode)})</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Professional (Retainer) Fee — ${esc(serviceProgram)}<span class="ar" dir="rtl" lang="ar">أتعاب مهنية (رسوم الاحتفاظ)</span></td><td class="num">${esc(totalAmount)}</td></tr>
+          <tr><td>2</td><td>VAT as per UAE VAT Law<span class="ar" dir="rtl" lang="ar">ضريبة القيمة المضافة وفق القانون الإماراتي</span></td><td class="num">${esc(vatAmount || 'As per UAE VAT Law')}</td></tr>
+          <tr class="total"><td></td><td>Total Payable to CW Migration<span class="ar" dir="rtl" lang="ar">إجمالي المبلغ المستحق لـ CW Migration</span></td><td class="num">${esc(totalPayable)}</td></tr>
+          <tr><td>3</td><td>Government / Authority Fees — <strong>NOT INCLUDED</strong>, paid directly by the Client (current estimate)<span class="ar" dir="rtl" lang="ar">رسوم الحكومة / الجهات المختصة — غير مشمولة، يدفعها العميل مباشرة (التقدير الحالي)</span></td><td class="num">${esc(governmentFeeEstimate)}</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="cmg-block">
+      ${sectionHeader('3. PAYMENT SCHEDULE', '3. جدول الدفعات')}
+      <table class="fee-table">
+        <thead><tr><th style="width:36px">No.</th><th>Instalment</th><th>Due</th><th class="num">Amount (${esc(currencyCode)})</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Initial Payment<span class="ar" dir="rtl" lang="ar">الدفعة الأولى</span></td><td>Upon signing<span class="ar" dir="rtl" lang="ar">عند التوقيع</span></td><td class="num">${esc(initialPayment)}</td></tr>
+          <tr><td>2</td><td>Second Payment<span class="ar" dir="rtl" lang="ar">الدفعة الثانية</span></td><td>${esc(secondPaymentAnnexEn)}<span class="ar" dir="rtl" lang="ar">${esc(secondPaymentAnnexAr)}</span></td><td class="num">${esc(secondPayment)}</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    ${section('4. SIGNATURES', '4. التوقيعات', [
+      `<div class="cmg-row">
+          <div class="en"><strong>Client</strong><br><br>Signature: ________________________________<br><br>Name: ________________________________<br><br>Date: ________________________________</div>
+          <div class="ar" dir="rtl" lang="ar"><strong>العميل</strong><br><br>التوقيع: ________________________________<br><br>الاسم: ________________________________<br><br>التاريخ: ________________________________</div>
+        </div>`,
+      `<div class="cmg-row">
+          <div class="en"><strong>For and on Behalf of ${esc(COMPANY.nameEn)} (CW Migration)</strong><br><br>Authorised Signature: ________________________________<br><br>Name: ________________________________<br><br>Date: ________________________________</div>
+          <div class="ar" dir="rtl" lang="ar"><strong>نيابة عن ${esc(COMPANY.nameAr)} (CW Migration)</strong><br><br>التوقيع المعتمد: ________________________________<br><br>الاسم: ________________________________<br><br>التاريخ: ________________________________</div>
+        </div>`,
     ].join(''))}
 
-    <div class="cmg-block signature-block">
-      <div class="cmg-rows">
-        <div class="cmg-row">
-          <div class="en">Client Signature: ________________________________<br><br>Name: ________________________________<br><br>Date: ________________________________</div>
-          <div class="ar" dir="rtl" lang="ar">توقيع العميل: ________________________________<br><br>الاسم: ________________________________<br><br>التاريخ: ________________________________</div>
-        </div>
-        <div class="cmg-row">
-          <div class="en">For and on Behalf of ${esc(COMPANY.nameEn)} (CW Migration)<br><br>Authorised Signature: ________________________________<br><br>Name: ________________________________<br><br>Date: ________________________________</div>
-          <div class="ar" dir="rtl" lang="ar">نيابة عن ولصالح ${esc(COMPANY.nameAr)} (CW Migration)<br><br>التوقيع المعتمد: ________________________________<br><br>الاسم: ________________________________<br><br>التاريخ: ________________________________</div>
-        </div>
-      </div>
-    </div>
-
-    <footer class="print-footer">
-      <span>${esc(COMPANY.brandEn)} — ${esc(COMPANY.addressEn)}</span>
-    </footer>
+    ${footerHtml()}
   </main>
 </body>
 </html>`;
