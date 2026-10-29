@@ -124,8 +124,8 @@ export function getLeadBranchDetails(
   const bankBranch = String(dmBranch.bankBranch || leadData?.branchBankBranch || leadData?.branch_bank_branch || '').trim();
 
   return {
-    companyName: branchName || 'Commonwealth Migration Advisor',
-    branchName: branchName || 'Commonwealth Migration Advisor',
+    companyName: branchName || 'CW Migration Advisor',
+    branchName: branchName || 'CW Migration Advisor',
     branchNameAr,
     branchAddress,
     branchEmail,
@@ -144,13 +144,13 @@ export function getLeadBranchDetails(
 
 // Fixed legal identity of the single entity this app operates as — matches
 // the signed Tax Invoice/Receipt reference document exactly. The header
-// banner always reads "COMMONWEALTH MIGRATION ADVISOR" regardless of which
+// banner always reads "CW MIGRATION ADVISOR" regardless of which
 // branch/lead the receipt is for (the app operates a single UAE entity) —
 // never the raw dm_branch.name value, which is an internal office label
 // (e.g. "Dubai SZR"), not the company's trading identity.
 const CMG_LEGAL_NAME = 'Commonwealth Documents Clearing Services LLC';
-const CMG_DISPLAY_NAME = 'Commonwealth Migration Advisor';
-const CMG_TRADING_AS = 'Commonwealth Migration Advisor ("CW Migration")';
+const CMG_DISPLAY_NAME = 'CW Migration Advisor';
+const CMG_TRADING_AS = 'CW Migration Advisor ("CW Migration")';
 const CMG_ISSUER_EMAIL = 'accounts@cwmigrationgroup.ae';
 
 export interface BranchReceiptConfig {
